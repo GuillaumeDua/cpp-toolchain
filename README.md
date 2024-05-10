@@ -22,10 +22,12 @@ Available here on [DockerHub](https://hub.docker.com/repository/docker/guillaume
 
 ### Arguments
 
-- GCC_VERSIONS='>=11' : all|latest|>=(number)|(space-separated-numbers...)
-- LLVM_VERSIONS='>=14' : all|latest|>=(number)|(space-separated-numbers...)
-- integrate_Bazel : set to y to install
-- integrate_Build2 : set to y to install
+| Name                    | default  | description                                                         | example                                  |
+| ----------------------- | -------- | ------------------------------------------------------------------- | ---------------------------------------- |
+| GCC_VERSIONS            | `'>=11'` | `all`<br>`latest`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
+| LLVM_VERSIONS           | `'>=14'` | `all`<br>`latest`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
+| OPT_IN_INTEGRATE_BAZEL  | `n`      | `y` or `n`                                                   |                                          |
+| OPT_IN_INTEGRATE_BUILD2 | `n`      | `y` or `n`                                                   |                                          |
 
 ### Misc
 
