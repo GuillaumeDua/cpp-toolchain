@@ -39,8 +39,8 @@ Remote access using ssh (openssh-server, rsync) on port 22
 
 Make sure to meet the following requirements:
 
-- a `devcontainer.json` file. See [this example](./.devcontainer/devcontainer.json)
-- which make reference a `docker-compose.yml` file. See [this example](./.devcontainer/docker-compose.yaml)
+- a `devcontainer.json` file. See [this example](./.devcontainer/devcontainer.json).
+- which make reference a `docker-compose.yml` file. See [this example](./.devcontainer/docker-compose.yaml).
 
 ### vscode - "Remote SSH"
 
@@ -60,4 +60,3 @@ Host localhost
 ```
 
 with password "password"
-
