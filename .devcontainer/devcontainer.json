@@ -1,19 +1,22 @@
 {
-    "name": "devcontainer",
+    "name": "cpp-toolchain-dev",
     "dockerComposeFile": "./docker-compose.yaml",
     "service": "cpp-toolchain-dev",
     "workspaceFolder": "/workspace",
-    "remoteUser": "vscodeuser",
+    // "remoteUser": "vscodeuser", // no default user in the base image; opt-in via the ssh_support profile
     "shutdownAction": "stopCompose",
     "overrideCommand": true,
     "features": {
-        "git": "os-provided",
-        "sshd": "latest"
+        // see https://github.com/devcontainers/features/tree/main/src
+        "ghcr.io/devcontainers/features/git:1": {},
+        "ghcr.io/devcontainers/features/github-cli:1": {},
+        "ghcr.io/devcontainers/features/sshd:1": {}
     },
     "customizations": {
         "vscode": {
             "settings": {
-                "terminal.integrated.shell.linux": "/bin/bash",
+                "terminal.integrated.defaultProfile.linux": "zsh",
+                "terminal.integrated.profiles.linux": { "zsh": { "path": "/bin/zsh" } },
                 "remote.SSH.showLoginTerminal": true
             },
             "extensions": [
@@ -30,12 +33,16 @@
                 "ms-vscode.cmake-tools",
                 "ms-vscode.cpptools-extension-pack",
                 "fredericbonnet.cmake-test-adapter",
+                "josetr.cmake-language-support-vscode",
                 // misc
                 "Gruntfuggly.todo-tree",
                 "enkia.tokyo-night",
+                "ms-azuretools.vscode-docker",
+                "github.vscode-github-actions",
                 // documentation
                 "DavidAnson.vscode-markdownlint",
                 "yzhang.markdown-all-in-one",
+                "TakumiI.markdowntable",
                 "cschlosser.doxdocgen"
             ]
         },

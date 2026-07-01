@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   cpp-toolchain-dev:
-    user: vscodeuser
+    container_name: cpp-toolchain-dev
     build:
       context: . # TODO: image with a specific tag
       dockerfile: ./Dockerfile
@@ -12,12 +10,34 @@ services:
         LLVM_VERSIONS: '>=17'
         OPT_IN_INTEGRATE_BAZEL: no
         OPT_IN_INTEGRATE_BUILD2: no
-    ports:
-      - "2222:22"
     volumes:
       - ..:/workspace
     # network_mode: host
     # Required for ptrace-based debuggers like C++, Go, and Rust
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+
+  # Opt-in: SSH remote access on top of cpp-toolchain-dev. Build & run explicitly:
+  #   docker compose --profile ssh build ssh_support
+  #   docker compose --profile ssh run --service-ports ssh_support
+  ssh_support:
+    profiles: ["ssh"]
+    container_name: cpp-toolchain-dev_ssh-support
+    depends_on:
+      - cpp-toolchain-dev
+    build:
+      context: .
+      dockerfile: ./ssh_support.dockerfile
+      args:
+        BASE_IMAGE: 'cpp-toolchain-dev'
+        USER_NAME: 'vscodeuser'
+        USER_PASSWORD: 'password'
+    ports:
+      - "2222:22"
+    volumes:
+      - ..:/workspace
     cap_add:
       - SYS_PTRACE
     security_opt:
