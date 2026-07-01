@@ -8,9 +8,11 @@
     "overrideCommand": true,
     "features": {
         // see https://github.com/devcontainers/features/tree/main/src
+        // SSH is intentionally not added here: it's provided by the opt-in
+        // ssh_support.dockerfile stage, which also works for non-VS Code
+        // consumers of the published image (see README > Remote access).
         "ghcr.io/devcontainers/features/git:1": {},
-        "ghcr.io/devcontainers/features/github-cli:1": {},
-        "ghcr.io/devcontainers/features/sshd:1": {}
+        "ghcr.io/devcontainers/features/github-cli:1": {}
     },
     "customizations": {
         "vscode": {

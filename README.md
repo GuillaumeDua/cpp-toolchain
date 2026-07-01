@@ -26,14 +26,24 @@ Available here on [DockerHub](https://hub.docker.com/repository/docker/guillaume
 
 ### Arguments
 
-| Name                    | default  | description                                                                            | example                                  |
-| ----------------------- | -------- | --------------------------------------------------------------------------------------- | ----------------------------------------- |
-| GCC_VERSIONS            | `'>=11'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
-| LLVM_VERSIONS           | `'>=14'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
-| OPT_IN_INTEGRATE_BAZEL  | `n`      | `y` or `n`                                                                              |                                           |
-| OPT_IN_INTEGRATE_BUILD2 | `n`      | `y` or `n`                                                                              |                                           |
+| Name                    | default           | description                                                                            | example                                  |
+| ----------------------- | ----------------- | -------------------------------------------------------------------------------------- | ---------------------------------------- |
+| CMAKE_VERSION           | `latest`          | `latest`<br>(exact version, e.g. `3.29.3-0kitware1ubuntu24.04.1~jammy`)                | `latest`                                 |
+| GCC_VERSIONS            | `'latest-stable'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
+| LLVM_VERSIONS           | `'latest-stable'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
+| OPT_IN_INTEGRATE_BAZEL  | `n`               | `y` or `n`                                                                             |                                          |
+| OPT_IN_INTEGRATE_BUILD2 | `n`               | `y` or `n`                                                                             |                                          |
 
-See [.devcontainer/scripts/README.md](.devcontainer/scripts/README.md) for the full `gcc.sh` / `llvm.sh` options (also usable standalone on any Debian/Ubuntu-based system).
+The published image installs a single `latest-stable` for `GCC` and `Clang/LLVM` by default, to keep the image lean.  
+`gcc.sh` and `llvm.sh` both support installing **multiple versions side by side** (via `update-alternatives`), which is useful when you need to test against several compiler versions in the same environment. To get that in your own build, override the version args, e.g.:
+
+```bash
+docker build -t cpp-toolchain-dev -f .devcontainer/Dockerfile .devcontainer \
+    --build-arg GCC_VERSIONS='>=13' \
+    --build-arg LLVM_VERSIONS='12 20 22'
+```
+
+See [.devcontainer/scripts/README.md](.devcontainer/scripts/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` options (also usable standalone on any Debian/Ubuntu-based system).
 
 ### Remote access (opt-in)
 

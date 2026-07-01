@@ -6,8 +6,9 @@ services:
       dockerfile: ./Dockerfile
       args:
         BASE_IMAGE: 'ubuntu:latest'
-        GCC_VERSIONS: '>=13'
-        LLVM_VERSIONS: '>=17'
+        CMAKE_VERSION: 'latest'
+        GCC_VERSIONS: 'latest-stable'
+        LLVM_VERSIONS: 'latest-stable'
         OPT_IN_INTEGRATE_BAZEL: no
         OPT_IN_INTEGRATE_BUILD2: no
     volumes:

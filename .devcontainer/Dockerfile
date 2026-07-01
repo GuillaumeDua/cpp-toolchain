@@ -3,6 +3,8 @@ FROM ${BASE_IMAGE} as cpp-toolchain-dev
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
+ENV TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
+
 # Basics / installation prerequisites
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
         ca-certificates debian-keyring                      \
@@ -35,15 +37,13 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Build: CMake (https://apt.kitware.com/)
-#   quick-fix: Ubuntu-22.04-jammy instead of Ubuntu-24.04-noble -> kitware-archive.sh supports only Ubuntu releases up to Ubuntu-22.04-jammy
-RUN internal_script_path='impl.sh';                                                                         \
-    codename=$(value=$(lsb_release -cs); [[ "${value}" == "noble" ]] && value="jammy"; echo "${value}");    \
-    wget -qO ${internal_script_path} https://apt.kitware.com/kitware-archive.sh                             \
-    && chmod +x "${internal_script_path}"                                                                   \
-    && ./${internal_script_path} --release ${codename}                                                      \
-    && rm  -rf ${internal_script_path}                                                                      \
-    && apt update -qqy && apt install -qqy --no-install-recommends                                          \
-        cmake                                                                                                \
+COPY ./scripts/cmake.sh ${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh
+WORKDIR ${TOOLCHAIN_TMP_DIR}
+ARG CMAKE_VERSION='latest'
+RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh;                          \
+    echo -e "[C++ toolchain] Installing CMAKE_VERSION=[$CMAKE_VERSION] ..." ;   \
+    chmod +x ${script_path}                                                     \
+    && ${script_path} --silent=yes --alias=yes --versions="$CMAKE_VERSION"      \
     && rm -rf /var/lib/apt/lists/*
 
 # Build: Bazel (https://bazel.build/install/ubuntu)
@@ -86,11 +86,10 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
         libc6 libc6-dev libstdc++6 libc6-arm64-cross            \
         binutils-aarch64-linux-gnu binutils-powerpc64-linux-gnu
 
-ENV TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
 # C++ toolchain: GNU/GCC
 COPY ./scripts/gcc.sh ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
-ARG GCC_VERSIONS='>=11'
+ARG GCC_VERSIONS='latest-stable'
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh;                        \
     echo -e "[C++ toolchain] Installing GCC_VERSIONS=[$GCC_VERSIONS] ..." ; \
     chmod +x ${script_path}                                                 \
@@ -99,7 +98,7 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh;                        \
 # C++ toolchain: LLVM/Clang (https://apt.llvm.org/)
 COPY ./scripts/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
-ARG LLVM_VERSIONS='>=14'
+ARG LLVM_VERSIONS='latest-stable'
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           \
     echo -e "[C++ toolchain] Installing LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ;   \
     chmod +x ${script_path}                                                     \
