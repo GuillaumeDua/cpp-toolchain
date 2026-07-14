@@ -17,6 +17,11 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # multi-stage targets, each published as its own Docker Hub repo
+        target: [runtime, build, dev]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,14 +38,15 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push (${{ matrix.target }})
         uses: docker/build-push-action@v6
         with:
           context: .devcontainer
           file: .devcontainer/Dockerfile
+          target: ${{ matrix.target }}
           push: true
           tags: |
-            guillaumedua/cpp-toolchain-dev:latest
-            guillaumedua/cpp-toolchain-dev:${{ github.run_number }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            guillaumedua/cpp-toolchain-${{ matrix.target }}:latest
+            guillaumedua/cpp-toolchain-${{ matrix.target }}:${{ github.run_number }}
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}

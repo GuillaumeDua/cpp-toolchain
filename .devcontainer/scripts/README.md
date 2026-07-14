@@ -89,6 +89,8 @@ Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
 The latest stable version (per upstream's `CURRENT_LLVM_STABLE`) always gets `update-alternatives` priority `100`; other versions are prioritized by their version number.
 
+The multi-stage [Dockerfile](../Dockerfile) relies on `--minimalistic`: the `build` stage runs `llvm.sh --minimalistic` (registers only `clang`/`clang++`, keeping analysis tools out of the compile-only image), then the `dev` stage re-runs `llvm.sh` non-minimalistically to wire up `clang-tidy`/`clang-format`/`clangd`/`lldb`/`scan-build`.
+
 Example: install the two latest available versions:
 
 ```bash

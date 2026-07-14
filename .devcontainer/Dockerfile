@@ -1,11 +1,55 @@
+# =============================================================================================
+# cpp-toolchain - multi-stage build
+#
+#   Stages, each selectable via `docker build --target <stage>`:
+#     runtime : minimal C++ runtime (libc/libgcc/libstdc++) - deploy base for compiled binaries
+#     build   : runtime + compilers, build systems and dependency managers - CI/compile image
+#     dev     : build   + static analysis, debug, docs, editors, shells - full dev environment
+#
+#   The stages form a superset chain (dev > build > runtime), so `--target dev` yields the full
+#   image while `--target runtime` / `--target build` stop early for leaner images.
+#
+#   SSH remote access is an opt-in extra layer, built separately on top of the `dev` image via
+#   ./ssh_support.dockerfile (see docker-compose.yaml `ssh` profile / README > Remote access).
+# =============================================================================================
+
+# ---------------------------------------------------------------------------------------------
+# Stage: runtime - minimal image able to *run* binaries produced by the `build` stage.
+# ---------------------------------------------------------------------------------------------
 ARG BASE_IMAGE=ubuntu:latest
-FROM ${BASE_IMAGE} as cpp-toolchain-dev
+FROM ${BASE_IMAGE} AS runtime
+ARG DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+
+# Latest C++ runtime libraries, pulled from the same PPA the `build` stage installs GCC from, so
+# `--target runtime` can execute binaries linked against the newest libstdc++. The apt machinery
+# needed only to register the PPA is purged afterwards to keep this stage lean (the `build` stage
+# re-installs its own prerequisites on top).
+RUN apt-get update -qqy \
+    && apt-get install -qqy --no-install-recommends \
+        ca-certificates tzdata \
+        gnupg software-properties-common \
+    && add-apt-repository -y ppa:ubuntu-toolchain-r/test \
+    && apt-get update -qqy \
+    && apt-get install -qqy --no-install-recommends \
+        libc6 libgcc-s1 libstdc++6 \
+    && apt-get purge -y --auto-remove gnupg software-properties-common \
+    && rm -rf /var/lib/apt/lists/*
+
+CMD ["/bin/bash"]
+
+# ---------------------------------------------------------------------------------------------
+# Stage: build - everything required to *compile* C++ (compilers, build systems, dep managers).
+# ---------------------------------------------------------------------------------------------
+FROM runtime AS build
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
 ENV TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
 
 # Basics / installation prerequisites
+#   openssh-client (not the `ssh` metapackage) so no SSH *server* is shipped here: remote access
+#   is an opt-in layer (see ssh_support.dockerfile).
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
         ca-certificates debian-keyring                      \
         gpg gpg-agent gnupg                                 \
@@ -13,7 +57,7 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
         python3 pip                                         \
    && add-apt-repository -y ppa:ubuntu-toolchain-r/test     \
    && apt update -qqy && apt install -qqy --no-install-recommends \
-        wget ssh                                            \
+        wget openssh-client                                 \
         sudo tzdata curl libssl-dev                         \
         less tar zip unzip gzip                             \
         build-essential pkg-config                          \
@@ -22,18 +66,13 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
         # build: cache
         ccache                                              \
         # versioning
-        git subversion                                      \
-        # tools: dev
-        gdb                                                 \
-        # tools: analysis (TODO: sonarlint)
-        valgrind cppcheck iwyu                               \
-        # tools: documentation
-        doxygen graphviz                                    \
-        # tools: editors
-        emacs nano vim                                      \
-        # tools: others
-        docker-compose jq                                   \
-        ripgrep                                             \
+        git                                                 \
+    && rm -rf /var/lib/apt/lists/*
+
+# C++ toolchain: cross-compilation binutils + dev headers
+RUN apt update -qqy && apt install -qqy --no-install-recommends \
+        libc6-dev libc6-arm64-cross                             \
+        binutils-aarch64-linux-gnu binutils-powerpc64-linux-gnu \
     && rm -rf /var/lib/apt/lists/*
 
 # Build: CMake (https://apt.kitware.com/)
@@ -77,32 +116,29 @@ RUN \
     && (pipx install conan > /dev/null 2>&1)                    \
     && rm -rf /var/lib/apt/lists/*
 
-# TODO
-# - Tooling: static analysis
-# - Tooling: runtime analysis
-
-# C++ toolchain
-RUN apt update -qqy && apt install -qqy --no-install-recommends \
-        libc6 libc6-dev libstdc++6 libc6-arm64-cross            \
-        binutils-aarch64-linux-gnu binutils-powerpc64-linux-gnu
-
 # C++ toolchain: GNU/GCC
+#   apt update here: gcc.sh only refreshes lists when it has to *add* the ubuntu-toolchain-r PPA,
+#   which the `runtime` stage already registered, so it relies on a populated apt cache.
 COPY ./scripts/gcc.sh ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG GCC_VERSIONS='latest-stable'
-RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh;                        \
-    echo -e "[C++ toolchain] Installing GCC_VERSIONS=[$GCC_VERSIONS] ..." ; \
-    chmod +x ${script_path}                                                 \
+RUN apt-get update -qqy                                                       \
+    && script_path=${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh                        \
+    && echo -e "[C++ toolchain] Installing GCC_VERSIONS=[$GCC_VERSIONS] ..."  \
+    && chmod +x ${script_path}                                               \
     && ${script_path} --silent=yes --alias=yes --versions="$GCC_VERSIONS"
 
 # C++ toolchain: LLVM/Clang (https://apt.llvm.org/)
+#   `--minimalistic`: register only the clang/clang++ compilers here. The rest of the LLVM
+#   toolchain (clang-tidy, clang-format, clangd, lldb, scan-build, ...) is a static-analysis /
+#   dev concern and is wired up in the `dev` stage below.
 COPY ./scripts/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS='latest-stable'
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           \
     echo -e "[C++ toolchain] Installing LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ;   \
     chmod +x ${script_path}                                                     \
-    && ${script_path} --silent=yes --alias=yes --versions="$LLVM_VERSIONS"
+    && ${script_path} --silent=yes --alias=yes --minimalistic --versions="$LLVM_VERSIONS"
 
 # Build: Build2-0.16.0 (depends on a compiler)
 ARG OPT_IN_INTEGRATE_BUILD2='no'
@@ -117,6 +153,48 @@ RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" = "y" ]]; then                           
             --jobs $(nproc)                                                         \
         ;                                                                           \
     fi
+
+# Cleanup (keeps the published `build` image lean; `dev` re-runs `apt update` on top)
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+CMD ["/bin/bash"]
+
+# ---------------------------------------------------------------------------------------------
+# Stage: dev - full development environment.
+#   Adds static-analysis & debug tooling, documentation generators, editors and shells on top of
+#   the compile-only `build` stage. This is the image the devcontainer / published `-dev` uses.
+# ---------------------------------------------------------------------------------------------
+FROM build AS dev
+ARG DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+
+# Tooling: static analysis, debug, documentation, editors, versioning extras, misc
+RUN apt update -qqy && apt install -qqy --no-install-recommends \
+        # analysis
+        valgrind cppcheck iwyu                              \
+        # debug
+        gdb                                                 \
+        # versioning
+        subversion                                          \
+        # documentation
+        doxygen graphviz                                    \
+        # editors
+        emacs nano vim                                      \
+        # misc
+        docker-compose jq ripgrep                           \
+    && rm -rf /var/lib/apt/lists/*
+
+# C++ toolchain: LLVM/Clang - full toolchain (clang-tidy, clang-format, clangd, lldb, scan-build).
+#   Re-runs llvm.sh non-minimalistically to register the analysis/dev tools alongside the
+#   clang/clang++ compilers already installed by the `build` stage.
+COPY ./scripts/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
+WORKDIR ${TOOLCHAIN_TMP_DIR}
+ARG LLVM_VERSIONS='latest-stable'
+RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                   \
+    echo -e "[C++ dev] Installing LLVM dev tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ;  \
+    chmod +x ${script_path}                                                             \
+    && ${script_path} --silent=yes --alias=yes --versions="$LLVM_VERSIONS"              \
+    && rm -rf /var/lib/apt/lists/*
 
 # Tooling: shells - bash, zsh
 RUN apt update -qqy && apt install -qqy --no-install-recommends \

@@ -1,9 +1,11 @@
 services:
   cpp-toolchain-dev:
     container_name: cpp-toolchain-dev
+    image: cpp-toolchain-dev # so the opt-in ssh_support layer can build FROM it
     build:
-      context: . # TODO: image with a specific tag
+      context: .
       dockerfile: ./Dockerfile
+      target: dev # multi-stage: full dev image (runtime ⊂ build ⊂ dev)
       args:
         BASE_IMAGE: 'ubuntu:latest'
         CMAKE_VERSION: 'latest'

@@ -1,12 +1,31 @@
 # cpp-toolchain
 
-Up-to-date C++ toolchain docker for development.
+Up-to-date C++ toolchain docker images for development, built as a multi-stage [`Dockerfile`](.devcontainer/Dockerfile) and published as three DockerHub repositories.
 
 [![docker-publish](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml)
-[![Docker Pulls](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain-dev)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-dev/general)
-[![Docker Image Size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain-dev/latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-dev/general)
 
-Available here on [DockerHub](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-dev/general). Rebuilt weekly (and on every change) via [GitHub Actions](.github/workflows/docker-publish.yml).
+Rebuilt weekly (and on every change) via [GitHub Actions](.github/workflows/docker-publish.yml).
+
+## Images
+
+The [Dockerfile](.devcontainer/Dockerfile) is a superset chain (`dev` ⊃ `build` ⊃ `runtime`); each stage is published as its own image and can be selected locally with `docker build --target <stage>` (omitting `--target` builds `dev`, the last stage):
+
+| Image | `--target` | Purpose | Size |
+| ----- | ---------- | ------- | ---- |
+| [`cpp-toolchain-runtime`](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-runtime/general) | `runtime` | Minimal C++ runtime (`libc`/`libstdc++`) to **run** compiled binaries | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain-runtime/latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-runtime/general) |
+| [`cpp-toolchain-build`](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-build/general) | `build` | **Compile** C++: compilers, build systems, dependency managers (CI) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain-build/latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-build/general) |
+| [`cpp-toolchain-dev`](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-dev/general) | `dev` | Full **dev** environment: `build` + static analysis, debug, docs, editors, shells | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain-dev/latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-dev/general) |
+
+Pulls: [![runtime](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain-runtime?label=runtime)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-runtime/general) [![build](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain-build?label=build)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-build/general) [![dev](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain-dev?label=dev)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-dev/general)
+
+```bash
+# build a specific stage locally (context is .devcontainer)
+docker build --target runtime -t cpp-toolchain-runtime -f .devcontainer/Dockerfile .devcontainer
+docker build --target build   -t cpp-toolchain-build   -f .devcontainer/Dockerfile .devcontainer
+docker build --target dev      -t cpp-toolchain-dev     -f .devcontainer/Dockerfile .devcontainer
+```
+
+SSH remote access is an opt-in extra layer on top of `dev` — see [Remote access](#remote-access-opt-in) below.
 
 ---
 
@@ -14,15 +33,23 @@ Available here on [DockerHub](https://hub.docker.com/repository/docker/guillaume
 
 ### Packages
 
-- Compilers: GNU-G++, LLVM-Clang++
-- Build: CMake Bazel Build2 make/Unix-makefile ninja ccache
-- Dependency-management: vcpkg conan
-- Analysis: valgrind cppcheck iwyu
-- Versioning: git subversion
-- Debug: gdb lldb
-- Documentation: doxygen graphviz
-- Shells: bash zsh
-- Tools: python3, jq, ripgrep
+Packages are distributed across the stages; each column is a superset of the one to its left.
+
+| Category                                                                         | `runtime` | `build` | `dev` |
+| -------------------------------------------------------------------------------- | :-------: | :-----: | :---: |
+| C++ runtime libraries (`libc6`, `libgcc-s1`, `libstdc++6`)                       |    ✅     |   ✅    |  ✅   |
+| Compilers: GNU-G++, LLVM-Clang++                                                 |           |   ✅    |  ✅   |
+| Build systems: CMake, make/Unix-makefile, ninja, ccache (+ opt-in Bazel, Build2) |           |   ✅    |  ✅   |
+| Dependency management: vcpkg, conan (python3)                                    |           |   ✅    |  ✅   |
+| Versioning: git                                                                  |           |   ✅    |  ✅   |
+| Static analysis: valgrind, cppcheck, iwyu, clang-tidy, clang-format, scan-build  |           |         |  ✅   |
+| Debug: gdb, lldb                                                                 |           |         |  ✅   |
+| Documentation: doxygen, graphviz                                                 |           |         |  ✅   |
+| Editors: emacs, nano, vim                                                        |           |         |  ✅   |
+| Shells: bash, zsh                                                                |           |         |  ✅   |
+| Misc: jq, ripgrep                                                                |           |         |  ✅   |
+
+The `build` stage installs Clang/LLVM minimalistically (just `clang`/`clang++`); the full LLVM tooling (`clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ...) is a static-analysis concern wired up in `dev`.
 
 ### Arguments
 
@@ -51,7 +78,7 @@ The published image does **not** ship an SSH server by default. Remote/SSH acces
 
 ```bash
 # from the .devcontainer/ directory
-docker build -t cpp-toolchain-dev -f Dockerfile .
+docker build --target dev -t cpp-toolchain-dev -f Dockerfile .
 docker compose --profile ssh build ssh_support
 docker compose --profile ssh run --service-ports ssh_support
 ```
