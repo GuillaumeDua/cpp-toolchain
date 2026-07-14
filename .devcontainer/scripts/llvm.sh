@@ -10,10 +10,12 @@ set -eu
 
 this_script_name=$(basename "$0")
 
-arg_versions='all'
+arg_versions='latest-stable'
 arg_list=0
 arg_silent=1
 arg_alias=0
+arg_minimalistic=0
+arg_cleanup=0
 
 internal_script_path='impl.sh'
 
@@ -22,18 +24,21 @@ help(){
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
-        [ -l | --list ]     : Only list available versions. Boolean -> default is [0]
-        [ -v | --versions ] : Versions to install.          String: all|latest|>=(number)|(space-separated-numbers...) -> default is [all]
-            - [all]        : all versions availables
-            - [latest]     : only the latest version available
-            - [>=(number)] : all versions greater or equal to <number>. Ex: '>=42'
-            - [numbers...] : only listed versions. Ex: '13 25 42' (space-separated)
-        [ -s | --silent ]   : Run in silent mod.            Boolean -> default is [1]
-        [ -a | --alias]     : Set bash/zsh-rc aliases.      Boolean -> default is [0]
-        [ -h | --help ]     : Display usage/help
+        [ -l | --list ]         : Only list available versions, expanding [versions].       Boolean -> default is [0]
+        [ -v | --versions ]     : Versions to install.                                      String: all|latest|latest-stable|>=(number)|(space-separated-numbers...) -> default is [latest-stable]
+            - [all]             : all versions availables                                       Ex: 'all'
+            - [latest]          : only the latest        version available                      Ex: 'latest'
+            - [latest-stable]   : only the latest-stable version available                      Ex: 'latest-stable'
+            - [>=(number)]      : all versions greater or equal to <number>                     Ex: '>=42'
+            - [numbers...]      : only listed versions.                                         Ex: '13 25 42' (space-separated)
+        [ -s | --silent ]       : Run in silent mod.                                        Boolean -> default is [1]
+        [ -a | --alias]         : Set bash/zsh-rc aliases.                                  Boolean -> default is [0]
+        [ -m | --minimalistic]  : only clang/clang++, not tools.                            Boolean -> default is [0]
+        [ -c | --cleanup]       : purge any (pre-)existing llvm/clang package installation: Boolean -> default is [0]
+        [ -h | --help ]         : Display usage/help
 
     For instance, to only install the two latest versions available, use:
-        sudo ./${this_script_name} --versions=\"\$(sudo ./${this_script_name} -l | tail -2)\"
+        sudo ./${this_script_name} --versions=\"\$(sudo ./${this_script_name} --list --versions='all' | tail -2)\"
         " 1>&2
     exit 0
 }
@@ -79,8 +84,8 @@ fi
 
 # --- options management ---
 
-options_short=s:,v:,a:,l,h
-options_long=silent:,versions:,alias:,help,list
+options_short=s:,v:,a:,m,c,l,h
+options_long=silent:,versions:,alias:,minimalistic,cleanup,help,list
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -89,43 +94,44 @@ while :
 do
   case "$1" in
     -s | --silent )
-      arg_silent="$2"
-      shift 2
-      ;;
+        arg_silent="$2"
+        shift 2
+        ;;
     -a | --alias )
-      arg_alias="$2"
-      shift 2
-      ;;
+        arg_alias="$2"
+        shift 2
+        ;;
     -v | --versions )
-      arg_versions=$(echo $2 | tr -d '\n' | tr '\n' ' ')
-      shift 2
-      ;;
+        arg_versions=$(echo $2 | tr -d '\n' | tr '\n' ' ')
+        shift 2
+        ;;
+    -m | --minimalistic )
+        arg_minimalistic=1
+        shift;
+        ;;
+    -c | --cleanup )
+        arg_cleanup=1
+        shift;
+        ;;
     -l | --list )
-      arg_list=1
-      arg_silent=1
-      arg_versions='all'
-      shift;
-      break
-      ;;
+        arg_list=1
+        shift;
+        ;;
     -h | --help)
-      help
-      exit 0
-      shift
-      ;;
+        help
+        exit 0
+        shift
+        ;;
     --)
-      shift;
-      break
-      ;;
+        shift;
+        break
+        ;;
     *)
-      echo "${this_script_name}: Unexpected option: [$1]" >> /dev/stderr
-      help
-      ;;
+        echo "${this_script_name}: Unexpected option: [$1]" >> /dev/stderr
+        help
+        ;;
   esac
 done
-
-log "arguments - versions: [${arg_versions}]"
-log "arguments - silent:   [${arg_silent}]"
-log "arguments - alias:    [${arg_alias}]"
 
 arg_silent=$(to_boolean "${arg_silent}")
 if [ "$arg_silent" == '' ] ; then
@@ -136,6 +142,23 @@ arg_list=$(to_boolean "${arg_list}")
 if [ "$arg_list" == '' ] ; then
     exit 1;
 fi
+
+arg_minimalistic=$(to_boolean "${arg_minimalistic}")
+if [ "$arg_minimalistic" == '' ] ; then
+    exit 1;
+fi
+
+arg_cleanup=$(to_boolean "${arg_cleanup}")
+if [ "$arg_cleanup" == '' ] ; then
+    exit 1;
+fi
+
+log "arguments - versions:          [${arg_versions}]"
+log "arguments - silent:            [${arg_silent}]"
+log "arguments - alias:             [${arg_alias}]"
+log "arguments - list:              [${arg_list}]"
+log "arguments - minimalistic:      [${arg_minimalistic}]"
+log "arguments - cleanup:           [${arg_cleanup}]"
 
 # --- fetch llvm.sh ---
 # or use:
@@ -153,6 +176,7 @@ external_script_url='https://apt.llvm.org/llvm.sh'
 # wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
 # wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
 # NO_PUBKEY 1A127079A92F09ED
+# REFACTO: remove gpg key -> already added by ${external_script_url}
 wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor --batch --yes -o /etc/apt/trusted.gpg.d/llvm-snapshot.gpg \
     && wget -qO ${internal_script_path} ${external_script_url} \
     && chmod +x "${internal_script_path}"
@@ -162,9 +186,9 @@ fi
 
 # --- list versions ---
 
-llvm_version_to_install_regex='LLVM_VERSION_PATTERNS\[(\d+)\]=\"\-\K(\d+)'
+llvm_version_to_install_regex='^LLVM_VERSION_PATTERNS\[(\d+)\]=\"\-\K(\d+)'
 list_to_install_llvm_versions(){
-    cat ${internal_script_path} | grep -oP $llvm_version_to_install_regex | uniq | sort -n
+    grep -oP $llvm_version_to_install_regex ${internal_script_path} | uniq | sort -n
 }
 llvm_version_installed_regex='^clang-\K([0-9]{2})'
 list_installed_llvm_versions(){
@@ -172,11 +196,13 @@ list_installed_llvm_versions(){
 }
 
 # --- which versions ---
-
+llvm_latest_stable=$(grep -oP '^CURRENT_LLVM_STABLE=\K(\d+)' ${internal_script_path})
 all_llvm_versions_available=$(list_to_install_llvm_versions)
 
 if [ "$arg_versions" = 'all' ]; then
     llvm_versions=$all_llvm_versions_available
+elif [ "$arg_versions" = 'latest-stable' ]; then
+    llvm_versions=$llvm_latest_stable
 elif [ "$arg_versions" = 'latest' ]; then
     llvm_versions=$(echo ${all_llvm_versions_available} | tr " " "\n" | tail -1)
 elif [[ "$arg_versions" =~  ^\>=[0-9]+$ ]]; then
@@ -226,15 +252,26 @@ sudo rm -rf /var/lib/dpkg/alternatives/clang* /var/lib/dpkg/alternatives/llvm-sy
 
 # quick-fix: Ubuntu-24.04-noble not fully supported yet, switching to Ubuntu-22.04-jammy
 codename=$(lsb_release -cs)
-if [ "${codename}" = "noble" ]; then
-    warning "codename=[${codename}] is not supported yet, switching to [jammy]"
-    codename="jammy"
+# if [ "${codename}" = "noble" ]; then
+#     warning "codename=[${codename}] is not supported yet, switching to [jammy]"
+#     codename="jammy"
+# fi
+
+if [[ ${arg_cleanup} == 1 ]]; then
+    sudo apt-get remove -y "llvm-*"
+    sudo apt-get remove -y "lldb-*"
+    sudo apt-get remove -y "clang-*"
+    sudo apt-get remove -y "python3-lldb-*"
 fi
 
 mapfile -t llvm_versions_to_install < <(echo -n "$llvm_versions")
 for version in "${llvm_versions_to_install[@]}"; do
 
-    yes '' | ./${internal_script_path} ${version} all -n ${codename} > /dev/null 2>&1 \
+    # fix potential conflicts:
+    #   sudo apt-get purge --auto-remove llvm python3-lldb-14 llvm-14 -y; \
+
+    # yes '' |
+    ./${internal_script_path} ${version} all -n ${codename} > /dev/null 2>&1 \
     || error "running [${external_script_url} ${version} all] failed"
 
     # Warning: only one installation of `lldb` is allowed by `apt` at a time. Cannot use `--no-remove` here
@@ -244,23 +281,35 @@ for version in "${llvm_versions_to_install[@]}"; do
     #     lldb-${version}         \
     # || error "installation of [${version}] (tools) failed"
     # clang and clang-tools
-    update-alternatives --quiet                                                                                             \
-        --install /usr/bin/clang clang /usr/bin/clang-${version} ${version}                                                 \
-        --slave /usr/bin/clang++                  clang++                   /usr/bin/clang++-${version}                     \
-        --slave /usr/bin/clang-format             clang-format              /usr/bin/clang-format-${version}                \
-        --slave /usr/bin/clang-tidy               clang-tidy                /usr/bin/clang-tidy-${version}                  \
-        --slave /usr/bin/clangd                   clangd                    /usr/bin/clangd-${version}                      \
-        --slave /usr/bin/clang-check              clang-check               /usr/bin/clang-check-${version}                 \
-        --slave /usr/bin/clang-query              clang-query               /usr/bin/clang-query-${version}                 \
-        --slave /usr/bin/clang-apply-replacements clang-apply-replacements  /usr/bin/clang-apply-replacements-${version}    \
-        --slave /usr/bin/sancov                   sancov                    /usr/bin/sancov-${version}                      \
-        --slave /usr/bin/scan-build               scan-build                /usr/bin/scan-build-${version}                  \
-        --slave /usr/bin/scan-view                scan-view                 /usr/bin/scan-view-${version}                   \
-        --slave /usr/bin/llvm-symbolizer          llvm-symbolizer           /usr/bin/llvm-symbolizer-${version}             \
-        --slave /usr/bin/lldb                     lldb                      /usr/bin/lldb-${version}                        \
-    || error "update-alternatives of [${version}] failed"
+    
+    # Latest stable always has the highest priority
+    update_alternative_priority=$([[ "${version}" = "${llvm_latest_stable}" ]] && echo "100" || echo "${version}")
+
+    if [[ ${arg_minimalistic} == 1 ]]; then
+        update-alternatives --quiet                                                                                             \
+            --install /usr/bin/clang clang /usr/bin/clang-${version} ${update_alternative_priority}                             \
+            --slave /usr/bin/clang++                  clang++                   /usr/bin/clang++-${version}                     \
+        || error "update-alternatives of [${version}] failed"
+    else
+        update-alternatives --quiet                                                                                             \
+            --install /usr/bin/clang clang /usr/bin/clang-${version} ${update_alternative_priority}                             \
+            --slave /usr/bin/clang++                  clang++                   /usr/bin/clang++-${version}                     \
+            --slave /usr/bin/clang-format             clang-format              /usr/bin/clang-format-${version}                \
+            --slave /usr/bin/clang-tidy               clang-tidy                /usr/bin/clang-tidy-${version}                  \
+            --slave /usr/bin/clangd                   clangd                    /usr/bin/clangd-${version}                      \
+            --slave /usr/bin/clang-check              clang-check               /usr/bin/clang-check-${version}                 \
+            --slave /usr/bin/clang-query              clang-query               /usr/bin/clang-query-${version}                 \
+            --slave /usr/bin/clang-apply-replacements clang-apply-replacements  /usr/bin/clang-apply-replacements-${version}    \
+            --slave /usr/bin/sancov                   sancov                    /usr/bin/sancov-${version}                      \
+            --slave /usr/bin/scan-build               scan-build                /usr/bin/scan-build-${version}                  \
+            --slave /usr/bin/scan-view                scan-view                 /usr/bin/scan-view-${version}                   \
+            --slave /usr/bin/llvm-symbolizer          llvm-symbolizer           /usr/bin/llvm-symbolizer-${version}             \
+            --slave /usr/bin/lldb                     lldb                      /usr/bin/lldb-${version}                        \
+        || error "update-alternatives of [${version}] failed"
+    fi
 
 done
+clean;
 
 # --- summary ---
 llvm_versions=$(list_installed_llvm_versions)
