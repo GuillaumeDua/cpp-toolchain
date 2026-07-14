@@ -17,9 +17,67 @@
     "customizations": {
         "vscode": {
             "settings": {
+                "C_Cpp.errorSquiggles": "disabled",
+                "C_Cpp.intelliSenseEngine": "disabled",
+                "clangd.path": "/usr/bin/clangd",
+                "clangd.checkUpdates": true,
+                "clangd.arguments": [
+                    "--enable-config",
+                    "-log=verbose",
+                    "-pretty",
+                    "--background-index",
+                    "-header-insertion=never"
+                ],
+                "debug.terminal.clearBeforeReusing": true,
                 "terminal.integrated.defaultProfile.linux": "zsh",
-                "terminal.integrated.profiles.linux": { "zsh": { "path": "/bin/zsh" } },
-                "remote.SSH.showLoginTerminal": true
+                "terminal.integrated.profiles.linux": {
+                    "bash": { "path": "bash", "icon": "terminal-bash" },
+                    "zsh": { "path": "/bin/zsh" },
+                    "fish": { "path": "fish" },
+                    "tmux": { "path": "tmux", "icon": "terminal-tmux" },
+                    "pwsh": { "path": "pwsh", "icon": "terminal-powershell" }
+                },
+                "remote.SSH.showLoginTerminal": true,
+                "files.associations": {
+                    "*.md": "markdown",
+                    "*.h": "cpp",
+                    "*.hpp": "cpp",
+                    "*.cpp": "cpp",
+                    "*.tcc": "cpp",
+                    "/usr/include/c++/**": "cpp",
+                    "/usr/lib/llvm-*/include/c++/**": "cpp"
+                },
+                "todo-tree.general.tags": [
+                    "BUG",
+                    "WARNING",
+                    "FIXME",
+                    "TODO",
+                    "WIP",
+                    "REFACTO",
+                    "QUICK-FIX",
+                    "QUESTION",
+                    "NOTE",
+                    "DESIGN",
+                    "TECH-DEBT",
+                    "KNOWN-ISSUE",
+                    "KNOWN-LIMITATION"
+                ],
+                "todo-tree.highlights.useColourScheme": true,
+                "todo-tree.highlights.customHighlight": {
+                    "BUG":              { "icon": "bug", "iconColour": "#e94242", "background": "#e94242", "foreground": "#1a1b26" },
+                    "WARNING":          { "icon": "alert", "iconColour": "#e0af68", "background": "#e0af68", "foreground": "#1a1b26" },
+                    "FIXME":            { "icon": "flame" },
+                    "WIP":              { "icon": "tools", "iconColour": "#7aa2f7", "background": "#7aa2f7", "foreground": "#1a1b26" },
+                    "TODO":             { "icon": "hourglass", "iconColour": "#9ece6a", "background": "#9ece6a", "foreground": "#1a1b26" },
+                    "REFACTO":          { "icon": "fold", "iconColour": "#ff9e64", "background": "#ff9e64", "foreground": "#1a1b26" },
+                    "QUICK-FIX":        { "icon": "zap", "iconColour": "#e0af68", "background": "#e0af68", "foreground": "#1a1b26" },
+                    "QUESTION":         { "icon": "question", "iconColour": "#bb9af7", "background": "#bb9af7", "foreground": "#1a1b26" },
+                    "NOTE":             { "icon": "note", "iconColour": "#2ac3de", "background": "#2ac3de" },
+                    "DESIGN":           { "icon": "image", "iconColour": "#6f3780", "background": "#6f3780" },
+                    "TECH-DEBT":        { "icon": "graph", "iconColour": "#e94242", "background": "#e94242", "foreground": "#1a1b26" },
+                    "KNOWN-ISSUE":      { "icon": "issue-draft", "iconColour": "#6f3780", "background": "#6f3780" },
+                    "KNOWN-LIMITATION": { "icon": "beaker", "iconColour": "#703caa", "background": "#703caa" }
+                }
             },
             "extensions": [
                 // remote
