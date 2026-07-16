@@ -1,18 +1,20 @@
 name: docker-publish
 
+# Publishing rules:
+#   - a GitHub release (cut from main) publishes the release tag (e.g. v1.0) + the `latest` alias
+#   - the weekly schedule publishes `experimental` only: `latest` never moves outside a release
+#   - images go to both Docker Hub and GHCR (ghcr.io has no pull rate limit for public images,
+#     which matters since these images are meant to be consumed by other projects' CI)
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".devcontainer/Dockerfile"
-      - ".devcontainer/scripts/**"
-      - ".github/workflows/docker-publish.yml"
+  release:
+    types: [published]
   schedule:
-    - cron: "0 4 * * 6" # weekly, Saturday 4am UTC
-  workflow_dispatch: {}
+    - cron: "0 4 * * 6" # weekly, Saturday 4am UTC -> `experimental`
+  workflow_dispatch: {} # manual -> `experimental`
 
 permissions:
   contents: read
+  packages: write # GHCR
 
 jobs:
   build-and-push:
@@ -20,6 +22,49 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need history to assert the built commit is contained in main
+
+      # The release tag is used verbatim as the image tag,
+      # so reject anything that is not `v<major>.<minor>` (e.g. v1.0) before it can be published next to the `latest` alias.
+      #   NB: the tag is untrusted input -> passed via env, never interpolated into the script.
+      - name: Assert release tag format
+        if: github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tag '${RELEASE_TAG}' is malformed - expected v<major>.<minor>, e.g. v1.0."
+            exit 1
+          fi
+          echo "Release tag '${RELEASE_TAG}' is well-formed."
+
+      # Publish from main only: a release/tag can be cut from any commit, so verify the commit being built is actually contained in main before pushing anything.
+      # Covers release, schedule (always main) and workflow_dispatch (could be triggered from any branch).
+      - name: Assert we are publishing from main
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "::error::${GITHUB_SHA} is not contained in main - refusing to publish."
+            exit 1
+          fi
+
+      - name: Resolve image tags
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "release" ]; then
+            # image tag == the GitHub release tag (validated above), plus the `latest` alias
+            echo "tags=${RELEASE_TAG} latest" >> "$GITHUB_OUTPUT"
+          else
+            # scheduled / manual rebuilds are never `latest`
+            echo "tags=experimental" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -33,20 +78,33 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       # Single job, built in dependency order on one buildx builder:
-      # the heavy `build` layer is produced once and reused by its downstream stages
-      # (a parallel matrix would rebuild it for static-analysis / documentation / dev).
+      # the heavy `build` layer is produced once and reused by static-analysis / documentation / dev
       # A shared gha cache scope persists layers across runs.
       - name: Build and push all stages
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           set -euo pipefail
           for target in runtime build static-analysis documentation dev; do
-            echo "::group::build+push cpp-toolchain-${target}"
+            tag_args=()
+            for registry in docker.io/guillaumedua ghcr.io/guillaumedua; do
+              for tag in ${TAGS}; do
+                tag_args+=(--tag "${registry}/cpp-toolchain-${target}:${tag}")
+              done
+            done
+            echo "::group::build+push cpp-toolchain-${target} [${TAGS}]"
             docker buildx build \
               --file .devcontainer/Dockerfile \
               --target "${target}" \
-              --tag "guillaumedua/cpp-toolchain-${target}:latest" \
-              --tag "guillaumedua/cpp-toolchain-${target}:${{ github.run_number }}" \
+              "${tag_args[@]}" \
               --cache-from type=gha,scope=cpp-toolchain \
               --cache-to type=gha,mode=max,scope=cpp-toolchain \
               --push \
