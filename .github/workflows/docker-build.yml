@@ -1,0 +1,43 @@
+name: docker-build
+
+# Gate: every PR to main (and every push to main) must still produce (not publish !) all five images.
+#
+# Deliberately NOT path-filtered: this is meant to be a *required status check*,
+# and a path-filtered workflow that never runs leaves the PR waiting forever on a check that never reports.
+# When the Dockerfile/scripts are untouched the gha cache makes this a near-no-op.
+#
+# Nothing is pushed here, so no registry credentials are needed,
+# and the gate also works for pull requests coming from forks (which have no access to secrets).
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Built in dependency order on a single buildx builder:
+      # the heavy `build` layer is produced once and reused by static-analysis / documentation / dev.
+      - name: Build all stages (no push)
+        run: |
+          set -euo pipefail
+          for target in runtime build static-analysis documentation dev; do
+            echo "::group::build cpp-toolchain-${target}"
+            docker buildx build \
+              --file .devcontainer/Dockerfile \
+              --target "${target}" \
+              --cache-from type=gha,scope=cpp-toolchain \
+              .devcontainer
+            echo "::endgroup::"
+          done

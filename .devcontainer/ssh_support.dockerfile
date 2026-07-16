@@ -1,3 +1,5 @@
+# Opt-in SSH remote access, layered on top of the `dev` stage image (cpp-toolchain-dev).
+# Not published; built on demand via the docker-compose `ssh` profile (see README > Remote access).
 ARG BASE_IMAGE=cpp-toolchain-dev
 FROM ${BASE_IMAGE} as ssh-support
 
