@@ -20,12 +20,11 @@
     },
     {
       "customType": "regex",
-      "description": "build2 toolchain version, single-sourced via ARG BUILD2_VERSION in the Dockerfile",
+      "description": "Version pins declared via `# renovate:`-annotated ARG lines in the Dockerfile (build2, doxygen, ...)",
       "fileMatch": ["^\\.devcontainer/Dockerfile$"],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+ARG BUILD2_VERSION=(?<currentValue>\\S+)"
-      ],
-      "extractVersionTemplate": "^v(?<version>.+)$"
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\s+ARG \\w+=(?<currentValue>\\S+)"
+      ]
     },
     {
       "customType": "regex",

@@ -140,7 +140,7 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
 #   BUILD2_VERSION is the single source of truth (bumped by Renovate, see renovate.json).
 #   The install script is verified against build2's per-release `.sha256` sidecar rather than a
 #   hash pinned here, so a version bump stays a one-line change.
-# renovate: datasource=github-tags depName=build2/build2-toolchain
+# renovate: datasource=github-tags depName=build2/build2-toolchain extractVersion=^v(?<version>.+)$
 ARG BUILD2_VERSION=0.16.0
 ARG OPT_IN_INTEGRATE_BUILD2='no'
 RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" = "y" ]]; then                               \
@@ -200,10 +200,14 @@ FROM build AS documentation
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
-# TODO: doxygen - latest, using pre-built binairies
-RUN apt update -qqy && apt install -qqy --no-install-recommends \
-        doxygen graphviz \
-    && rm -rf /var/lib/apt/lists/*
+# Documentation: Doxygen (pre-built binary - Ubuntu's apt package lags upstream) + graphviz (`dot`).
+# renovate: datasource=github-releases depName=doxygen/doxygen versioning=regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$
+ARG DOXYGEN_RELEASE=Release_1_17_0
+COPY ./scripts/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
+RUN apt update -qqy && apt install -qqy --no-install-recommends graphviz \
+    && rm -rf /var/lib/apt/lists/*                                       \
+    && chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh                  \
+    && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}"
 
 CMD ["/bin/bash"]
 
@@ -220,8 +224,8 @@ SHELL ["/bin/bash", "-c"]
 # Tooling: documentation (re-added from the `documentation` stage, since dev inherits the
 #          `static-analysis` sibling), dynamic analysis, debug, versioning extras, editors, misc
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
-        # documentation
-        doxygen graphviz                                    \
+        # documentation (doxygen itself is installed as a pre-built binary below; graphviz -> `dot`)
+        graphviz                                            \
         # dynamic analysis
         valgrind                                            \
         # debug
@@ -233,6 +237,14 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
         # misc
         docker-compose jq ripgrep                           \
     && rm -rf /var/lib/apt/lists/*
+
+# Documentation: Doxygen pre-built binary - re-added here because dev inherits `static-analysis`,
+#                not the sibling `documentation` stage (mirrors the graphviz re-add above).
+# renovate: datasource=github-releases depName=doxygen/doxygen versioning=regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$
+ARG DOXYGEN_RELEASE=Release_1_17_0
+COPY ./scripts/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
+RUN chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh \
+    && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}"
 
 # Tooling: shells - bash, zsh
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
