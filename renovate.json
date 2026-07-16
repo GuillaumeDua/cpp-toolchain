@@ -1,7 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "docker:pinDigests"
   ],
   "schedule": ["before 6am on saturday"],
   "labels": ["dependencies"],
@@ -16,6 +17,24 @@
       "depNameTemplate": "deluan/zsh-in-docker",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "build2 toolchain version, single-sourced via ARG BUILD2_VERSION in the Dockerfile",
+      "fileMatch": ["^\\.devcontainer/Dockerfile$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+ARG BUILD2_VERSION=(?<currentValue>\\S+)"
+      ],
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Base image passed as a docker-compose build arg (BASE_IMAGE) - the docker-compose manager only reads `image:`, not `build.args`, so pin/track the digest here too",
+      "fileMatch": ["^\\.devcontainer/docker-compose\\.ya?ml$"],
+      "matchStrings": [
+        "BASE_IMAGE:\\s*['\"]?(?<depName>[^:'\"@\\s]+):(?<currentValue>[^'\"@\\s]+)(@(?<currentDigest>sha256:[a-f0-9]+))?['\"]?"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
@@ -23,6 +42,11 @@
       "matchManagers": ["github-actions"],
       "groupName": "GitHub Actions",
       "minimumReleaseAge": "3 days"
+    },
+    {
+      "matchDatasources": ["docker"],
+      "groupName": "Docker images",
+      "labels": ["dependencies", "docker"]
     }
   ]
 }
