@@ -1,6 +1,6 @@
 # cpp-toolchain
 
-Up-to-date C++ toolchain docker images for development, built as a multi-stage [`Dockerfile`](.devcontainer/Dockerfile) and published as three DockerHub repositories.
+Up-to-date C++ toolchain docker images for development, built as a multi-stage [`Dockerfile`](.devcontainer/Dockerfile) and published as five DockerHub repositories.
 
 [![docker-publish](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml)
 
@@ -8,21 +8,25 @@ Rebuilt weekly (and on every change) via [GitHub Actions](.github/workflows/dock
 
 ## Images
 
-The [Dockerfile](.devcontainer/Dockerfile) is a superset chain (`dev` ⊃ `build` ⊃ `runtime`); each stage is published as its own image and can be selected locally with `docker build --target <stage>` (omitting `--target` builds `dev`, the last stage):
+The [Dockerfile](.devcontainer/Dockerfile) is a multi-stage build: `runtime` → `build`, then `static-analysis` and `documentation` branch off `build`, and `dev` combines everything. Each stage is published as its own image and can be selected locally with `docker build --target <stage>` (omitting `--target` builds `dev`, the last stage):
 
 | Image | `--target` | Purpose | Size |
 | ----- | ---------- | ------- | ---- |
 | [`cpp-toolchain-runtime`](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-runtime/general) | `runtime` | Minimal C++ runtime (`libc`/`libstdc++`) to **run** compiled binaries | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain-runtime/latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-runtime/general) |
 | [`cpp-toolchain-build`](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-build/general) | `build` | **Compile** C++: compilers, build systems, dependency managers (CI) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain-build/latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-build/general) |
-| [`cpp-toolchain-dev`](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-dev/general) | `dev` | Full **dev** environment: `build` + static analysis, debug, docs, editors, shells | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain-dev/latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-dev/general) |
+| [`cpp-toolchain-static-analysis`](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-static-analysis/general) | `static-analysis` | `build` + **static analysis** (clang-tidy/clang-format/scan-build, cppcheck, iwyu) for PR checks | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain-static-analysis/latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-static-analysis/general) |
+| [`cpp-toolchain-documentation`](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-documentation/general) | `documentation` | `build` + **documentation** generators (doxygen, graphviz) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain-documentation/latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-documentation/general) |
+| [`cpp-toolchain-dev`](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-dev/general) | `dev` | Full **dev** environment: static analysis + docs + dynamic analysis, debug, editors, shells | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain-dev/latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-dev/general) |
 
-Pulls: [![runtime](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain-runtime?label=runtime)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-runtime/general) [![build](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain-build?label=build)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-build/general) [![dev](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain-dev?label=dev)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-dev/general)
+Pulls: [![runtime](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain-runtime?label=runtime)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-runtime/general) [![build](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain-build?label=build)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-build/general) [![static-analysis](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain-static-analysis?label=static-analysis)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-static-analysis/general) [![documentation](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain-documentation?label=documentation)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-documentation/general) [![dev](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain-dev?label=dev)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain-dev/general)
 
 ```bash
 # build a specific stage locally (context is .devcontainer)
-docker build --target runtime -t cpp-toolchain-runtime -f .devcontainer/Dockerfile .devcontainer
-docker build --target build   -t cpp-toolchain-build   -f .devcontainer/Dockerfile .devcontainer
-docker build --target dev      -t cpp-toolchain-dev     -f .devcontainer/Dockerfile .devcontainer
+docker build --target runtime         -t cpp-toolchain-runtime         -f .devcontainer/Dockerfile .devcontainer
+docker build --target build           -t cpp-toolchain-build           -f .devcontainer/Dockerfile .devcontainer
+docker build --target static-analysis -t cpp-toolchain-static-analysis -f .devcontainer/Dockerfile .devcontainer
+docker build --target documentation   -t cpp-toolchain-documentation   -f .devcontainer/Dockerfile .devcontainer
+docker build --target dev             -t cpp-toolchain-dev             -f .devcontainer/Dockerfile .devcontainer
 ```
 
 SSH remote access is an opt-in extra layer on top of `dev` — see [Remote access](#remote-access-opt-in) below.
@@ -33,23 +37,24 @@ SSH remote access is an opt-in extra layer on top of `dev` — see [Remote acces
 
 ### Packages
 
-Packages are distributed across the stages; each column is a superset of the one to its left.
+Presence per published image. It's a diamond: `static-analysis` and `documentation` both build on `build`; `dev` combines them.
 
-| Category                                                                         | `runtime` | `build` | `dev` |
-| -------------------------------------------------------------------------------- | :-------: | :-----: | :---: |
-| C++ runtime libraries (`libc6`, `libgcc-s1`, `libstdc++6`)                       |    ✅     |   ✅    |  ✅   |
-| Compilers: GNU-G++, LLVM-Clang++                                                 |           |   ✅    |  ✅   |
-| Build systems: CMake, make/Unix-makefile, ninja, ccache (+ opt-in Bazel, Build2) |           |   ✅    |  ✅   |
-| Dependency management: vcpkg, conan (python3)                                    |           |   ✅    |  ✅   |
-| Versioning: git                                                                  |           |   ✅    |  ✅   |
-| Static analysis: valgrind, cppcheck, iwyu, clang-tidy, clang-format, scan-build  |           |         |  ✅   |
-| Debug: gdb, lldb                                                                 |           |         |  ✅   |
-| Documentation: doxygen, graphviz                                                 |           |         |  ✅   |
-| Editors: emacs, nano, vim                                                        |           |         |  ✅   |
-| Shells: bash, zsh                                                                |           |         |  ✅   |
-| Misc: jq, ripgrep                                                                |           |         |  ✅   |
+| Category                                                                               | `runtime` | `build` | `static-analysis` | `documentation` | `dev` |
+| -------------------------------------------------------------------------------------- | :-------: | :-----: | :---------------: | :-------------: | :---: |
+| C++ runtime libraries (`libc6`, `libgcc-s1`, `libstdc++6`)                             |    ✅     |   ✅    |        ✅         |       ✅        |  ✅   |
+| Compilers: GNU-G++, LLVM-Clang++                                                       |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Build systems: CMake, make/Unix-makefile, ninja, ccache (+ opt-in Bazel, Build2)       |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Dependency management: vcpkg, conan (python3)                                          |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Versioning: git                                                                        |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Static analysis: clang-tidy, clang-format, clangd, scan-build, cppcheck, iwyu (+ lldb) |           |         |        ✅         |                 |  ✅   |
+| Documentation: doxygen, graphviz                                                       |           |         |                   |       ✅        |  ✅   |
+| Dynamic analysis / debug: valgrind, gdb                                                |           |         |                   |                 |  ✅   |
+| Versioning extra: subversion                                                           |           |         |                   |                 |  ✅   |
+| Editors: emacs, nano, vim                                                              |           |         |                   |                 |  ✅   |
+| Shells: bash, zsh                                                                      |           |         |                   |                 |  ✅   |
+| Misc: jq, ripgrep, docker-compose                                                      |           |         |                   |                 |  ✅   |
 
-The `build` stage installs Clang/LLVM minimalistically (just `clang`/`clang++`); the full LLVM tooling (`clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ...) is a static-analysis concern wired up in `dev`.
+The `build` stage installs Clang/LLVM minimalistically (just `clang`/`clang++`); the full LLVM tooling (`clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ...) is wired up in the `static-analysis` stage (and inherited by `dev`). `valgrind` (dynamic analysis) lives in `dev`.
 
 ### Arguments
 
@@ -74,7 +79,8 @@ See [.devcontainer/scripts/README.md](.devcontainer/scripts/README.md) for the f
 
 ### Remote access (opt-in)
 
-The published image does **not** ship an SSH server by default. Remote/SSH access is an opt-in extra layer, built on top of the base image via [`.devcontainer/ssh_support.dockerfile`](.devcontainer/ssh_support.dockerfile):
+The published image does **not** ship an SSH server by default.  
+Remote/SSH access is an opt-in extra layer, built on top of the base image via [`.devcontainer/ssh_support.dockerfile`](.devcontainer/ssh_support.dockerfile):
 
 ```bash
 # from the .devcontainer/ directory

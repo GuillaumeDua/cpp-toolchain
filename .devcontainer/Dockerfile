@@ -21,10 +21,8 @@ FROM ${BASE_IMAGE} AS runtime
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
-# Latest C++ runtime libraries, pulled from the same PPA the `build` stage installs GCC from, so
-# `--target runtime` can execute binaries linked against the newest libstdc++. The apt machinery
-# needed only to register the PPA is purged afterwards to keep this stage lean (the `build` stage
-# re-installs its own prerequisites on top).
+# Latest C++ runtime libraries, pulled from the same PPA the `build` stage installs GCC from,
+# so `--target runtime` can execute binaries linked against the newest libstdc++.
 RUN apt-get update -qqy \
     && apt-get install -qqy --no-install-recommends \
         ca-certificates tzdata \
@@ -48,8 +46,8 @@ SHELL ["/bin/bash", "-c"]
 ENV TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
 
 # Basics / installation prerequisites
-#   openssh-client (not the `ssh` metapackage) so no SSH *server* is shipped here: remote access
-#   is an opt-in layer (see ssh_support.dockerfile).
+#   openssh-client (not the `ssh` metapackage) so no SSH *server* is shipped here:
+#   remote access is an opt-in layer (see ssh_support.dockerfile).
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
         ca-certificates debian-keyring                      \
         gpg gpg-agent gnupg                                 \
@@ -109,8 +107,7 @@ RUN \
     && /opt/vcpkg/bootstrap-vcpkg.sh -disableMetrics            \
     && ln -s /opt/vcpkg/vcpkg /usr/local/bin/vcpkg
 RUN \
-    # conan
-    #   work-around for pip "error: externally-managed-environment"
+    # conan (with work-around for pip "error: externally-managed-environment")
     apt update -qqy && apt install -qqy --no-install-recommends \
         pipx                                                    \
     && (pipx install conan > /dev/null 2>&1)                    \
@@ -129,9 +126,8 @@ RUN apt-get update -qqy                                                       \
     && ${script_path} --silent=yes --alias=yes --versions="$GCC_VERSIONS"
 
 # C++ toolchain: LLVM/Clang (https://apt.llvm.org/)
-#   `--minimalistic`: register only the clang/clang++ compilers here. The rest of the LLVM
-#   toolchain (clang-tidy, clang-format, clangd, lldb, scan-build, ...) is a static-analysis /
-#   dev concern and is wired up in the `dev` stage below.
+#   `--minimalistic`: register only the clang/clang++ compilers here.
+#   The rest of the LLVM toolchain (clang-tidy, clang-format, clangd, lldb, scan-build, ...) is a static-analysis / dev concern and is wired up in the `dev` stage below.
 COPY ./scripts/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS='latest-stable'
@@ -160,40 +156,73 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 CMD ["/bin/bash"]
 
 # ---------------------------------------------------------------------------------------------
-# Stage: dev - full development environment.
-#   Adds static-analysis & debug tooling, documentation generators, editors and shells on top of
-#   the compile-only `build` stage. This is the image the devcontainer / published `-dev` uses.
+# Stage: static-analysis - static-analysis tooling for CI / PR evaluation, on top of `build`.
+#   Registers the full LLVM toolchain - clang-tidy, etc. -,
+#   (the `build` stage installed the clang packages minimalistically),
+#   and adds the dedicated static analysers (cppcheck, iwyu).
 # ---------------------------------------------------------------------------------------------
-FROM build AS dev
+FROM build AS static-analysis
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
-# Tooling: static analysis, debug, documentation, editors, versioning extras, misc
+# C++ toolchain: LLVM/Clang - full toolchain (clang-tidy, clang-format, clangd, lldb, scan-build).
+#   Re-runs llvm.sh non-minimalistically to register the analysis tools alongside the clang/clang++
+#   compilers already installed by the `build` stage.
+COPY ./scripts/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
+WORKDIR ${TOOLCHAIN_TMP_DIR}
+ARG LLVM_VERSIONS='latest-stable'
+RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                       \
+    echo -e "[C++ analysis] Registering LLVM tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ;    \
+    chmod +x ${script_path}                                                                 \
+    && ${script_path} --silent=yes --alias=yes --versions="$LLVM_VERSIONS"                  \
+    && rm -rf /var/lib/apt/lists/*
+
+# Dedicated static analysers
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
-        # analysis
-        valgrind cppcheck iwyu                              \
+        cppcheck iwyu \
+    && rm -rf /var/lib/apt/lists/*
+
+CMD ["/bin/bash"]
+
+# ---------------------------------------------------------------------------------------------
+# Stage: documentation - documentation generation for CI, on top of `build`.
+#   Needs the `build` toolchain (CMake `doc` targets, processing the checked-out sources) plus the doxygen/graphviz generators.
+# ---------------------------------------------------------------------------------------------
+FROM build AS documentation
+ARG DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+
+RUN apt update -qqy && apt install -qqy --no-install-recommends \
+        doxygen graphviz \
+    && rm -rf /var/lib/apt/lists/*
+
+CMD ["/bin/bash"]
+
+# ---------------------------------------------------------------------------------------------
+# Stage: dev - full development environment.
+#   Inherits `static-analysis`, re-adds the `documentation` tools,
+#   and layers on the interactive dev tooling (dynamic analysis, debugger, editors, shells, misc).
+#   Published `-dev` / devcontainer.
+# ---------------------------------------------------------------------------------------------
+FROM static-analysis AS dev
+ARG DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+
+# Tooling: documentation (re-added from the `documentation` stage, since dev inherits the
+#          `static-analysis` sibling), dynamic analysis, debug, versioning extras, editors, misc
+RUN apt update -qqy && apt install -qqy --no-install-recommends \
+        # documentation
+        doxygen graphviz                                    \
+        # dynamic analysis
+        valgrind                                            \
         # debug
         gdb                                                 \
         # versioning
         subversion                                          \
-        # documentation
-        doxygen graphviz                                    \
         # editors
         emacs nano vim                                      \
         # misc
         docker-compose jq ripgrep                           \
-    && rm -rf /var/lib/apt/lists/*
-
-# C++ toolchain: LLVM/Clang - full toolchain (clang-tidy, clang-format, clangd, lldb, scan-build).
-#   Re-runs llvm.sh non-minimalistically to register the analysis/dev tools alongside the
-#   clang/clang++ compilers already installed by the `build` stage.
-COPY ./scripts/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
-WORKDIR ${TOOLCHAIN_TMP_DIR}
-ARG LLVM_VERSIONS='latest-stable'
-RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                   \
-    echo -e "[C++ dev] Installing LLVM dev tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ;  \
-    chmod +x ${script_path}                                                             \
-    && ${script_path} --silent=yes --alias=yes --versions="$LLVM_VERSIONS"              \
     && rm -rf /var/lib/apt/lists/*
 
 # Tooling: shells - bash, zsh
