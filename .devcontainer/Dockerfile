@@ -136,13 +136,21 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
     chmod +x ${script_path}                                                     \
     && ${script_path} --silent=yes --alias=yes --minimalistic --versions="$LLVM_VERSIONS"
 
-# Build: Build2-0.16.0 (depends on a compiler)
+# Build: Build2 (depends on a compiler)
+#   BUILD2_VERSION is the single source of truth (bumped by Renovate, see renovate.json).
+#   The install script is verified against build2's per-release `.sha256` sidecar rather than a
+#   hash pinned here, so a version bump stays a one-line change.
+# renovate: datasource=github-tags depName=build2/build2-toolchain extractVersion=^v(?<version>.+)$
+ARG BUILD2_VERSION=0.16.0
 ARG OPT_IN_INTEGRATE_BUILD2='no'
 RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" = "y" ]]; then                               \
         mkdir -p /tmp/build2-build && cd /tmp/build2-build                          \
-        && curl -sSfO https://download.build2.org/0.16.0/build2-install-0.16.0.sh   \
-        && echo '4d2babfaff6d0412e0ab61a3d3c68a87de54c0779254d62f4569b44a56c6ea08 *build2-install-0.16.0.sh' | shasum -a 256 -c \
-        && sh build2-install-0.16.0.sh                                              \
+        && script="build2-install-${BUILD2_VERSION}.sh"                            \
+        && base_url="https://download.build2.org/${BUILD2_VERSION}"                \
+        && curl -sSfO "${base_url}/${script}"                                       \
+        && curl -sSfO "${base_url}/${script}.sha256"                               \
+        && shasum -a 256 -c "${script}.sha256"                                      \
+        && sh "${script}"                                                           \
             --yes                                                                   \
             --cxx clang++                                                           \
             --sudo false                                                            \
@@ -192,9 +200,14 @@ FROM build AS documentation
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
-RUN apt update -qqy && apt install -qqy --no-install-recommends \
-        doxygen graphviz \
-    && rm -rf /var/lib/apt/lists/*
+# Documentation: Doxygen (pre-built binary - Ubuntu's apt package lags upstream) + graphviz (`dot`).
+# renovate: datasource=github-releases depName=doxygen/doxygen versioning=regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$
+ARG DOXYGEN_RELEASE=Release_1_17_0
+COPY ./scripts/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
+RUN apt update -qqy && apt install -qqy --no-install-recommends graphviz \
+    && rm -rf /var/lib/apt/lists/*                                       \
+    && chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh                  \
+    && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}"
 
 CMD ["/bin/bash"]
 
@@ -211,8 +224,8 @@ SHELL ["/bin/bash", "-c"]
 # Tooling: documentation (re-added from the `documentation` stage, since dev inherits the
 #          `static-analysis` sibling), dynamic analysis, debug, versioning extras, editors, misc
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
-        # documentation
-        doxygen graphviz                                    \
+        # documentation (doxygen itself is installed as a pre-built binary below; graphviz -> `dot`)
+        graphviz                                            \
         # dynamic analysis
         valgrind                                            \
         # debug
@@ -224,6 +237,14 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
         # misc
         docker-compose jq ripgrep                           \
     && rm -rf /var/lib/apt/lists/*
+
+# Documentation: Doxygen pre-built binary - re-added here because dev inherits `static-analysis`,
+#                not the sibling `documentation` stage (mirrors the graphviz re-add above).
+# renovate: datasource=github-releases depName=doxygen/doxygen versioning=regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$
+ARG DOXYGEN_RELEASE=Release_1_17_0
+COPY ./scripts/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
+RUN chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh \
+    && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}"
 
 # Tooling: shells - bash, zsh
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
