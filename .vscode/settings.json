@@ -1,0 +1,165 @@
+{
+    "debug.terminal.clearBeforeReusing": true,
+    "terminal.integrated.profiles.windows": {
+        "PowerShell": {
+            "source": "PowerShell",
+            "icon": "terminal-powershell"
+        },
+        "Command Prompt": {
+            "path": [
+                "${env:windir}\\Sysnative\\cmd.exe",
+                "${env:windir}\\System32\\cmd.exe"
+            ],
+            "args": [],
+            "icon": "terminal-cmd"
+        },
+        "Git Bash": {
+            "source": "Git Bash"
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
+    "terminal.integrated.profiles.linux": {
+        "bash": {
+            "path": "bash",
+            "icon": "terminal-bash"
+        },
+        "zsh": {
+            "path": "zsh"
+        },
+        "fish": {
+            "path": "fish"
+        },
+        "tmux": {
+            "path": "tmux",
+            "icon": "terminal-tmux"
+        },
+        "pwsh": {
+            "path": "pwsh",
+            "icon": "terminal-powershell"
+        }
+    },
+    "terminal.integrated.defaultProfile.linux": "zsh",
+    "todo-tree.general.tags": [
+        "BUG",
+        "WARNING",
+        "FIXME",
+        "TODO",
+        "WIP",
+        "REFACTO",
+        "QUICK-FIX",
+        "QUESTION",
+        "NOTE",
+        "DESIGN",
+        "TECH-DEBT",
+        "KNOWN-ISSUE",
+        "KNOWN-LIMITATION"
+    ],
+    "todo-tree.highlights.useColourScheme": true,
+    "todo-tree.highlights.customHighlight": {
+        "BUG": {
+            "icon": "bug",
+            "iconColour": "#e94242",
+            "background": "#e94242",
+            "foreground": "#1a1b26"
+        },
+        "WARNING": {
+            "icon": "alert",
+            "iconColour": "#e0af68",
+            "background": "#e0af68",
+            "foreground": "#1a1b26"
+        },
+        "FIXME": {
+            "icon": "flame"
+        },
+        "WIP": {
+            "icon": "tools",
+            "iconColour": "#7aa2f7",
+            "background": "#7aa2f7",
+            "foreground": "#1a1b26"
+        },
+        "TODO": {
+            "icon": "hourglass",
+            "iconColour": "#9ece6a",
+            "background": "#9ece6a",
+            "foreground": "#1a1b26"
+        },
+        "REFACTO": {
+            "icon": "fold",
+            "iconColour": "#ff9e64",
+            "background": "#ff9e64",
+            "foreground": "#1a1b26"
+        },
+        "QUICK-FIX": {
+            "icon": "zap",
+            "iconColour": "#e0af68",
+            "background": "#e0af68",
+            "foreground": "#1a1b26"
+        },
+        "QUESTION": {
+            "icon": "question",
+            "iconColour": "#bb9af7",
+            "background": "#bb9af7",
+            "foreground": "#1a1b26"
+        },
+        "NOTE": {
+            "icon": "note",
+            "iconColour": "#2ac3de",
+            "background": "#2ac3de"
+        },
+        "DESIGN": {
+            "icon": "image",
+            "iconColour": "#6f3780",
+            "background": "#6f3780"
+        },
+        "TECH-DEBT": {
+            "icon": "graph",
+            "iconColour": "#e94242",
+            "background": "#e94242",
+            "foreground": "#1a1b26"
+        },
+        "KNOWN-ISSUE": {
+            "icon": "issue-draft",
+            "iconColour": "#6f3780",
+            "background": "#6f3780"
+        },
+        "KNOWN-LIMITATION": {
+            "icon": "beaker",
+            "iconColour": "#703caa",
+            "background": "#703caa"
+        }
+    },
+    "files.associations": {
+        "*.md": "markdown",
+        "*.dockerfile": "dockerfile",
+        "Dockerfile*": "dockerfile",
+        "*.yaml": "yaml",
+        "*.yml": "yaml",
+        "*.sh": "shellscript",
+        ".dockerignore": "ignore"
+    },
+    "[shellscript]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false,
+        "files.eol": "\n"
+    },
+    "[yaml]": {
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false
+    },
+    "[dockerfile]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false
+    },
+    "[json][jsonc]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true
+    },
+    "yaml.schemas": {
+        "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.yml",
+        "https://raw.githubusercontent.com/renovatebot/renovate/main/renovate-schema.json": "renovate.json",
+        "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.base.schema.json": ".devcontainer/devcontainer.json"
+    }
+}
