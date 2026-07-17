@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           for target in runtime build static-analysis documentation dev; do
-            echo "::group::build cpp-toolchain-${target}"
+            echo "::group::build cpp-toolchain:${target}"
             docker buildx build \
               --file .devcontainer/Dockerfile \
               --target "${target}" \

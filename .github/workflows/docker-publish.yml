@@ -1,6 +1,8 @@
 name: docker-publish
 
 # Publishing rules:
+#   - all five stages live in the single `cpp-toolchain` repository, stage-prefixed: `<stage>-<tag>` (e.g. build-v1.0)
+#   - `dev` is the Dockerfile's default target, so it also owns the unprefixed aliases (v1.0, latest, experimental)
 #   - a GitHub release (cut from main) publishes the release tag (e.g. v1.0) + the `latest` alias
 #   - the weekly schedule publishes `experimental` only: `latest` never moves outside a release
 #   - images go to both Docker Hub and GHCR (ghcr.io has no pull rate limit for public images,
@@ -97,10 +99,14 @@ jobs:
             tag_args=()
             for registry in docker.io/guillaumedua ghcr.io/guillaumedua; do
               for tag in ${TAGS}; do
-                tag_args+=(--tag "${registry}/cpp-toolchain-${target}:${tag}")
+                tag_args+=(--tag "${registry}/cpp-toolchain:${target}-${tag}")
+                # `dev` is what `docker build` produces without --target, so it also answers to the unprefixed tag
+                if [ "${target}" = "dev" ]; then
+                  tag_args+=(--tag "${registry}/cpp-toolchain:${tag}")
+                fi
               done
             done
-            echo "::group::build+push cpp-toolchain-${target} [${TAGS}]"
+            echo "::group::build+push cpp-toolchain:${target}-* [${TAGS}]"
             docker buildx build \
               --file .devcontainer/Dockerfile \
               --target "${target}" \
