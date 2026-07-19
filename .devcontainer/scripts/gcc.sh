@@ -14,6 +14,9 @@ arg_versions='latest-stable'
 arg_list=0
 arg_silent=1
 arg_alias=0
+arg_multilib=1
+arg_multilib_explicit=0
+arg_minimalistic=0
 
 help(){
     echo "Usage: ${this_script_name}" 1>&2
@@ -29,6 +32,8 @@ help(){
             - [numbers...]      : only listed versions.                                     Ex: '13 25 42' (space-separated)
         [ -s | --silent ]       : Run in silent mod.                                    Boolean -> default is [1]
         [ -a | --alias]         : Set bash/zsh-rc aliases.                              Boolean -> default is [0]
+        [ --multilib ]          : install gcc/g++ multilib (32-bit / x32 secondary ABI).           Boolean -> default is [1]
+        [ -m | --minimalistic]  : compilers only - disables multilib unless it is explicitly set.  Boolean -> default is [0]
         [ -h | --help ]         : Display usage/help
 
     For instance, to only install the two latest versions available, use:
@@ -78,8 +83,8 @@ fi
 
 # --- options management ---
 
-options_short=s:,v:,a:,l,h
-options_long=silent:,versions:,alias:,help,list
+options_short=s:,v:,a:,m,l,h
+options_long=silent:,versions:,alias:,multilib:,minimalistic,help,list
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -98,6 +103,15 @@ do
     -v | --versions )
       arg_versions=$(echo $2 | tr -d '\n' | tr '\n' ' ')
       shift 2
+      ;;
+    --multilib )
+      arg_multilib="$2"
+      arg_multilib_explicit=1
+      shift 2
+      ;;
+    -m | --minimalistic )
+      arg_minimalistic=1
+      shift;
       ;;
     -l | --list )
       arg_list=1
@@ -129,10 +143,30 @@ if [ "$arg_list" == '' ] ; then
     exit 1;
 fi
 
-log "arguments - versions: [${arg_versions}]"
-log "arguments - silent:   [${arg_silent}]"
-log "arguments - alias:    [${arg_alias}]"
-log "arguments - list:     [${arg_list}]"
+arg_multilib=$(to_boolean "${arg_multilib}")
+if [ "$arg_multilib" == '' ] ; then
+    exit 1;
+fi
+
+arg_minimalistic=$(to_boolean "${arg_minimalistic}")
+if [ "$arg_minimalistic" == '' ] ; then
+    exit 1;
+fi
+
+# --minimalistic trims the optional payload (multilib). It only overrides multilib when left at
+# its default - an explicit --multilib=yes still wins.
+if [[ ${arg_minimalistic} == 1 ]]; then
+    if [[ ${arg_multilib_explicit} == 0 ]]; then
+        arg_multilib=0
+    fi
+fi
+
+log "arguments - versions:     [${arg_versions}]"
+log "arguments - silent:       [${arg_silent}]"
+log "arguments - alias:        [${arg_alias}]"
+log "arguments - list:         [${arg_list}]"
+log "arguments - multilib:     [${arg_multilib}]"
+log "arguments - minimalistic: [${arg_minimalistic}]"
 
 # --- use ppa:ubuntu-toolchain-r/test
 
@@ -201,17 +235,27 @@ for version in "${gcc_versions_to_install[@]}"; do
     apt install -qq -y --no-install-recommends                                  \
             gcc-${version} g++-${version}                                       \
         || error "installation of [${version}] failed"
-    # multilib is best-effort: not always available for new toolchain versions
-    apt install -qq -y --no-install-recommends                                  \
-            gcc-${version}-multilib g++-${version}-multilib                     \
-        || log "multilib for [${version}] not available, skipping"
+    if [[ ${arg_multilib} == 1 ]]; then
+        # multilib availability is environmental:
+        #   It lags for brand-new toolchain versions, and does not exist on non-amd64 hosts.
+        #   So a default (implicit) request is best-effort - skip with a log - while an explicit --multilib=yes is honored strictly and fails hard if unavailable.
+        if ! apt install -qq -y --no-install-recommends             \
+                gcc-${version}-multilib g++-${version}-multilib     \
+        ; then
+            if [[ ${arg_multilib_explicit} == 1 ]]; then
+                error "multilib for [${version}] explicitly requested (--multilib) but not available"
+            fi
+            log "multilib for [${version}] not available, skipping"
+        fi
+    fi
     # ISSUE: inconsistency: Not available for g++-13
     #   g++-{}-aarch64-linux-gnu g++-{}-arm-linux-gnueabihf         \
     #   g++-{}-powerpc64-linux-gnu g++-{}-powerpc64le-linux-gnu  g++-{}-powerpc-linux-gnu      \
-    update-alternatives --quiet                                                 \
-            --install /usr/bin/gcc  gcc  /usr/bin/gcc-${version} ${version}     \
-            --slave   /usr/bin/g++  g++  /usr/bin/g++-${version}                \
-            --slave   /usr/bin/gcov gcov /usr/bin/gcov-${version}               \
+    update-alternatives --quiet                                                        \
+            --install /usr/bin/gcc       gcc       /usr/bin/gcc-${version} ${version}  \
+            --slave   /usr/bin/g++       g++       /usr/bin/g++-${version}             \
+            --slave   /usr/bin/gcov      gcov      /usr/bin/gcov-${version}            \
+            --slave   /usr/bin/gcov-tool gcov-tool /usr/bin/gcov-tool-${version}       \
         || error "update-alternatives of [${version}] failed"
 
 done
