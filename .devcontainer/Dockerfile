@@ -194,19 +194,34 @@ CMD ["/bin/bash"]
 
 # ---------------------------------------------------------------------------------------------
 # Stage: documentation - documentation generation for CI, on top of `build`.
-#   Needs the `build` toolchain (CMake `doc` targets, processing the checked-out sources) plus the doxygen/graphviz generators.
+#   Needs the `build` toolchain (CMake `doc` targets, processing the checked-out sources) plus the
+#   doxygen/graphviz generators and the coverage tooling both toolchains' `doc` targets can call.
 # ---------------------------------------------------------------------------------------------
 FROM build AS documentation
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
+# Coverage: register the unversioned Clang coverage commands (llvm-cov, llvm-profdata).
+#   The `build` stage installed clang `--minimalistic` (compilers only); re-run llvm.sh in
+#   `--coverage` mode to add the llvm-cov/llvm-profdata alternatives - the GCC side (gcov) already
+#   ships with GCC and lcov (`genhtml`) is installed below.
+COPY ./scripts/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
+WORKDIR ${TOOLCHAIN_TMP_DIR}
+ARG LLVM_VERSIONS='latest-stable'
+RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                            \
+    echo -e "[C++ coverage] Registering LLVM coverage tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..."; \
+    chmod +x ${script_path}                                                                      \
+    && ${script_path} --silent=yes --alias=yes --coverage --versions="$LLVM_VERSIONS"            \
+    && rm -rf /var/lib/apt/lists/*
+
 # Documentation: Doxygen (pre-built binary - Ubuntu's apt package lags upstream) + graphviz (`dot`).
+#   lcov (`genhtml`) covers the GCC coverage path of CMake `doc` targets; gcov ships with GCC already.
 # renovate: datasource=github-releases depName=doxygen/doxygen versioning=regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$
 ARG DOXYGEN_RELEASE=Release_1_17_0
 COPY ./scripts/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
-RUN apt update -qqy && apt install -qqy --no-install-recommends graphviz \
-    && rm -rf /var/lib/apt/lists/*                                       \
-    && chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh                  \
+RUN apt update -qqy && apt install -qqy --no-install-recommends graphviz lcov \
+    && rm -rf /var/lib/apt/lists/*                                            \
+    && chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh                       \
     && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}"
 
 CMD ["/bin/bash"]
@@ -224,8 +239,8 @@ SHELL ["/bin/bash", "-c"]
 # Tooling: documentation (re-added from the `documentation` stage, since dev inherits the
 #          `static-analysis` sibling), dynamic analysis, debug, versioning extras, editors, misc
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
-        # documentation (doxygen itself is installed as a pre-built binary below; graphviz -> `dot`)
-        graphviz                                            \
+        # documentation (doxygen itself is installed as a pre-built binary below; graphviz -> `dot`, lcov -> coverage `genhtml`)
+        graphviz lcov                                       \
         # dynamic analysis
         valgrind                                            \
         # debug

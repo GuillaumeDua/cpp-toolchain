@@ -15,6 +15,7 @@ arg_list=0
 arg_silent=1
 arg_alias=0
 arg_minimalistic=0
+arg_coverage=0
 arg_cleanup=0
 
 internal_script_path='impl.sh'
@@ -34,6 +35,7 @@ help(){
         [ -s | --silent ]       : Run in silent mod.                                        Boolean -> default is [1]
         [ -a | --alias]         : Set bash/zsh-rc aliases.                                  Boolean -> default is [0]
         [ -m | --minimalistic]  : only clang/clang++, not tools.                            Boolean -> default is [0]
+        [ --coverage ]          : clang/clang++ + coverage tools (llvm-cov, llvm-profdata). Boolean -> default is [0]
         [ -c | --cleanup]       : purge any (pre-)existing llvm/clang package installation: Boolean -> default is [0]
         [ -h | --help ]         : Display usage/help
 
@@ -85,7 +87,7 @@ fi
 # --- options management ---
 
 options_short=s:,v:,a:,m,c,l,h
-options_long=silent:,versions:,alias:,minimalistic,cleanup,help,list
+options_long=silent:,versions:,alias:,minimalistic,coverage,cleanup,help,list
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -107,6 +109,10 @@ do
         ;;
     -m | --minimalistic )
         arg_minimalistic=1
+        shift;
+        ;;
+    --coverage )
+        arg_coverage=1
         shift;
         ;;
     -c | --cleanup )
@@ -148,6 +154,17 @@ if [ "$arg_minimalistic" == '' ] ; then
     exit 1;
 fi
 
+arg_coverage=$(to_boolean "${arg_coverage}")
+if [ "$arg_coverage" == '' ] ; then
+    exit 1;
+fi
+
+# --coverage is a superset of --minimalistic (clang/clang++ + coverage tools),
+# so when both are passed then coverage wins.
+if [[ ${arg_coverage} == 1 ]]; then
+    arg_minimalistic=0
+fi
+
 arg_cleanup=$(to_boolean "${arg_cleanup}")
 if [ "$arg_cleanup" == '' ] ; then
     exit 1;
@@ -158,6 +175,7 @@ log "arguments - silent:            [${arg_silent}]"
 log "arguments - alias:             [${arg_alias}]"
 log "arguments - list:              [${arg_list}]"
 log "arguments - minimalistic:      [${arg_minimalistic}]"
+log "arguments - coverage:          [${arg_coverage}]"
 log "arguments - cleanup:           [${arg_cleanup}]"
 
 # --- fetch llvm.sh ---
@@ -290,6 +308,13 @@ for version in "${llvm_versions_to_install[@]}"; do
             --install /usr/bin/clang clang /usr/bin/clang-${version} ${update_alternative_priority}                             \
             --slave /usr/bin/clang++                  clang++                   /usr/bin/clang++-${version}                     \
         || error "update-alternatives of [${version}] failed"
+    elif [[ ${arg_coverage} == 1 ]]; then
+        update-alternatives --quiet                                                                                             \
+            --install /usr/bin/clang clang /usr/bin/clang-${version} ${update_alternative_priority}                             \
+            --slave /usr/bin/clang++                  clang++                   /usr/bin/clang++-${version}                     \
+            --slave /usr/bin/llvm-cov                 llvm-cov                  /usr/bin/llvm-cov-${version}                     \
+            --slave /usr/bin/llvm-profdata            llvm-profdata             /usr/bin/llvm-profdata-${version}                \
+        || error "update-alternatives of [${version}] failed"
     else
         update-alternatives --quiet                                                                                             \
             --install /usr/bin/clang clang /usr/bin/clang-${version} ${update_alternative_priority}                             \
@@ -300,6 +325,8 @@ for version in "${llvm_versions_to_install[@]}"; do
             --slave /usr/bin/clang-check              clang-check               /usr/bin/clang-check-${version}                 \
             --slave /usr/bin/clang-query              clang-query               /usr/bin/clang-query-${version}                 \
             --slave /usr/bin/clang-apply-replacements clang-apply-replacements  /usr/bin/clang-apply-replacements-${version}    \
+            --slave /usr/bin/llvm-cov                 llvm-cov                  /usr/bin/llvm-cov-${version}                     \
+            --slave /usr/bin/llvm-profdata            llvm-profdata             /usr/bin/llvm-profdata-${version}                \
             --slave /usr/bin/sancov                   sancov                    /usr/bin/sancov-${version}                      \
             --slave /usr/bin/scan-build               scan-build                /usr/bin/scan-build-${version}                  \
             --slave /usr/bin/scan-view                scan-view                 /usr/bin/scan-view-${version}                   \
