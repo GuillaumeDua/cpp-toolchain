@@ -8,17 +8,17 @@ set -eu
 # License: see https://github.com/GuillaumeDua/CppShelf/blob/main/LICENSE
 #
 # Cross-compilation GNU binutils (as/ld/objdump/... for a target arch) + the matching cross-libc.
-#   Compiler-agnostic: the target `binutils-<triplet>` serve any toolchain emitting that arch
-#   (in this image, notably Clang's `--target=<triplet>`), which is why they live here rather
-#   than in gcc.sh - see gcc.sh for the GCC-specific `--multilib`.
-#   For each target we also install `libc6-dev-<debarch>-cross` (headers + crt + static, pulling the runtime)
-#   so the target is actually linkable, not just assemble-able.
+#   Compiler-agnostic:
+#       The target `binutils-<triplet>` serve any toolchain emitting that arch (in this image, notably Clang's `--target=<triplet>`),
+#       which is why they live here rather than in gcc.sh - see gcc.sh for the GCC-specific `--multilib`.
+#
+#       For each target we also install `libc6-dev-<debarch>-cross` (headers + crt + static, pulling the runtime)
+#       so the target is actually linkable, not just assemble-able.
 #
 # Scope / known limitation: this enables *C* cross-compilation (cross binutils + cross glibc).
 #   Cross-compiling *C++* additionally needs a *target* C++ standard library, which is NOT bundled:
-#     - libc++   (LLVM): no portable apt cross package - requires an LLVM `runtimes` source build
-#                        (future scripts/libcxx.sh). The *host* libc++ is installed by llvm.sh, so
-#                        native `clang++ -stdlib=libc++` already works without GCC.
+#     - libc++   (LLVM): no portable apt cross package - requires an LLVM `runtimes` source build (possibly a future scripts/libcxx.sh).
+#                        The *host* libc++ is installed by llvm.sh, so native `clang++ -stdlib=libc++` already works without GCC.
 #     - libstdc++ (GNU): obtainable per target via `g++-<triplet>` / `libstdc++-<N>-dev-<debarch>-cross`.
 # =============================================================================================
 
@@ -68,6 +68,7 @@ to_boolean(){
             ;;
     esac
 }
+
 # Map a GNU target triplet (as used by `binutils-<triplet>`) to the Debian architecture alias (as used by `libc6-dev-<debarch>-cross`).
 # Empty output => no known cross-libc for that target.
 triplet_to_debarch(){
@@ -151,8 +152,10 @@ log "arguments - list:    [${arg_list}]"
 #   lists the target triplets for which a `binutils-<triplet>` cross package exists on this host.
 if [[ ${arg_list} == 1 ]]; then
     apt-get update -qqy >/dev/null 2>&1 || true
+    #   `-dbg`/`-dev` are debug-symbol / side packages of a target, not targets themselves.
     apt-cache search --names-only '^binutils-.*-linux-gnu' \
-        | awk '{print $1}' | grep -oP '^binutils-\K.*-linux-gnu.*$' | sort -u
+        | awk '{print $1}' | grep -oP '^binutils-\K.*-linux-gnu.*$' \
+        | grep -vE -- '-(dbg|dev)$' | sort -u
     exit 0
 fi
 
@@ -160,6 +163,7 @@ fi
 apt-get update -qqy
 
 for target in ${arg_targets}; do
+
     pkg_binutils="binutils-${target}"
     log "installing [${pkg_binutils}] ..."
     apt install -qq -y --no-install-recommends "${pkg_binutils}" \
@@ -175,6 +179,7 @@ for target in ${arg_targets}; do
     log "installing [${pkg_libc}] ..."
     apt install -qq -y --no-install-recommends "${pkg_libc}" \
         || log "[${pkg_libc}] not available for this host/arch, skipping"
+
 done
 
 exit 0;
