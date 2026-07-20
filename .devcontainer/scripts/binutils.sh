@@ -73,18 +73,42 @@ to_boolean(){
 # Empty output => no known cross-libc for that target.
 triplet_to_debarch(){
     case "$1" in
-        aarch64-linux-gnu)                 echo arm64    ;;
-        arm-linux-gnueabihf)               echo armhf    ;;
-        arm-linux-gnueabi)                 echo armel    ;;
-        powerpc64-linux-gnu)               echo ppc64    ;;
-        powerpc64le-linux-gnu)             echo ppc64el  ;;
-        powerpc-linux-gnu)                 echo powerpc  ;;
-        riscv64-linux-gnu)                 echo riscv64  ;;
-        s390x-linux-gnu)                   echo s390x    ;;
-        mips64el-linux-gnuabi64)           echo mips64el ;;
-        i686-linux-gnu | i386-linux-gnu)   echo i386     ;;
-        x86-64-linux-gnu | x86_64-linux-gnu) echo amd64  ;;
-        *)                                 echo ''       ;;
+        # --- arm ---
+        aarch64-linux-gnu)                   echo arm64      ;;
+        arm-linux-gnueabihf)                 echo armhf      ;;  # hard-float FPU ABI
+        arm-linux-gnueabi)                   echo armel      ;;  # soft-float FPU ABI
+        # --- x86 ---
+        x86-64-linux-gnu | x86_64-linux-gnu) echo amd64      ;;
+        x86-64-linux-gnux32)                 echo x32        ;;  # x32 ABI
+        i686-linux-gnu | i386-linux-gnu)     echo i386       ;;
+        # --- powerpc ---
+        powerpc-linux-gnu)                   echo powerpc    ;;
+        powerpc64-linux-gnu)                 echo ppc64      ;;  # big-endian
+        powerpc64le-linux-gnu)               echo ppc64el    ;;  # little-endian
+        # --- mips: o32 / n32 / n64 ABIs, r6 ISA, both endiannesses ---
+        mips-linux-gnu)                      echo mips       ;;
+        mipsel-linux-gnu)                    echo mipsel     ;;
+        mips64-linux-gnuabi64)               echo mips64     ;;
+        mips64el-linux-gnuabi64)             echo mips64el   ;;
+        mips64-linux-gnuabin32)              echo mipsn32    ;;
+        mips64el-linux-gnuabin32)            echo mipsn32el  ;;
+        mipsisa32r6-linux-gnu)               echo mipsr6     ;;
+        mipsisa32r6el-linux-gnu)             echo mipsr6el   ;;
+        mipsisa64r6-linux-gnuabi64)          echo mips64r6   ;;
+        mipsisa64r6el-linux-gnuabi64)        echo mips64r6el ;;
+        mipsisa64r6-linux-gnuabin32)         echo mipsn32r6  ;;
+        mipsisa64r6el-linux-gnuabin32)       echo mipsn32r6el;;
+        # --- others ---
+        riscv64-linux-gnu)                   echo riscv64    ;;
+        s390x-linux-gnu)                     echo s390x      ;;
+        loongarch64-linux-gnu)               echo loong64    ;;
+        sparc64-linux-gnu)                   echo sparc64    ;;
+        hppa-linux-gnu)                      echo hppa       ;;
+        m68k-linux-gnu)                      echo m68k       ;;
+        sh4-linux-gnu)                       echo sh4        ;;
+        arc-linux-gnu)                       echo arc        ;;
+        # no cross-libc published for these, binutils only: alpha, hppa64, ia64
+        *)                                   echo ''         ;;
     esac
 }
 
