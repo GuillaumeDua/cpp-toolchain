@@ -33,7 +33,7 @@ docker build --target documentation   -t cpp-toolchain:documentation   -f .devco
 docker build --target dev             -t cpp-toolchain:dev             -f .devcontainer/Dockerfile .devcontainer
 ```
 
-SSH remote access is an opt-in extra layer on top of `dev` — see [Remote access](#remote-access-opt-in) below.
+SSH remote access is an opt-in extra layer on top of `dev` - see [Remote access](#remote-access-opt-in) below.
 
 ### Registries & tags
 
@@ -170,7 +170,11 @@ clang++ -std=c++23 -stdlib=libc++ main.cpp
 
 ### Cross-architecture compilation
 
-For each requested target, the image installs a **complete cross toolchain** via `g++-<triplet>` — which pulls cross **binutils** (`as` / `ld` / `objdump` / ...), cross **glibc**, cross **libgcc** and cross **libstdc++** — installed by [`binutils.sh`](.devcontainer/scripts/binutils.sh). That is enough to compile *and link* C and C++ for the target, and Clang auto-detects the cross-GCC install, so `clang --target=<triplet>` works with no extra flags. Defaults:
+For each requested target, the image installs a **complete cross toolchain** via `g++-<triplet>` - which pulls cross **binutils** (`as` / `ld` / `objdump` / ...),  
+cross **glibc**, cross **libgcc** and cross **libstdc++** - installed by [`binutils.sh`](.devcontainer/scripts/binutils.sh).  
+That is enough to compile *and link* C and C++ for the target, and Clang auto-detects the cross-GCC install, so `clang --target=<triplet>` works with no extra flags.
+
+Defaults:
 
 | Target triplet        | Package installed          | Pulls (cross)                              |
 | --------------------- | -------------------------- | ------------------------------------------ |
@@ -201,7 +205,7 @@ sudo ./binutils.sh --targets='riscv64-linux-gnu s390x-linux-gnu'
 | CPU / ISA  | `mipsisa32r6-linux-gnu`, `mipsisa64r6el-linux-gnuabi64` (MIPS release 6)   |
 | Endianness | `powerpc64` vs `powerpc64le`, `mips` vs `mipsel`                           |
 
-> ℹ️ 25 of 32 target triplets have a cross-`g++` (full toolchain). The 7 without one — `ia64`, `hppa64`, `loongarch64` and the four mips-`n32` variants — fall back to cross-binutils (+ cross-libc where published); the script logs and continues.
+> ℹ️ 25 of 32 target triplets have a cross-`g++` (full toolchain). The 7 without one - `ia64`, `hppa64`, `loongarch64` and the four mips-`n32` variants - fall back to cross-binutils (+ cross-libc where published); the script logs and continues.
 
 #### What works, and what does not
 
@@ -213,7 +217,7 @@ Assuming the target has a cross-`g++` (the default targets do):
 | Cross-compile + **link** **C++** (libstdc++)        | ✅ |
 | `clang --target=<triplet>` (C and C++, libstdc++)   | ✅ auto-detects the cross-GCC install |
 | Inspect / strip target objects (`objdump` / `strip`) | ✅ |
-| Cross-compile **C++** with **libc++**               | ❌ target libc++ not bundled — see below |
+| Cross-compile **C++** with **libc++**               | ❌ target libc++ not bundled - see below |
 
 ```bash
 aarch64-linux-gnu-g++ main.cpp -o app          # ✅ GNU cross g++
@@ -223,7 +227,7 @@ clang++ --target=aarch64-linux-gnu -stdlib=libc++ main.cpp   # ❌ no target lib
 
 **For targets without a cross-`g++`** (`--with-gcc=no`, or the 7 listed above), only cross-binutils + cross-glibc are installed: enough to compile to objects and inspect, but **not** to link a full executable (no target `libgcc` / `libstdc++`).
 
-**libc++ for the target** (the GCC-free path) is **not bundled** — it has no portable apt cross package and requires an LLVM `runtimes` source build, tracked as a future `scripts/libcxx.sh`. This affects the *cross* case only: the **host** libc++ is installed, so native `clang++ -stdlib=libc++` works (see [Standard library](#standard-library)).
+**libc++ for the target** (the GCC-free path) is **not bundled** - it has no portable apt cross package and requires an LLVM `runtimes` source build, tracked as a future `scripts/libcxx.sh`. This affects the *cross* case only: the **host** libc++ is installed, so native `clang++ -stdlib=libc++` works (see [Standard library](#standard-library)).
 
 ### Multilib - secondary ABIs
 

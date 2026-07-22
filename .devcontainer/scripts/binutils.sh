@@ -4,26 +4,30 @@ set -eu
 
 # =============================================================================================
 # This file is part of https://github.com/GuillaumeDua/CppShelf,
-# and will soon be part of https://hub.docker.com/repository/docker/gussd/cpp-toolchain/general
+# and https://hub.docker.com/repository/docker/gussd/cpp-toolchain/general
 # License: see https://github.com/GuillaumeDua/CppShelf/blob/main/LICENSE
 #
 # Cross-compilation GNU toolchain(s) for one or more target architectures.
 #
-#   Primary path (per target): install `g++-<triplet>`, which pulls the *complete* cross toolchain -
-#       cross binutils (as/ld/objdump), cross glibc, cross libgcc AND cross libstdc++ - laid out under
-#       /usr/lib/gcc-cross/<triplet>/. That is enough to compile *and link* C and C++ for the target.
-#       Clang's driver auto-detects the cross-GCC install, so `clang --target=<triplet>` works too
-#       (using libstdc++, no extra flags). This is the "with GCC" cross path.
+#   Primary path (per target):
+#       install `g++-<triplet>`, which pulls the *complete* cross toolchain:
+#       - cross binutils (as/ld/objdump)
+#       - cross glibc
+#       - cross libgcc AND cross libstdc++
+#       all laid out under /usr/lib/gcc-cross/<triplet>/.
 #
-#   Fallback (targets with no `g++-<triplet>` - e.g. ia64 / hppa64 / loongarch64 / mips-n32 variants,
-#       or when `--with-gcc=no`): install `binutils-<triplet>` + `libc6-dev-<debarch>-cross` only.
-#       Enough to compile to objects and inspect/strip, but NOT to link a full C/C++ executable
-#       (no target libgcc / libstdc++). Kept compiler-agnostic - the bare binutils serve any toolchain.
+#       That is enough to compile and link C and C++ for the target.
+#       Clang's driver auto-detects the cross-GCC install, so `clang --target=<triplet>` works too (using libstdc++, no extra flags).
+#       This is the "with GCC" cross path.
 #
-#   NOT bundled - the "without GCC" cross path (Clang + libc++ for the target, no GNU runtime): it has
-#       no portable apt package and needs an LLVM `runtimes` source build - tracked as a future
-#       scripts/libcxx.sh. (Host libc++ *is* installed by llvm.sh, so *native* `clang++ -stdlib=libc++`
-#       already works without GCC - only the cross case is missing.)
+#   Fallback (targets with no `g++-<triplet>` - e.g. ia64 / hppa64 / loongarch64 / mips-n32 variants, or when `--with-gcc=no`):
+#       install `binutils-<triplet>` + `libc6-dev-<debarch>-cross` only.
+#       Enough to compile to objects and inspect/strip, but NOT to link a full C/C++ executable (no target libgcc / libstdc++).s
+#       Kept compiler-agnostic - the bare binutils serve any toolchain.
+#
+#   NOT bundled - the "without GCC" cross path (Clang + libc++ for the target, no GNU runtime):
+#       it has no portable apt package and needs an LLVM `runtimes` source build - tracked as a future scripts/libcxx.sh.
+#       (Host libc++ *is* installed by llvm.sh, so *native* `clang++ -stdlib=libc++` already works without GCC - only the cross case is missing.)
 # =============================================================================================
 
 this_script_name=$(basename "$0")
@@ -38,12 +42,12 @@ help(){
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
-        [ -l | --list ]     : Only list the cross target triplets available on this host.           Boolean -> default is [0]
-        [ -t | --targets ]  : Target triplets to install a cross toolchain for (space-separated).   String -> default is ['${arg_targets}']
+        [ -l | --list ]     : Only list the cross target triplets available on this host.                           Boolean -> default is [0]
+        [ -t | --targets ]  : Target triplets to install a cross toolchain for (space-separated).                   String -> default is ['${arg_targets}']
                               Ex: 'aarch64-linux-gnu powerpc64-linux-gnu arm-linux-gnueabihf'
-        [ --with-gcc ]      : Install \`g++-<triplet>\` -> full cross toolchain (binutils+libc+libgcc+libstdc++), links C/C++. Boolean -> default is [1]
+        [ --with-gcc ]      : Install \`g++-<triplet>\` -> full cross toolchain (binutils+libc+libgcc+libstdc++).   Boolean -> default is [1]
                               When [0], or when no cross-g++ exists: \`binutils-<triplet>\` + \`libc6-dev-<debarch>-cross\` only.
-        [ -s | --silent ]   : Run in silent mod.                                                    Boolean -> default is [1]
+        [ -s | --silent ]   : Run in silent mod.                                                                    Boolean -> default is [1]
         [ -h | --help ]     : Display usage/help
 
     For instance, to install only the aarch64 cross-binutils, use:
@@ -205,9 +209,9 @@ apt-get update -qqy
 
 for target in ${arg_targets}; do
 
-    # Primary: the cross g++ transitively pulls the *whole* toolchain (binutils + libc + libgcc +
-    #   libstdc++), so this single package makes C and C++ cross-compilation actually *link* - and
-    #   Clang auto-detects the cross-GCC install, so `clang --target=${target}` works too.
+    # Primary: the cross g++ transitively pulls the *whole* toolchain (binutils + libc + libgcc + libstdc++), 
+    #   so this single package makes C and C++ cross-compilation actually *link*,
+    #   and Clang auto-detects the cross-GCC install, so `clang --target=${target}` works too.
     if [[ ${arg_with_gcc} == 1 ]] && apt install -qq -y --no-install-recommends "g++-${target}"; then
         log "[g++-${target}] installed - full cross toolchain (binutils + libc + libgcc + libstdc++)"
         continue

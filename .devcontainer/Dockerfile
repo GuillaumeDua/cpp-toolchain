@@ -72,9 +72,9 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
         libc6-dev                                              \
     && rm -rf /var/lib/apt/lists/*
 
-# C++ toolchain: per-target cross toolchain(s) via g++-<triplet> (pulls cross binutils + libc +
-#   libgcc + libstdc++, so C/C++ cross-compilation links; clang auto-detects it). Falls back to bare
-#   binutils + cross-libc where no cross-g++ exists. Owned by binutils.sh, not gcc.sh (which owns --multilib).
+# C++ toolchain: per-target cross toolchain(s) via g++-<triplet>
+#   (pulls cross binutils + libc + libgcc + libstdc++, so C/C++ cross-compilation links; clang auto-detects it).
+#   Falls back to bare binutils + cross-libc where no cross-g++ exists. Owned by binutils.sh, not gcc.sh (which owns --multilib).
 COPY ./scripts/binutils.sh ${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG BINUTILS_TARGETS='aarch64-linux-gnu powerpc64-linux-gnu'
@@ -149,8 +149,8 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
 
 # Build: Build2 (depends on a compiler)
 #   BUILD2_VERSION is the single source of truth (bumped by Renovate, see renovate.json).
-#   The install script is verified against build2's per-release `.sha256` sidecar rather than a
-#   hash pinned here, so a version bump stays a one-line change.
+#   The install script is verified against build2's per-release `.sha256` sidecar,
+#    rather than a hash pinned here, so a version bump stays a one-line change.
 # renovate: datasource=github-tags depName=build2/build2-toolchain extractVersion=^v(?<version>.+)$
 ARG BUILD2_VERSION=0.16.0
 ARG OPT_IN_INTEGRATE_BUILD2='no'

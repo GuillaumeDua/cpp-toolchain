@@ -3,7 +3,7 @@
 Standalone scripts to install `CMake`, `GCC`, `LLVM/Clang`, and cross-compilation `binutils` (+ cross-libc), reusable on any Debian/Ubuntu-based system.  
 All require root privileges. Used by the [devcontainer](../Dockerfile) and the `WSL2` integrations.
 
-`gcc.sh` and `llvm.sh` can install **multiple compiler versions side by side** in the same environment (one `apt install` per requested version, wired together with `update-alternatives`) — see their `--versions` option below. The published Docker image only requests `latest-stable` for both by default to keep the image lean; pass a range (`>=11`), a list (`'11 12 13'`), or `all` via `--build-arg GCC_VERSIONS=...` / `LLVM_VERSIONS=...` to get more of them baked into your own build. `cmake.sh` does not have this multi-version story — see its own section below.
+`gcc.sh` and `llvm.sh` can install **multiple compiler versions side by side** in the same environment (one `apt install` per requested version, wired together with `update-alternatives`) - see their `--versions` option below. The published Docker image only requests `latest-stable` for both by default to keep the image lean; pass a range (`>=11`), a list (`'11 12 13'`), or `all` via `--build-arg GCC_VERSIONS=...` / `LLVM_VERSIONS=...` to get more of them baked into your own build. `cmake.sh` does not have this multi-version story - see its own section below.
 
 ---
 
@@ -13,7 +13,7 @@ All require root privileges. Used by the [devcontainer](../Dockerfile) and the `
 sudo ./cmake.sh [options]
 ```
 
-Registers the [Kitware apt repository](https://apt.kitware.com/) (via its `kitware-archive.sh` bootstrap, handling the Ubuntu-24.04-noble → jammy quick-fix), then installs a single `cmake` version. Unlike `gcc.sh`/`llvm.sh`, CMake has no side-by-side multi-version story (no `update-alternatives`) — the Kitware repo only ever exposes whichever versions are currently published.
+Registers the [Kitware apt repository](https://apt.kitware.com/) (via its `kitware-archive.sh` bootstrap, handling the Ubuntu-24.04-noble → jammy quick-fix), then installs a single `cmake` version. Unlike `gcc.sh`/`llvm.sh`, CMake has no side-by-side multi-version story (no `update-alternatives`) - the Kitware repo only ever exposes whichever versions are currently published.
 
 | Option             | Type    | Default  | Description                                                                                                |
 | ------------------ | ------- | -------- | ---------------------------------------------------------------------------------------------------------- |
@@ -22,7 +22,7 @@ Registers the [Kitware apt repository](https://apt.kitware.com/) (via its `kitwa
 | `-s`, `--silent`   | boolean | `1`      | Suppress log output                                                                                        |
 | `-a`, `--alias`    | boolean | `0`      | Append the resulting `cmake_version` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                   |
 | `-r`, `--rc`       | boolean | `0`      | Also register the Kitware release-candidate apt repository                                                 |
-| `-h`, `--help`     | —       | —        | Display usage                                                                                              |
+| `-h`, `--help`     | -       | -        | Display usage                                                                                              |
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
@@ -50,12 +50,12 @@ Installs one or more GCC versions from the `ubuntu-toolchain-r/test` PPA (added 
 | `-s`, `--silent`       | boolean | `1`             | Suppress log output                                                                                      |
 | `-a`, `--alias`        | boolean | `0`             | Append the resulting `gcc_versions` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                  |
 | `--multilib`           | boolean | `1`             | Install `gcc-<N>-multilib` / `g++-<N>-multilib` (secondary ABIs: `-m32`, `-mx32`)                        |
-| `-m`, `--minimalistic` | boolean | `0`             | Compilers only — disables `--multilib` *unless* it was set explicitly                                    |
-| `-h`, `--help`         | —       | —               | Display usage                                                                                            |
+| `-m`, `--minimalistic` | boolean | `0`             | Compilers only - disables `--multilib` *unless* it was set explicitly                                    |
+| `-h`, `--help`         | -       | -               | Display usage                                                                                            |
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
-**Multilib is best-effort by default**: the packages lag for brand-new GCC versions and do not exist on non-amd64 hosts, so an unavailable one is skipped with a log. An *explicit* `--multilib=yes` is honored strictly and fails hard instead — the default resolution is resilient, an explicit request is not silently ignored.
+**Multilib is best-effort by default**: the packages lag for brand-new GCC versions and do not exist on non-amd64 hosts, so an unavailable one is skipped with a log. An *explicit* `--multilib=yes` is honored strictly and fails hard instead - the default resolution is resilient, an explicit request is not silently ignored.
 
 **Example**: install the two latest available versions:
 
@@ -90,12 +90,12 @@ Wraps the upstream [`apt.llvm.org/llvm.sh`](https://apt.llvm.org/llvm.sh) instal
 | `-m`, `--minimalistic` | boolean | `0`             | Only register `clang`/`clang++` alternatives, skip the extra tools                                       |
 | `--coverage`           | boolean | `0`             | `clang`/`clang++` **+ coverage tools** (`llvm-cov`, `llvm-profdata`), without the analysis tools         |
 | `-c`, `--cleanup`      | boolean | `0`             | Purge any pre-existing `llvm-*`/`lldb-*`/`clang-*`/`python3-lldb-*` packages before installing           |
-| `-h`, `--help`         | —       | —               | Display usage                                                                                            |
+| `-h`, `--help`         | -       | -               | Display usage                                                                                            |
 
-The three alternative "mods" are tiered — `--minimalistic` (compilers) ⊂ `--coverage` (compilers + `llvm-cov`/`llvm-profdata`) ⊂ default (everything). `--coverage` is a superset of `--minimalistic`, so when both are passed **`--coverage` wins**.
+The three alternative "mods" are tiered - `--minimalistic` (compilers) ⊂ `--coverage` (compilers + `llvm-cov`/`llvm-profdata`) ⊂ default (everything). `--coverage` is a superset of `--minimalistic`, so when both are passed **`--coverage` wins**.
 
 > [!NOTE]
-> These flags only control which `update-alternatives` symlinks are registered — the underlying *packages* are always installed (the upstream installer is invoked with `all`). So `llvm-cov-<N>` exists even after `--minimalistic`; only the unversioned `llvm-cov` command does not.
+> These flags only control which `update-alternatives` symlinks are registered - the underlying *packages* are always installed (the upstream installer is invoked with `all`). So `llvm-cov-<N>` exists even after `--minimalistic`; only the unversioned `llvm-cov` command does not.
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
@@ -117,9 +117,18 @@ sudo ./llvm.sh --versions="$(sudo ./llvm.sh --list --versions='all' | tail -2)"
 sudo ./binutils.sh [options]
 ```
 
-Installs a **complete cross toolchain** for each target. By default (`--with-gcc=1`) it installs `g++-<triplet>`, which transitively pulls the whole set — cross **binutils** (`as`, `ld`, `objdump`, `readelf`, `strip`), cross **glibc**, cross **libgcc** and cross **libstdc++** — laid out under `/usr/lib/gcc-cross/<triplet>/`. That is enough to compile *and link* C and C++ for the target, and Clang's driver **auto-detects** the cross-GCC install, so `clang --target=<triplet>` works (with libstdc++) too.
+Installs a **complete cross toolchain** for each target.
 
-With `--with-gcc=0`, or for targets that have no cross-`g++`, it falls back to bare `binutils-<triplet>` + `libc6-dev-<debarch>-cross`: enough to compile to objects and inspect/strip, but **not** to link a full executable (no target `libgcc` / `libstdc++`). This fallback is compiler-agnostic — the bare binutils serve any toolchain emitting that arch, which is why cross tooling lives here rather than in `gcc.sh` (`gcc.sh` owns `--multilib`, a secondary ABI of the *host* arch — a different thing).
+By default (`--with-gcc=1`) installs `g++-<triplet>`, which transitively pulls the whole set - cross **binutils** (`as`, `ld`, `objdump`, `readelf`, `strip`),  
+cross **glibc**, cross **libgcc** and cross **libstdc++** - laid out under `/usr/lib/gcc-cross/<triplet>/`.  
+That is enough to compile *and link* C and C++ for the target, and Clang's driver **auto-detects** the cross-GCC install, so `clang --target=<triplet>` works (with libstdc++) too.
+
+With `--with-gcc=0`, or for targets that have no cross-`g++`, it falls back to bare `binutils-<triplet>` + `libc6-dev-<debarch>-cross`:
+
+- enough to compile to objects and inspect/strip
+- but **not** to link a full executable (no target `libgcc` / `libstdc++`).
+
+This fallback is compiler-agnostic - the bare binutils serve any toolchain emitting that arch, which is why cross tooling lives here rather than in `gcc.sh` (`gcc.sh` owns `--multilib`, a secondary ABI of the *host* arch - a different thing).
 
 | Option            | Type    | Default                                   | Description                                                                        |
 | ----------------- | ------- | ----------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -127,13 +136,14 @@ With `--with-gcc=0`, or for targets that have no cross-`g++`, it falls back to b
 | `--with-gcc`      | boolean | `1`                                       | Install `g++-<triplet>` (full toolchain, links C/C++); `0` = bare binutils + libc  |
 | `-l`, `--list`    | boolean | `0`                                       | Only list the cross target triplets available on this host                         |
 | `-s`, `--silent`  | boolean | `1`                                       | Suppress log output                                                                |
-| `-h`, `--help`    | —       | —                                         | Display usage                                                                      |
+| `-h`, `--help`    | -       | -                                         | Display usage                                                                      |
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
-Each target is installed **best-effort** — availability is host/arch dependent, so an unavailable package is logged and skipped rather than failing the run. **25 of 32** targets have a cross-`g++`; the 7 without one (`ia64`, `hppa64`, `loongarch64`, and the four mips-`n32` variants) automatically use the binutils + libc fallback.
+Each target is installed **best-effort** - availability is host/arch dependent, so an unavailable package is logged and skipped rather than failing the run.  
+**25 of 32** targets have a cross-`g++`; the 7 without one (`ia64`, `hppa64`, `loongarch64`, and the four mips-`n32` variants) automatically use the binutils + libc fallback.
 
-**CPU, FPU and ABI variants are encoded in the triplet** — there is no separate switch:
+**CPU, FPU and ABI variants are encoded in the triplet** - there is no separate switch:
 
 | Axis       | Example triplets                                                           |
 | ---------- | -------------------------------------------------------------------------- |
@@ -161,4 +171,6 @@ clang++ --target=aarch64-linux-gnu main.cpp  # Clang, libstdc++ (auto-detected)
 ```
 
 > [!IMPORTANT]
-> The **GCC-free** cross path — Clang with **libc++** *for the target* (`-stdlib=libc++`) — is **not** bundled: libc++ has no portable apt cross package and requires an LLVM `runtimes` source build (tracked as a future `libcxx.sh`). The *host* libc++ **is** installed by `llvm.sh`, so native `clang++ -stdlib=libc++` works without GCC — only the cross case is missing.
+> **Current limitation**: The **GCC-free** cross path - Clang with **libc++** *for the target* (`-stdlib=libc++`) - is **not** bundled:  
+> `libc++` has no portable apt cross package and requires an LLVM `runtimes` source build (tracked as a future `libcxx.sh`).  
+> The *host* libc++ **is** installed by `llvm.sh`, so native `clang++ -stdlib=libc++` works without GCC - only the cross case is missing.
