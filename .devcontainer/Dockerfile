@@ -72,16 +72,16 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
         libc6-dev                                              \
     && rm -rf /var/lib/apt/lists/*
 
-# C++ toolchain: cross-compilation binutils + matching cross-libc
-#   (target as/ld/objdump/... and libc6-dev-<arch>-cross; compiler-agnostic - serve e.g. clang's `--target=<triplet>`).
-#   Owned by binutils.sh, not gcc.sh (which owns --multilib).
+# C++ toolchain: per-target cross toolchain(s) via g++-<triplet> (pulls cross binutils + libc +
+#   libgcc + libstdc++, so C/C++ cross-compilation links; clang auto-detects it). Falls back to bare
+#   binutils + cross-libc where no cross-g++ exists. Owned by binutils.sh, not gcc.sh (which owns --multilib).
 COPY ./scripts/binutils.sh ${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG BINUTILS_TARGETS='aarch64-linux-gnu powerpc64-linux-gnu'
-RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh;                                         \
-    echo -e "[C++ toolchain] Installing cross-binutils BINUTILS_TARGETS=[$BINUTILS_TARGETS] ..."; \
-    chmod +x ${script_path}                                                                       \
-    && ${script_path} --silent=yes --targets="$BINUTILS_TARGETS"                                  \
+RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh;                                              \
+    echo -e "[C++ toolchain] Installing cross toolchains BINUTILS_TARGETS=[$BINUTILS_TARGETS] ...";    \
+    chmod +x ${script_path}                                                                            \
+    && ${script_path} --silent=yes --targets="$BINUTILS_TARGETS"                                       \
     && rm -rf /var/lib/apt/lists/*
 
 # Build: CMake (https://apt.kitware.com/)

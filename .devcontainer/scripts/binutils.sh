@@ -7,24 +7,29 @@ set -eu
 # and will soon be part of https://hub.docker.com/repository/docker/gussd/cpp-toolchain/general
 # License: see https://github.com/GuillaumeDua/CppShelf/blob/main/LICENSE
 #
-# Cross-compilation GNU binutils (as/ld/objdump/... for a target arch) + the matching cross-libc.
-#   Compiler-agnostic:
-#       The target `binutils-<triplet>` serve any toolchain emitting that arch (in this image, notably Clang's `--target=<triplet>`),
-#       which is why they live here rather than in gcc.sh - see gcc.sh for the GCC-specific `--multilib`.
+# Cross-compilation GNU toolchain(s) for one or more target architectures.
 #
-#       For each target we also install `libc6-dev-<debarch>-cross` (headers + crt + static, pulling the runtime)
-#       so the target is actually linkable, not just assemble-able.
+#   Primary path (per target): install `g++-<triplet>`, which pulls the *complete* cross toolchain -
+#       cross binutils (as/ld/objdump), cross glibc, cross libgcc AND cross libstdc++ - laid out under
+#       /usr/lib/gcc-cross/<triplet>/. That is enough to compile *and link* C and C++ for the target.
+#       Clang's driver auto-detects the cross-GCC install, so `clang --target=<triplet>` works too
+#       (using libstdc++, no extra flags). This is the "with GCC" cross path.
 #
-# Scope / known limitation: this enables *C* cross-compilation (cross binutils + cross glibc).
-#   Cross-compiling *C++* additionally needs a *target* C++ standard library, which is NOT bundled:
-#     - libc++   (LLVM): no portable apt cross package - requires an LLVM `runtimes` source build (possibly a future scripts/libcxx.sh).
-#                        The *host* libc++ is installed by llvm.sh, so native `clang++ -stdlib=libc++` already works without GCC.
-#     - libstdc++ (GNU): obtainable per target via `g++-<triplet>` / `libstdc++-<N>-dev-<debarch>-cross`.
+#   Fallback (targets with no `g++-<triplet>` - e.g. ia64 / hppa64 / loongarch64 / mips-n32 variants,
+#       or when `--with-gcc=no`): install `binutils-<triplet>` + `libc6-dev-<debarch>-cross` only.
+#       Enough to compile to objects and inspect/strip, but NOT to link a full C/C++ executable
+#       (no target libgcc / libstdc++). Kept compiler-agnostic - the bare binutils serve any toolchain.
+#
+#   NOT bundled - the "without GCC" cross path (Clang + libc++ for the target, no GNU runtime): it has
+#       no portable apt package and needs an LLVM `runtimes` source build - tracked as a future
+#       scripts/libcxx.sh. (Host libc++ *is* installed by llvm.sh, so *native* `clang++ -stdlib=libc++`
+#       already works without GCC - only the cross case is missing.)
 # =============================================================================================
 
 this_script_name=$(basename "$0")
 
 arg_targets='aarch64-linux-gnu powerpc64-linux-gnu'
+arg_with_gcc=1
 arg_list=0
 arg_silent=1
 
@@ -33,9 +38,11 @@ help(){
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
-        [ -l | --list ]     : Only list the cross-binutils target triplets available on this host.  Boolean -> default is [0]
-        [ -t | --targets ]  : Target triplets to install, as \`binutils-<triplet>\`.                String (space-separated) -> default is ['${arg_targets}']
+        [ -l | --list ]     : Only list the cross target triplets available on this host.           Boolean -> default is [0]
+        [ -t | --targets ]  : Target triplets to install a cross toolchain for (space-separated).   String -> default is ['${arg_targets}']
                               Ex: 'aarch64-linux-gnu powerpc64-linux-gnu arm-linux-gnueabihf'
+        [ --with-gcc ]      : Install \`g++-<triplet>\` -> full cross toolchain (binutils+libc+libgcc+libstdc++), links C/C++. Boolean -> default is [1]
+                              When [0], or when no cross-g++ exists: \`binutils-<triplet>\` + \`libc6-dev-<debarch>-cross\` only.
         [ -s | --silent ]   : Run in silent mod.                                                    Boolean -> default is [1]
         [ -h | --help ]     : Display usage/help
 
@@ -122,7 +129,7 @@ fi
 # --- options management ---
 
 options_short=s:,t:,l,h
-options_long=silent:,targets:,help,list
+options_long=silent:,targets:,with-gcc:,help,list
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -136,6 +143,10 @@ do
       ;;
     -t | --targets )
       arg_targets=$(echo $2 | tr -d '\n' | tr '\n' ' ')
+      shift 2
+      ;;
+    --with-gcc )
+      arg_with_gcc="$2"
       shift 2
       ;;
     -l | --list )
@@ -168,9 +179,15 @@ if [ "$arg_list" == '' ] ; then
     exit 1;
 fi
 
-log "arguments - targets: [${arg_targets}]"
-log "arguments - silent:  [${arg_silent}]"
-log "arguments - list:    [${arg_list}]"
+arg_with_gcc=$(to_boolean "${arg_with_gcc}")
+if [ "$arg_with_gcc" == '' ] ; then
+    exit 1;
+fi
+
+log "arguments - targets:  [${arg_targets}]"
+log "arguments - with-gcc: [${arg_with_gcc}]"
+log "arguments - silent:   [${arg_silent}]"
+log "arguments - list:     [${arg_list}]"
 
 # --- list mod ? ---
 #   lists the target triplets for which a `binutils-<triplet>` cross package exists on this host.
@@ -188,12 +205,24 @@ apt-get update -qqy
 
 for target in ${arg_targets}; do
 
+    # Primary: the cross g++ transitively pulls the *whole* toolchain (binutils + libc + libgcc +
+    #   libstdc++), so this single package makes C and C++ cross-compilation actually *link* - and
+    #   Clang auto-detects the cross-GCC install, so `clang --target=${target}` works too.
+    if [[ ${arg_with_gcc} == 1 ]] && apt install -qq -y --no-install-recommends "g++-${target}"; then
+        log "[g++-${target}] installed - full cross toolchain (binutils + libc + libgcc + libstdc++)"
+        continue
+    fi
+    if [[ ${arg_with_gcc} == 1 ]]; then
+        log "[g++-${target}] unavailable, falling back to binutils + cross-libc only"
+    fi
+
+    # Fallback: bare cross binutils (+ cross libc, keyed off the Debian arch). Enough to compile to
+    #   objects and inspect/strip; NOT to link a full executable (no target libgcc / libstdc++).
     pkg_binutils="binutils-${target}"
     log "installing [${pkg_binutils}] ..."
     apt install -qq -y --no-install-recommends "${pkg_binutils}" \
         || log "[${pkg_binutils}] not available for this host/arch, skipping"
 
-    # cross-libc for the same target (dev variant pulls the runtime), keyed off the Debian arch.
     debarch=$(triplet_to_deb_arch "${target}")
     if [ -z "${debarch}" ]; then
         log "no known cross-libc mapping for target [${target}], skipping its libc"

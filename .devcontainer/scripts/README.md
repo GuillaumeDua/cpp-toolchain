@@ -117,20 +117,21 @@ sudo ./llvm.sh --versions="$(sudo ./llvm.sh --list --versions='all' | tail -2)"
 sudo ./binutils.sh [options]
 ```
 
-Installs **cross-compilation binutils** (`binutils-<triplet>`: the target's `as`, `ld`, `objdump`, `readelf`, `strip`, ...) and, for each target, the matching **cross-libc** (`libc6-dev-<debarch>-cross` — headers, `crt` objects and static libs, pulling the runtime) so the target is actually *linkable*, not merely assemble-able.
+Installs a **complete cross toolchain** for each target. By default (`--with-gcc=1`) it installs `g++-<triplet>`, which transitively pulls the whole set — cross **binutils** (`as`, `ld`, `objdump`, `readelf`, `strip`), cross **glibc**, cross **libgcc** and cross **libstdc++** — laid out under `/usr/lib/gcc-cross/<triplet>/`. That is enough to compile *and link* C and C++ for the target, and Clang's driver **auto-detects** the cross-GCC install, so `clang --target=<triplet>` works (with libstdc++) too.
 
-Compiler-agnostic by design: the target binutils serve **any** toolchain emitting that architecture — notably Clang's `--target=<triplet>` — which is why they live here rather than in `gcc.sh`. (`gcc.sh` owns `--multilib`, which is a different thing: a secondary ABI of the *host* arch, not another architecture.)
+With `--with-gcc=0`, or for targets that have no cross-`g++`, it falls back to bare `binutils-<triplet>` + `libc6-dev-<debarch>-cross`: enough to compile to objects and inspect/strip, but **not** to link a full executable (no target `libgcc` / `libstdc++`). This fallback is compiler-agnostic — the bare binutils serve any toolchain emitting that arch, which is why cross tooling lives here rather than in `gcc.sh` (`gcc.sh` owns `--multilib`, a secondary ABI of the *host* arch — a different thing).
 
-| Option            | Type    | Default                                   | Description                                                                     |
-| ----------------- | ------- | ----------------------------------------- | ------------------------------------------------------------------------------- |
-| `-t`, `--targets` | string  | `'aarch64-linux-gnu powerpc64-linux-gnu'` | Space-separated GNU target triplets, installed as `binutils-<triplet>`          |
-| `-l`, `--list`    | boolean | `0`                                       | Only list the cross-binutils target triplets available on this host             |
-| `-s`, `--silent`  | boolean | `1`                                       | Suppress log output                                                             |
-| `-h`, `--help`    | —       | —                                         | Display usage                                                                   |
+| Option            | Type    | Default                                   | Description                                                                        |
+| ----------------- | ------- | ----------------------------------------- | ---------------------------------------------------------------------------------- |
+| `-t`, `--targets` | string  | `'aarch64-linux-gnu powerpc64-linux-gnu'` | Space-separated GNU target triplets to install a cross toolchain for               |
+| `--with-gcc`      | boolean | `1`                                       | Install `g++-<triplet>` (full toolchain, links C/C++); `0` = bare binutils + libc  |
+| `-l`, `--list`    | boolean | `0`                                       | Only list the cross target triplets available on this host                         |
+| `-s`, `--silent`  | boolean | `1`                                       | Suppress log output                                                                |
+| `-h`, `--help`    | —       | —                                         | Display usage                                                                      |
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
-Each target is installed **best-effort** — availability is host/arch dependent, so an unavailable package is logged and skipped rather than failing the run.
+Each target is installed **best-effort** — availability is host/arch dependent, so an unavailable package is logged and skipped rather than failing the run. **25 of 32** targets have a cross-`g++`; the 7 without one (`ia64`, `hppa64`, `loongarch64`, and the four mips-`n32` variants) automatically use the binutils + libc fallback.
 
 **CPU, FPU and ABI variants are encoded in the triplet** — there is no separate switch:
 
@@ -142,19 +143,22 @@ Each target is installed **best-effort** — availability is host/arch dependent
 | CPU / ISA  | `mipsisa32r6-linux-gnu`, `mipsisa64r6el-linux-gnuabi64` (MIPS release 6)   |
 | Endianness | `powerpc64` vs `powerpc64le`, `mips` vs `mipsel`                           |
 
-Cross-libc packages key off the **Debian architecture alias**, not the GNU triplet (`aarch64-linux-gnu` → `arm64`, `mipsisa64r6el-linux-gnuabin32` → `mipsn32r6el`), so the script carries an internal `triplet_to_deb_arch` lookup table. It maps 29 triplets; `alpha-linux-gnu`, `hppa64-linux-gnu` and `ia64-linux-gnu` get binutils only, as no cross-libc is published for them.
+In the fallback path, cross-libc packages key off the **Debian architecture alias**, not the GNU triplet (`aarch64-linux-gnu` → `arm64`, `mipsisa64r6el-linux-gnuabin32` → `mipsn32r6el`), so the script carries an internal `triplet_to_deb_arch` lookup table (29 triplets; `alpha`, `hppa64`, `ia64` have no cross-libc and get binutils only).
 
 **Example**: discover the available targets, then install a couple:
 
 ```bash
 sudo ./binutils.sh --list
 sudo ./binutils.sh --targets='riscv64-linux-gnu arm-linux-gnueabihf'
+sudo ./binutils.sh --targets='aarch64-linux-gnu' --with-gcc=no   # bare binutils + libc only
+```
+
+With a cross-`g++` (the default), C and C++ both compile *and link* for the target, with GNU cross tools or with Clang:
+
+```bash
+aarch64-linux-gnu-g++ main.cpp -o app        # GNU cross g++
+clang++ --target=aarch64-linux-gnu main.cpp  # Clang, libstdc++ (auto-detected)
 ```
 
 > [!IMPORTANT]
-> This enables cross-compiling **C**. Cross-compiling **C++** additionally requires a *target* C++ standard library, which is **not** bundled:
->
-> - **libstdc++** — obtainable per target via `g++-<triplet>` or `libstdc++-<N>-dev-<debarch>-cross`
-> - **libc++** — no portable apt cross package exists; requires an LLVM `runtimes` source build
->
-> The *host* libc++ **is** installed by `llvm.sh`, so native `clang++ -stdlib=libc++` works without GCC — only the cross case is missing.
+> The **GCC-free** cross path — Clang with **libc++** *for the target* (`-stdlib=libc++`) — is **not** bundled: libc++ has no portable apt cross package and requires an LLVM `runtimes` source build (tracked as a future `libcxx.sh`). The *host* libc++ **is** installed by `llvm.sh`, so native `clang++ -stdlib=libc++` works without GCC — only the cross case is missing.

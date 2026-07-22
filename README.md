@@ -75,7 +75,7 @@ Presence per published image. It's a diamond: `static-analysis` and `documentati
 | ----------------------------------------------------------------------------------------------------------- | :-------: | :-----: | :---------------: | :-------------: | :---: |
 | C++ runtime libraries (`libc6`, `libgcc-s1`, `libstdc++6`)                                                  |    ✅     |   ✅    |        ✅         |       ✅        |  ✅   |
 | Compilers: GNU-G++, LLVM-Clang++                                                                            |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Cross-compilation: cross-binutils + cross-glibc (see [Cross-architecture](#cross-architecture-compilation)) |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Cross-compilation: per-target GNU toolchains via `g++-<triplet>` (see [Cross-architecture](#cross-architecture-compilation)) |           |   ✅    |        ✅         |       ✅        |  ✅   |
 | Multilib: secondary ABIs `-m32` / `-mx32`                                                                   |           |   ✅    |        ✅         |       ✅        |  ✅   |
 | Build systems: CMake, make/Unix-makefile, ninja, ccache (+ opt-in Bazel, Build2)                            |           |   ✅    |        ✅         |       ✅        |  ✅   |
 | Dependency management: vcpkg, conan (python3)                                                               |           |   ✅    |        ✅         |       ✅        |  ✅   |
@@ -170,12 +170,12 @@ clang++ -std=c++23 -stdlib=libc++ main.cpp
 
 ### Cross-architecture compilation
 
-The image ships cross **binutils** (target `as` / `ld` / `objdump` / ...) plus the matching cross **glibc**, installed by [`binutils.sh`](.devcontainer/scripts/binutils.sh). Defaults:
+For each requested target, the image installs a **complete cross toolchain** via `g++-<triplet>` — which pulls cross **binutils** (`as` / `ld` / `objdump` / ...), cross **glibc**, cross **libgcc** and cross **libstdc++** — installed by [`binutils.sh`](.devcontainer/scripts/binutils.sh). That is enough to compile *and link* C and C++ for the target, and Clang auto-detects the cross-GCC install, so `clang --target=<triplet>` works with no extra flags. Defaults:
 
-| Target triplet        | Debian arch | Packages                                                 |
-| --------------------- | ----------- | -------------------------------------------------------- |
-| `aarch64-linux-gnu`   | `arm64`     | `binutils-aarch64-linux-gnu` + `libc6-dev-arm64-cross`   |
-| `powerpc64-linux-gnu` | `ppc64`     | `binutils-powerpc64-linux-gnu` + `libc6-dev-ppc64-cross` |
+| Target triplet        | Package installed          | Pulls (cross)                              |
+| --------------------- | -------------------------- | ------------------------------------------ |
+| `aarch64-linux-gnu`   | `g++-aarch64-linux-gnu`    | binutils · glibc · libgcc · **libstdc++**  |
+| `powerpc64-linux-gnu` | `g++-powerpc64-linux-gnu`  | binutils · glibc · libgcc · **libstdc++**  |
 
 Pick your own targets at build time, or standalone:
 
@@ -201,26 +201,29 @@ sudo ./binutils.sh --targets='riscv64-linux-gnu s390x-linux-gnu'
 | CPU / ISA  | `mipsisa32r6-linux-gnu`, `mipsisa64r6el-linux-gnuabi64` (MIPS release 6)   |
 | Endianness | `powerpc64` vs `powerpc64le`, `mips` vs `mipsel`                           |
 
-> ℹ️ 29 target triplets map to a cross-glibc.  
-> `alpha-linux-gnu`, `hppa64-linux-gnu` and `ia64-linux-gnu` get cross-binutils **only** - no cross-libc is published for them, which the script logs and skips.
+> ℹ️ 25 of 32 target triplets have a cross-`g++` (full toolchain). The 7 without one — `ia64`, `hppa64`, `loongarch64` and the four mips-`n32` variants — fall back to cross-binutils (+ cross-libc where published); the script logs and continues.
 
 #### What works, and what does not
 
-| Capability                                     | Status                                                         |
-| ---------------------------------------------- | -------------------------------------------------------------- |
-| Cross-compile **C**                            | ✅ cross binutils + cross glibc                                |
-| Cross-**link**, inspect / strip target objects | ✅                                                             |
-| Cross-compile **C++**                          | ⚠️ requires a *target* C++ standard library, **not bundled** |
+Assuming the target has a cross-`g++` (the default targets do):
+
+| Capability                                          | Status |
+| --------------------------------------------------- | :----: |
+| Cross-compile + **link** **C**                      | ✅ |
+| Cross-compile + **link** **C++** (libstdc++)        | ✅ |
+| `clang --target=<triplet>` (C and C++, libstdc++)   | ✅ auto-detects the cross-GCC install |
+| Inspect / strip target objects (`objdump` / `strip`) | ✅ |
+| Cross-compile **C++** with **libc++**               | ❌ target libc++ not bundled — see below |
 
 ```bash
-clang   --target=aarch64-linux-gnu main.c     # ✅ works
-clang++ --target=aarch64-linux-gnu main.cpp   # ⚠️ fails: no target C++ stdlib
+aarch64-linux-gnu-g++ main.cpp -o app          # ✅ GNU cross g++
+clang++ --target=aarch64-linux-gnu main.cpp    # ✅ clang, libstdc++ (auto-detected)
+clang++ --target=aarch64-linux-gnu -stdlib=libc++ main.cpp   # ❌ no target libc++
 ```
 
-To cross-compile C++ you need a C++ standard library built **for the target**:
+**For targets without a cross-`g++`** (`--with-gcc=no`, or the 7 listed above), only cross-binutils + cross-glibc are installed: enough to compile to objects and inspect, but **not** to link a full executable (no target `libgcc` / `libstdc++`).
 
-- **libstdc++** - obtainable per target via `g++-<triplet>` or `libstdc++-<N>-dev-<debarch>-cross`.
-- **libc++** - no portable apt cross package exists; it requires an LLVM `runtimes` source build. Note this affects the *cross* case only: the **host** libc++ is installed, so native `clang++ -stdlib=libc++` works (see [Standard library](#standard-library)).
+**libc++ for the target** (the GCC-free path) is **not bundled** — it has no portable apt cross package and requires an LLVM `runtimes` source build, tracked as a future `scripts/libcxx.sh`. This affects the *cross* case only: the **host** libc++ is installed, so native `clang++ -stdlib=libc++` works (see [Standard library](#standard-library)).
 
 ### Multilib - secondary ABIs
 
