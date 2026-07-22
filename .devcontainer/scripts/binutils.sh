@@ -71,7 +71,7 @@ to_boolean(){
 
 # Map a GNU target triplet (as used by `binutils-<triplet>`) to the Debian architecture alias (as used by `libc6-dev-<debarch>-cross`).
 # Empty output => no known cross-libc for that target.
-triplet_to_debarch(){
+triplet_to_deb_arch(){
     case "$1" in
         # --- arm ---
         aarch64-linux-gnu)                   echo arm64      ;;
@@ -194,7 +194,7 @@ for target in ${arg_targets}; do
         || log "[${pkg_binutils}] not available for this host/arch, skipping"
 
     # cross-libc for the same target (dev variant pulls the runtime), keyed off the Debian arch.
-    debarch=$(triplet_to_debarch "${target}")
+    debarch=$(triplet_to_deb_arch "${target}")
     if [ -z "${debarch}" ]; then
         log "no known cross-libc mapping for target [${target}], skipping its libc"
         continue

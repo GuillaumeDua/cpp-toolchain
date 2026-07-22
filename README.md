@@ -180,12 +180,14 @@ The image ships cross **binutils** (target `as` / `ld` / `objdump` / ...) plus t
 Pick your own targets at build time, or standalone:
 
 ```bash
-docker build --target build -t cpp-toolchain:build -f .devcontainer/Dockerfile .devcontainer \
+docker build --target build \
+    -t cpp-toolchain:build \
+    -f .devcontainer/Dockerfile .devcontainer \
     --build-arg BINUTILS_TARGETS='aarch64-linux-gnu riscv64-linux-gnu arm-linux-gnueabihf'
 ```
 
 ```bash
-sudo ./binutils.sh --list                                     # target triplets available on this host
+sudo ./binutils.sh --list # target triplets available on this host
 sudo ./binutils.sh --targets='riscv64-linux-gnu s390x-linux-gnu'
 ```
 
@@ -199,7 +201,8 @@ sudo ./binutils.sh --targets='riscv64-linux-gnu s390x-linux-gnu'
 | CPU / ISA  | `mipsisa32r6-linux-gnu`, `mipsisa64r6el-linux-gnuabi64` (MIPS release 6)   |
 | Endianness | `powerpc64` vs `powerpc64le`, `mips` vs `mipsel`                           |
 
-29 target triplets map to a cross-glibc. `alpha-linux-gnu`, `hppa64-linux-gnu` and `ia64-linux-gnu` get cross-binutils **only** - no cross-libc is published for them, which the script logs and skips.
+> ℹ️ 29 target triplets map to a cross-glibc.  
+> `alpha-linux-gnu`, `hppa64-linux-gnu` and `ia64-linux-gnu` get cross-binutils **only** - no cross-libc is published for them, which the script logs and skips.
 
 #### What works, and what does not
 
@@ -210,7 +213,7 @@ sudo ./binutils.sh --targets='riscv64-linux-gnu s390x-linux-gnu'
 | Cross-compile **C++**                          | ⚠️ requires a *target* C++ standard library, **not bundled** |
 
 ```bash
-clang --target=aarch64-linux-gnu   main.c     # ✅ works
+clang   --target=aarch64-linux-gnu main.c     # ✅ works
 clang++ --target=aarch64-linux-gnu main.cpp   # ⚠️ fails: no target C++ stdlib
 ```
 

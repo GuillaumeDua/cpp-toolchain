@@ -72,8 +72,8 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
         libc6-dev                                              \
     && rm -rf /var/lib/apt/lists/*
 
-# C++ toolchain: cross-compilation binutils + matching cross-libc (target as/ld/objdump/... and
-#   libc6-dev-<arch>-cross; compiler-agnostic - serve e.g. clang's `--target=<triplet>`).
+# C++ toolchain: cross-compilation binutils + matching cross-libc
+#   (target as/ld/objdump/... and libc6-dev-<arch>-cross; compiler-agnostic - serve e.g. clang's `--target=<triplet>`).
 #   Owned by binutils.sh, not gcc.sh (which owns --multilib).
 COPY ./scripts/binutils.sh ${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}

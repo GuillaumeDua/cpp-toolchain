@@ -142,7 +142,7 @@ Each target is installed **best-effort** — availability is host/arch dependent
 | CPU / ISA  | `mipsisa32r6-linux-gnu`, `mipsisa64r6el-linux-gnuabi64` (MIPS release 6)   |
 | Endianness | `powerpc64` vs `powerpc64le`, `mips` vs `mipsel`                           |
 
-Cross-libc packages key off the **Debian architecture alias**, not the GNU triplet (`aarch64-linux-gnu` → `arm64`, `mipsisa64r6el-linux-gnuabin32` → `mipsn32r6el`), so the script carries an internal `triplet_to_debarch` lookup table. It maps 29 triplets; `alpha-linux-gnu`, `hppa64-linux-gnu` and `ia64-linux-gnu` get binutils only, as no cross-libc is published for them.
+Cross-libc packages key off the **Debian architecture alias**, not the GNU triplet (`aarch64-linux-gnu` → `arm64`, `mipsisa64r6el-linux-gnuabin32` → `mipsn32r6el`), so the script carries an internal `triplet_to_deb_arch` lookup table. It maps 29 triplets; `alpha-linux-gnu`, `hppa64-linux-gnu` and `ia64-linux-gnu` get binutils only, as no cross-libc is published for them.
 
 **Example**: discover the available targets, then install a couple:
 
