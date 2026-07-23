@@ -2,7 +2,10 @@ name: docker-publish
 
 # Publishing rules:
 #   - all five stages live in the single `cpp-toolchain` repository, stage-prefixed: `<stage>-<tag>` (e.g. build-v1.0)
-#   - `dev` is the Dockerfile's default target, so it also owns the unprefixed aliases (v1.0, latest, experimental)
+#   - each toolchain stage ships in two variants: normal/lean (default tags) and cross-arch (`<stage>-cross-<tag>`);
+#     `runtime` has no toolchain, so it is published once (no cross variant)
+#   - `dev` is the Dockerfile's default target, so it also owns the unprefixed aliases (v1.0, latest, experimental,
+#     and cross-v1.0 / cross-latest / cross-experimental for the cross-arch variant)
 #   - a GitHub release (cut from main) publishes the release tag (e.g. v1.0) + the `latest` alias
 #   - the weekly schedule publishes `experimental` only: `latest` never moves outside a release
 #   - images go to both Docker Hub and GHCR (ghcr.io has no pull rate limit for public images,
@@ -88,32 +91,49 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Single job, built in dependency order on one buildx builder:
-      # the heavy `build` layer is produced once and reused by static-analysis / documentation / dev
+      #   the heavy `build` layer is produced once and reused by static-analysis / documentation / dev
       # A shared gha cache scope persists layers across runs.
       - name: Build and push all stages
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           set -euo pipefail
-          for target in runtime build static-analysis documentation dev; do
-            tag_args=()
-            for registry in docker.io/guillaumedua ghcr.io/guillaumedua; do
-              for tag in ${TAGS}; do
-                tag_args+=(--tag "${registry}/cpp-toolchain:${target}-${tag}")
-                # `dev` is what `docker build` produces without --target, so it also answers to the unprefixed tag
-                if [ "${target}" = "dev" ]; then
-                  tag_args+=(--tag "${registry}/cpp-toolchain:${tag}")
-                fi
+
+          # Cross-arch target triplets for the `-cross` image variant (single source of truth).
+          CROSS_TARGETS="aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu"
+
+          # Build + push one variant. $1=BINUTILS_TARGETS build-arg, $2=tag infix, $3.. = stages.
+          #   infix ""       -> normal / lean:  <stage>-<tag>        (+ unprefixed <tag> for dev)
+          #   infix "cross-" -> cross-arch:     <stage>-cross-<tag>  (+ unprefixed cross-<tag> for dev)
+          build_variant() {
+            local targets="$1" infix="$2"; shift 2
+            for target in "$@"; do
+              local tag_args=()
+              for registry in docker.io/guillaumedua ghcr.io/guillaumedua; do
+                for tag in ${TAGS}; do
+                  tag_args+=(--tag "${registry}/cpp-toolchain:${target}-${infix}${tag}")
+                  # `dev` is what `docker build` produces without --target, so it also answers to the unprefixed tag
+                  if [ "${target}" = "dev" ]; then
+                    tag_args+=(--tag "${registry}/cpp-toolchain:${infix}${tag}")
+                  fi
+                done
               done
+
+              echo "::group::build+push cpp-toolchain:${target}-${infix}* [${TAGS}]"
+              docker buildx build \
+                --file .devcontainer/Dockerfile \
+                --target "${target}" \
+                --build-arg "BINUTILS_TARGETS=${targets}" \
+                "${tag_args[@]}" \
+                --cache-from type=gha,scope=cpp-toolchain \
+                --cache-to type=gha,mode=max,scope=cpp-toolchain \
+                --push \
+                .devcontainer
+              echo "::endgroup::"
             done
-            echo "::group::build+push cpp-toolchain:${target}-* [${TAGS}]"
-            docker buildx build \
-              --file .devcontainer/Dockerfile \
-              --target "${target}" \
-              "${tag_args[@]}" \
-              --cache-from type=gha,scope=cpp-toolchain \
-              --cache-to type=gha,mode=max,scope=cpp-toolchain \
-              --push \
-              .devcontainer
-            echo "::endgroup::"
-          done
+          }
+
+          # Normal variant first, so its shared toolchain layers populate the gha cache the cross pass reuses.
+          #   `runtime` carries no toolchain, so it gets no cross variant (a cross runtime would be byte-identical).
+          build_variant ""                 ""        runtime build static-analysis documentation dev
+          build_variant "${CROSS_TARGETS}" "cross-"  build static-analysis documentation dev

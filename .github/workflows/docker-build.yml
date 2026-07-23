@@ -28,16 +28,31 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # Built in dependency order on a single buildx builder:
-      # the heavy `build` layer is produced once and reused by static-analysis / documentation / dev.
+      #   the heavy `build` layer is produced once and reused by static-analysis / documentation / dev.
+      # Both image variants are gated: normal/lean (BINUTILS_TARGETS='') and cross-arch (a triplet list), so a break in either is caught.
+      # Caching keeps the cross pass to just the tail binutils layer.
       - name: Build all stages (no push)
         run: |
           set -euo pipefail
-          for target in runtime build static-analysis documentation dev; do
-            echo "::group::build cpp-toolchain:${target}"
-            docker buildx build \
-              --file .devcontainer/Dockerfile \
-              --target "${target}" \
-              --cache-from type=gha,scope=cpp-toolchain \
-              .devcontainer
-            echo "::endgroup::"
-          done
+
+          # Cross-arch target triplets for the cross-arch variant (single source of truth).
+          CROSS_TARGETS="aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu"
+
+          # Build one variant (no push). $1=BINUTILS_TARGETS build-arg, $2.. = stages.
+          build_variant() {
+            local targets="$1"; shift
+            for target in "$@"; do
+              echo "::group::build cpp-toolchain:${target} [BINUTILS_TARGETS='${targets}']"
+              docker buildx build \
+                --file .devcontainer/Dockerfile \
+                --target "${target}" \
+                --build-arg "BINUTILS_TARGETS=${targets}" \
+                --cache-from type=gha,scope=cpp-toolchain \
+                .devcontainer
+              echo "::endgroup::"
+            done
+          }
+
+          # Normal variant first (populates the shared cache); `runtime` has no cross variant.
+          build_variant ""                 runtime build static-analysis documentation dev
+          build_variant "${CROSS_TARGETS}" build static-analysis documentation dev

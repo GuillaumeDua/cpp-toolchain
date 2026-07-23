@@ -32,7 +32,7 @@ set -eu
 
 this_script_name=$(basename "$0")
 
-arg_targets='aarch64-linux-gnu powerpc64-linux-gnu'
+arg_targets='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'
 arg_with_gcc=1
 arg_list=0
 arg_silent=1
@@ -44,7 +44,7 @@ help(){
 
         [ -l | --list ]     : Only list the cross target triplets available on this host.                           Boolean -> default is [0]
         [ -t | --targets ]  : Target triplets to install a cross toolchain for (space-separated).                   String -> default is ['${arg_targets}']
-                              Ex: 'aarch64-linux-gnu powerpc64-linux-gnu arm-linux-gnueabihf'
+                              Ex: 'aarch64-linux-gnu powerpc64le-linux-gnu s390x-linux-gnu'
         [ --with-gcc ]      : Install \`g++-<triplet>\` -> full cross toolchain (binutils+libc+libgcc+libstdc++).   Boolean -> default is [1]
                               When [0], or when no cross-g++ exists: \`binutils-<triplet>\` + \`libc6-dev-<debarch>-cross\` only.
         [ -s | --silent ]   : Run in silent mod.                                                                    Boolean -> default is [1]

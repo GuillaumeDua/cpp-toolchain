@@ -24,6 +24,8 @@ The [Dockerfile](.devcontainer/Dockerfile) is a multi-stage build: `runtime` →
 
 Pulls: [![pulls](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/general)
 
+**Normal and cross-arch variants.** Each toolchain stage (`build`, `static-analysis`, `documentation`, `dev`) is published in two flavours: the **normal / lean** image (default, unsuffixed tags) and a **cross-arch** image carrying per-target cross toolchains, tagged `<stage>-cross-<version>` — see [Cross-architecture compilation](#cross-architecture-compilation). `runtime` has no toolchain, so it is published once (no cross variant). Locally, add `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build to get the cross-arch flavour.
+
 ```bash
 # build a specific stage locally (context is .devcontainer)
 docker build --target runtime         -t cpp-toolchain:runtime         -f .devcontainer/Dockerfile .devcontainer
@@ -31,6 +33,10 @@ docker build --target build           -t cpp-toolchain:build           -f .devco
 docker build --target static-analysis -t cpp-toolchain:static-analysis -f .devcontainer/Dockerfile .devcontainer
 docker build --target documentation   -t cpp-toolchain:documentation   -f .devcontainer/Dockerfile .devcontainer
 docker build --target dev             -t cpp-toolchain:dev             -f .devcontainer/Dockerfile .devcontainer
+
+# cross-arch flavour of any stage (adds per-target cross toolchains)
+docker build --target build --build-arg BINUTILS_TARGETS='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu' \
+    -t cpp-toolchain:build-cross -f .devcontainer/Dockerfile .devcontainer
 ```
 
 SSH remote access is an opt-in extra layer on top of `dev` - see [Remote access](#remote-access-opt-in) below.
@@ -46,7 +52,7 @@ docker pull ghcr.io/guillaumedua/cpp-toolchain:build-latest  # GitHub Container 
 
 Prefer **GHCR** when pulling from CI: public GHCR images have no pull rate limit, whereas Docker Hub throttles anonymous pulls per IP.
 
-A tag is `<stage>-<version>`: the **stage** picks *what is in the image* (see the table above), the **version** picks *how fresh it is*.
+A tag is `<stage>[-cross]-<version>`: the **stage** picks *what is in the image* (see the table above), the optional **`cross`** picks the *cross-arch flavour* (per-target cross toolchains; absent = normal/lean), and the **version** picks *how fresh it is*.
 
 | Version | Published by | Meaning |
 | ------- | ------------ | ------- |
@@ -56,12 +62,14 @@ A tag is `<stage>-<version>`: the **stage** picks *what is in the image* (see th
 
 Note that `latest` tracks **releases, not recency**: `experimental` is always the more recent build of the two. Pin `<stage>-v<major>.<minor>` for reproducible builds, use `<stage>-latest` for the current release, and reach for `<stage>-experimental` only when you want the freshest toolchain between releases and can tolerate breakage.
 
-`dev` is the Dockerfile's default target, so it also answers to the **unprefixed** versions - `cpp-toolchain:latest` is the same digest as `cpp-toolchain:dev-latest`, and likewise for `v1.0` / `experimental`. Every other stage must be named explicitly.
+`dev` is the Dockerfile's default target, so it also answers to the **unprefixed** versions - `cpp-toolchain:latest` is the same digest as `cpp-toolchain:dev-latest`, and likewise for `v1.0` / `experimental` (and `cross-latest` = `dev-cross-latest`). Every other stage must be named explicitly.
+
+The **cross-arch** flavour appends `cross` in the same slot for the four toolchain stages, e.g. `build-cross-latest`, `dev-cross-v1.0`, `documentation-cross-experimental` (and the unprefixed `cross-latest` for `dev`). `runtime` has no cross variant. These images carry the extra per-target cross toolchains (~+200 MB installed per target), so reach for them only when you cross-compile - otherwise the unsuffixed images are leaner.
 
 > [!NOTE]
 > These images previously lived in a separate `guillaumedua/cpp-toolchain-dev` repository, which is **deprecated and frozen** (Docker Hub repositories cannot be renamed). Replace `cpp-toolchain-dev:<version>` with `cpp-toolchain:dev-<version>`.
 
-Every PR to `main` must still build all five images ([docker-build](.github/workflows/docker-build.yml)); publishing is a separate workflow that refuses to push anything whose commit is not contained in `main`.
+Every PR to `main` must still build all stages in both the normal and cross-arch variants ([docker-build](.github/workflows/docker-build.yml)); publishing is a separate workflow that refuses to push anything whose commit is not contained in `main`.
 
 ---
 
@@ -99,7 +107,7 @@ The `build` stage installs Clang/LLVM minimalistically (just `clang`/`clang++`);
 | CMAKE_VERSION           | `latest`          | `latest`<br>(exact version, e.g. `3.29.3-0kitware1ubuntu24.04.1~jammy`)                | `latest`                                 |
 | GCC_VERSIONS            | `'latest-stable'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
 | LLVM_VERSIONS           | `'latest-stable'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
-| BINUTILS_TARGETS        | `'aarch64-linux-gnu powerpc64-linux-gnu'` | GNU target triplets to install cross-binutils + cross-glibc for (space-separated) - see [Cross-architecture](#cross-architecture-compilation) | `'riscv64-linux-gnu arm-linux-gnueabihf'` |
+| BINUTILS_TARGETS        | `''` (none)       | Space-separated GNU target triplets to install a cross toolchain for. Empty = normal/lean image; a list = the cross-arch variant - see [Cross-architecture](#cross-architecture-compilation) | `'aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'` |
 | OPT_IN_INTEGRATE_BAZEL  | `n`               | `y` or `n`                                                                             |                                          |
 | OPT_IN_INTEGRATE_BUILD2 | `n`               | `y` or `n`                                                                             |                                          |
 
@@ -143,7 +151,8 @@ Both toolchains are installed side by side - `latest-stable` of each by default:
 | GNU       | `gcc` / `g++`       | `gcc-<N>` / `g++-<N>`       | `gcov`, `gcov-tool`                                              |
 | LLVM      | `clang` / `clang++` | `clang-<N>` / `clang++-<N>` | `clang-tidy`, `clangd`, `lldb`, ... in `static-analysis` / `dev` |
 
-Unversioned commands are `update-alternatives` symlinks; the **latest-stable version always has the highest priority**. Install several versions side by side via the `GCC_VERSIONS` / `LLVM_VERSIONS` build args (see [Arguments](#arguments)), then either switch the default or call a versioned binary directly:
+Unversioned commands are `update-alternatives` symlinks; the **latest-stable version always has the highest priority**.  
+Install several versions side by side via the `GCC_VERSIONS` / `LLVM_VERSIONS` build args (see [Arguments](#arguments)), then either switch the default or call a versioned binary directly:
 
 ```bash
 update-alternatives --config gcc      # switch the default gcc/g++/gcov/gcov-tool set
@@ -170,24 +179,27 @@ clang++ -std=c++23 -stdlib=libc++ main.cpp
 
 ### Cross-architecture compilation
 
-For each requested target, the image installs a **complete cross toolchain** via `g++-<triplet>` - which pulls cross **binutils** (`as` / `ld` / `objdump` / ...),  
-cross **glibc**, cross **libgcc** and cross **libstdc++** - installed by [`binutils.sh`](.devcontainer/scripts/binutils.sh).  
+Cross-arch is **opt-in**: the default (normal/lean) images ship no cross toolchain. You get it either by pulling a **`-cross` image** (see [Registries & tags](#registries--tags)) or by building any stage with `--build-arg BINUTILS_TARGETS='<triplets>'`. The published `-cross` images use the targets below; a custom build can name any triplets from `binutils.sh --list`.
+
+For each requested target, [`binutils.sh`](.devcontainer/scripts/binutils.sh) installs a **complete cross toolchain** via `g++-<triplet>` - which pulls cross **binutils** (`as` / `ld` / `objdump` / ...),  
+cross **glibc**, cross **libgcc** and cross **libstdc++**.  
 That is enough to compile *and link* C and C++ for the target, and Clang auto-detects the cross-GCC install, so `clang --target=<triplet>` works with no extra flags.
 
-Defaults:
+Targets of the published `-cross` images - the live non-x86 ecosystems (ARM 64-bit servers/embedded, ARM 32-bit embedded, RISC-V):
 
-| Target triplet        | Package installed          | Pulls (cross)                              |
-| --------------------- | -------------------------- | ------------------------------------------ |
-| `aarch64-linux-gnu`   | `g++-aarch64-linux-gnu`    | binutils · glibc · libgcc · **libstdc++**  |
-| `powerpc64-linux-gnu` | `g++-powerpc64-linux-gnu`  | binutils · glibc · libgcc · **libstdc++**  |
+| Target triplet        | Package installed           | Pulls (cross)                              |
+| --------------------- | --------------------------- | ------------------------------------------ |
+| `aarch64-linux-gnu`   | `g++-aarch64-linux-gnu`     | binutils · glibc · libgcc · **libstdc++**  |
+| `arm-linux-gnueabihf` | `g++-arm-linux-gnueabihf`   | binutils · glibc · libgcc · **libstdc++**  |
+| `riscv64-linux-gnu`   | `g++-riscv64-linux-gnu`     | binutils · glibc · libgcc · **libstdc++**  |
 
-Pick your own targets at build time, or standalone:
+Pick your own targets at build time, or standalone - e.g. adding modern (little-endian) POWER:
 
 ```bash
 docker build --target build \
-    -t cpp-toolchain:build \
+    -t cpp-toolchain:build-cross \
     -f .devcontainer/Dockerfile .devcontainer \
-    --build-arg BINUTILS_TARGETS='aarch64-linux-gnu riscv64-linux-gnu arm-linux-gnueabihf'
+    --build-arg BINUTILS_TARGETS='aarch64-linux-gnu powerpc64le-linux-gnu'
 ```
 
 ```bash

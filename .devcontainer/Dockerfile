@@ -67,21 +67,11 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
         git                                                 \
     && rm -rf /var/lib/apt/lists/*
 
-# C++ toolchain: native libc dev headers (cross-libc per target is handled by binutils.sh below).
+# C++ toolchain: native libc dev headers.
+#   Cross-arch toolchains (opt-in, per target) are installed at the *end* of this stage by binutils.sh,
+#   so the expensive layers below stay shared between the normal and cross-arch image variants.
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
         libc6-dev                                              \
-    && rm -rf /var/lib/apt/lists/*
-
-# C++ toolchain: per-target cross toolchain(s) via g++-<triplet>
-#   (pulls cross binutils + libc + libgcc + libstdc++, so C/C++ cross-compilation links; clang auto-detects it).
-#   Falls back to bare binutils + cross-libc where no cross-g++ exists. Owned by binutils.sh, not gcc.sh (which owns --multilib).
-COPY ./scripts/binutils.sh ${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh
-WORKDIR ${TOOLCHAIN_TMP_DIR}
-ARG BINUTILS_TARGETS='aarch64-linux-gnu powerpc64-linux-gnu'
-RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh;                                              \
-    echo -e "[C++ toolchain] Installing cross toolchains BINUTILS_TARGETS=[$BINUTILS_TARGETS] ...";    \
-    chmod +x ${script_path}                                                                            \
-    && ${script_path} --silent=yes --targets="$BINUTILS_TARGETS"                                       \
     && rm -rf /var/lib/apt/lists/*
 
 # Build: CMake (https://apt.kitware.com/)
@@ -168,6 +158,20 @@ RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" = "y" ]]; then                           
             --jobs $(nproc)                                                         \
         ;                                                                           \
     fi
+
+# C++ toolchain: per-target cross toolchain(s) via g++-<triplet>
+#   (pulls cross binutils + libc + libgcc + libstdc++, so C/C++ cross-compilation links; clang auto-detects it).
+#   Falls back to bare binutils + cross-libc where no cross-g++ exists. Owned by binutils.sh, not gcc.sh (which owns --multilib).
+#   Kept last in the stage so it is a single opt-in layer on top of the shared toolchain: BINUTILS_TARGETS=''
+#   (the default) installs nothing - the lean/normal variant - while a triplet list builds the cross-arch variant.
+COPY ./scripts/binutils.sh ${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh
+WORKDIR ${TOOLCHAIN_TMP_DIR}
+ARG BINUTILS_TARGETS=''
+RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh;                                              \
+    echo -e "[C++ toolchain] Installing cross toolchains BINUTILS_TARGETS=[$BINUTILS_TARGETS] ...";    \
+    chmod +x ${script_path}                                                                            \
+    && ${script_path} --silent=yes --targets="$BINUTILS_TARGETS"                                       \
+    && rm -rf /var/lib/apt/lists/*
 
 # Cleanup (keeps the published `build` image lean; `dev` re-runs `apt update` on top)
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*

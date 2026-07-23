@@ -117,6 +117,8 @@ sudo ./llvm.sh --versions="$(sudo ./llvm.sh --list --versions='all' | tail -2)"
 sudo ./binutils.sh [options]
 ```
 
+> In the Docker images this is what backs the **cross-arch variant**: the `build` stage runs it with `BINUTILS_TARGETS`, published as the `<stage>-cross-<version>` tags (see the top-level README). The default images run it with no targets, i.e. install nothing.
+
 Installs a **complete cross toolchain** for each target.
 
 By default (`--with-gcc=1`) installs `g++-<triplet>`, which transitively pulls the whole set - cross **binutils** (`as`, `ld`, `objdump`, `readelf`, `strip`),  
@@ -132,7 +134,7 @@ This fallback is compiler-agnostic - the bare binutils serve any toolchain emitt
 
 | Option            | Type    | Default                                   | Description                                                                        |
 | ----------------- | ------- | ----------------------------------------- | ---------------------------------------------------------------------------------- |
-| `-t`, `--targets` | string  | `'aarch64-linux-gnu powerpc64-linux-gnu'` | Space-separated GNU target triplets to install a cross toolchain for               |
+| `-t`, `--targets` | string  | `'aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'` | Space-separated GNU target triplets to install a cross toolchain for |
 | `--with-gcc`      | boolean | `1`                                       | Install `g++-<triplet>` (full toolchain, links C/C++); `0` = bare binutils + libc  |
 | `-l`, `--list`    | boolean | `0`                                       | Only list the cross target triplets available on this host                         |
 | `-s`, `--silent`  | boolean | `1`                                       | Suppress log output                                                                |
@@ -159,7 +161,7 @@ In the fallback path, cross-libc packages key off the **Debian architecture alia
 
 ```bash
 sudo ./binutils.sh --list
-sudo ./binutils.sh --targets='riscv64-linux-gnu arm-linux-gnueabihf'
+sudo ./binutils.sh --targets='powerpc64le-linux-gnu s390x-linux-gnu'
 sudo ./binutils.sh --targets='aarch64-linux-gnu' --with-gcc=no   # bare binutils + libc only
 ```
 
