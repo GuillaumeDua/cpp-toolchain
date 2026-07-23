@@ -64,7 +64,8 @@ Note that `latest` tracks **releases, not recency**: `experimental` is always th
 
 `dev` is the Dockerfile's default target, so it also answers to the **unprefixed** versions - `cpp-toolchain:latest` is the same digest as `cpp-toolchain:dev-latest`, and likewise for `v1.0` / `experimental` (and `cross-latest` = `dev-cross-latest`). Every other stage must be named explicitly.
 
-The **cross-arch** flavour appends `cross` in the same slot for the four toolchain stages, e.g. `build-cross-latest`, `dev-cross-v1.0`, `documentation-cross-experimental` (and the unprefixed `cross-latest` for `dev`). `runtime` has no cross variant. These images carry the extra per-target cross toolchains (~+200 MB installed per target), so reach for them only when you cross-compile - otherwise the unsuffixed images are leaner.
+The **cross-arch** flavour appends `cross` in the same slot for the four toolchain stages, e.g. `build-cross-latest`, `dev-cross-v1.0`, `documentation-cross-experimental` (and the unprefixed `cross-latest` for `dev`).  
+`runtime` has no cross variant. These images carry the extra per-target cross toolchains (~+200 MB installed per target), so reach for them only when you cross-compile - otherwise the unsuffixed images are leaner.
 
 > [!NOTE]
 > These images previously lived in a separate `guillaumedua/cpp-toolchain-dev` repository, which is **deprecated and frozen** (Docker Hub repositories cannot be renamed). Replace `cpp-toolchain-dev:<version>` with `cpp-toolchain:dev-<version>`.

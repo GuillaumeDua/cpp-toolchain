@@ -162,8 +162,8 @@ RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" = "y" ]]; then                           
 # C++ toolchain: per-target cross toolchain(s) via g++-<triplet>
 #   (pulls cross binutils + libc + libgcc + libstdc++, so C/C++ cross-compilation links; clang auto-detects it).
 #   Falls back to bare binutils + cross-libc where no cross-g++ exists. Owned by binutils.sh, not gcc.sh (which owns --multilib).
-#   Kept last in the stage so it is a single opt-in layer on top of the shared toolchain: BINUTILS_TARGETS=''
-#   (the default) installs nothing - the lean/normal variant - while a triplet list builds the cross-arch variant.
+#   Kept last in the stage so it is a single opt-in layer on top of the shared toolchain:
+#   BINUTILS_TARGETS='' (the default) installs nothing - the lean/normal variant - while a triplet list builds the cross-arch variant.
 COPY ./scripts/binutils.sh ${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG BINUTILS_TARGETS=''
