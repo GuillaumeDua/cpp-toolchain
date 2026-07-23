@@ -2,7 +2,7 @@ name: docker-build
 
 # Gate: every PR to main (and every push to main) must still produce (not publish !) all five images.
 #
-# Deliberately NOT path-filtered: this is meant to be a *required status check*,
+# Deliberately NOT path-filtered: this is meant to be a required status check,
 # and a path-filtered workflow that never runs leaves the PR waiting forever on a check that never reports.
 # When the Dockerfile/scripts are untouched the gha cache makes this a near-no-op.
 #

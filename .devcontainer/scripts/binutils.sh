@@ -10,7 +10,7 @@ set -eu
 # Cross-compilation GNU toolchain(s) for one or more target architectures.
 #
 #   Primary path (per target):
-#       install `g++-<triplet>`, which pulls the *complete* cross toolchain:
+#       install `g++-<triplet>`, which pulls the complete cross toolchain:
 #       - cross binutils (as/ld/objdump)
 #       - cross glibc
 #       - cross libgcc AND cross libstdc++
@@ -22,12 +22,12 @@ set -eu
 #
 #   Fallback (targets with no `g++-<triplet>` - e.g. ia64 / hppa64 / loongarch64 / mips-n32 variants, or when `--with-gcc=no`):
 #       install `binutils-<triplet>` + `libc6-dev-<debarch>-cross` only.
-#       Enough to compile to objects and inspect/strip, but NOT to link a full C/C++ executable (no target libgcc / libstdc++).s
+#       Enough to compile to objects and inspect/strip, but NOT to link a full C/C++ executable (no target libgcc / libstdc++).
 #       Kept compiler-agnostic - the bare binutils serve any toolchain.
 #
 #   NOT bundled - the "without GCC" cross path (Clang + libc++ for the target, no GNU runtime):
 #       it has no portable apt package and needs an LLVM `runtimes` source build - tracked as a future scripts/libcxx.sh.
-#       (Host libc++ *is* installed by llvm.sh, so *native* `clang++ -stdlib=libc++` already works without GCC - only the cross case is missing.)
+#       (Host libc++ is installed by llvm.sh, so native `clang++ -stdlib=libc++` already works without GCC - only the cross case is missing.)
 # =============================================================================================
 
 this_script_name=$(basename "$0")
@@ -209,8 +209,8 @@ apt-get update -qqy
 
 for target in ${arg_targets}; do
 
-    # Primary: the cross g++ transitively pulls the *whole* toolchain (binutils + libc + libgcc + libstdc++), 
-    #   so this single package makes C and C++ cross-compilation actually *link*,
+    # Primary: the cross g++ transitively pulls the whole toolchain (binutils + libc + libgcc + libstdc++),
+    #   so this single package makes C and C++ cross-compilation actually link,
     #   and Clang auto-detects the cross-GCC install, so `clang --target=${target}` works too.
     if [[ ${arg_with_gcc} == 1 ]] && apt install -qq -y --no-install-recommends "g++-${target}"; then
         log "[g++-${target}] installed - full cross toolchain (binutils + libc + libgcc + libstdc++)"
@@ -220,8 +220,8 @@ for target in ${arg_targets}; do
         log "[g++-${target}] unavailable, falling back to binutils + cross-libc only"
     fi
 
-    # Fallback: bare cross binutils (+ cross libc, keyed off the Debian arch). Enough to compile to
-    #   objects and inspect/strip; NOT to link a full executable (no target libgcc / libstdc++).
+    # Fallback: bare cross binutils (+ cross libc, keyed off the Debian arch).
+    #   Enough to compile to objects and inspect/strip; NOT to link a full executable (no target libgcc / libstdc++).
     pkg_binutils="binutils-${target}"
     log "installing [${pkg_binutils}] ..."
     apt install -qq -y --no-install-recommends "${pkg_binutils}" \

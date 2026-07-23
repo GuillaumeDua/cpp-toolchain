@@ -14,7 +14,7 @@
 # =============================================================================================
 
 # ---------------------------------------------------------------------------------------------
-# Stage: runtime - minimal image able to *run* binaries produced by the `build` stage.
+# Stage: runtime - minimal image able to run binaries produced by the `build` stage.
 # ---------------------------------------------------------------------------------------------
 ARG BASE_IMAGE=ubuntu:latest
 FROM ${BASE_IMAGE} AS runtime
@@ -37,7 +37,7 @@ RUN apt-get update -qqy \
 CMD ["/bin/bash"]
 
 # ---------------------------------------------------------------------------------------------
-# Stage: build - everything required to *compile* C++ (compilers, build systems, dep managers).
+# Stage: build - everything required to compile C++ (compilers, build systems, dep managers).
 # ---------------------------------------------------------------------------------------------
 FROM runtime AS build
 ARG DEBIAN_FRONTEND=noninteractive
@@ -46,7 +46,7 @@ SHELL ["/bin/bash", "-c"]
 ENV TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
 
 # Basics / installation prerequisites
-#   openssh-client (not the `ssh` metapackage) so no SSH *server* is shipped here:
+#   openssh-client (not the `ssh` metapackage) so no SSH server is shipped here:
 #   remote access is an opt-in layer (see ssh_support.dockerfile).
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
         ca-certificates debian-keyring                      \
@@ -68,7 +68,7 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # C++ toolchain: native libc dev headers.
-#   Cross-arch toolchains (opt-in, per target) are installed at the *end* of this stage by binutils.sh,
+#   Cross-arch toolchains (opt-in, per target) are installed at the end of this stage by binutils.sh,
 #   so the expensive layers below stay shared between the normal and cross-arch image variants.
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
         libc6-dev                                              \
@@ -115,7 +115,7 @@ RUN \
     && rm -rf /var/lib/apt/lists/*
 
 # C++ toolchain: GNU/GCC
-#   apt update here: gcc.sh only refreshes lists when it has to *add* the ubuntu-toolchain-r PPA,
+#   apt update here: gcc.sh only refreshes lists when it has to add the ubuntu-toolchain-r PPA,
 #   which the `runtime` stage already registered, so it relies on a populated apt cache.
 COPY ./scripts/gcc.sh ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
