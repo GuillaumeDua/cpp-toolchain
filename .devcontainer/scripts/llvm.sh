@@ -6,6 +6,11 @@ set -eu
 # This file is part of https://github.com/GuillaumeDua/CppShelf,
 # and will soon be part of https://hub.docker.com/repository/docker/gussd/cpp-toolchain/general
 # License: see https://github.com/GuillaumeDua/CppShelf/blob/main/LICENSE
+#
+# libc++ scope: the `all` package set installs the host libc++ (libc++-<N>-dev / libc++abi-<N>-dev / libunwind-<N>-dev),
+#   so native `clang++ -stdlib=libc++` works without GCC.
+#   Cross-target libc++ (libc++ built for another arch) is NOT bundled: it has no portable apt package and requires an
+#   LLVM `runtimes` source build (future scripts/libcxx.sh). See binutils.sh for the cross scope.
 # =============================================================================================
 
 this_script_name=$(basename "$0")

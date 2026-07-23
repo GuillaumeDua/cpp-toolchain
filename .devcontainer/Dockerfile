@@ -14,7 +14,7 @@
 # =============================================================================================
 
 # ---------------------------------------------------------------------------------------------
-# Stage: runtime - minimal image able to *run* binaries produced by the `build` stage.
+# Stage: runtime - minimal image able to run binaries produced by the `build` stage.
 # ---------------------------------------------------------------------------------------------
 ARG BASE_IMAGE=ubuntu:latest
 FROM ${BASE_IMAGE} AS runtime
@@ -37,7 +37,7 @@ RUN apt-get update -qqy \
 CMD ["/bin/bash"]
 
 # ---------------------------------------------------------------------------------------------
-# Stage: build - everything required to *compile* C++ (compilers, build systems, dep managers).
+# Stage: build - everything required to compile C++ (compilers, build systems, dep managers).
 # ---------------------------------------------------------------------------------------------
 FROM runtime AS build
 ARG DEBIAN_FRONTEND=noninteractive
@@ -46,7 +46,7 @@ SHELL ["/bin/bash", "-c"]
 ENV TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
 
 # Basics / installation prerequisites
-#   openssh-client (not the `ssh` metapackage) so no SSH *server* is shipped here:
+#   openssh-client (not the `ssh` metapackage) so no SSH server is shipped here:
 #   remote access is an opt-in layer (see ssh_support.dockerfile).
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
         ca-certificates debian-keyring                      \
@@ -67,10 +67,11 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
         git                                                 \
     && rm -rf /var/lib/apt/lists/*
 
-# C++ toolchain: cross-compilation binutils + dev headers
+# C++ toolchain: native libc dev headers.
+#   Cross-arch toolchains (opt-in, per target) are installed at the end of this stage by binutils.sh,
+#   so the expensive layers below stay shared between the normal and cross-arch image variants.
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
-        libc6-dev libc6-arm64-cross                             \
-        binutils-aarch64-linux-gnu binutils-powerpc64-linux-gnu \
+        libc6-dev                                              \
     && rm -rf /var/lib/apt/lists/*
 
 # Build: CMake (https://apt.kitware.com/)
@@ -114,7 +115,7 @@ RUN \
     && rm -rf /var/lib/apt/lists/*
 
 # C++ toolchain: GNU/GCC
-#   apt update here: gcc.sh only refreshes lists when it has to *add* the ubuntu-toolchain-r PPA,
+#   apt update here: gcc.sh only refreshes lists when it has to add the ubuntu-toolchain-r PPA,
 #   which the `runtime` stage already registered, so it relies on a populated apt cache.
 COPY ./scripts/gcc.sh ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
@@ -138,8 +139,8 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
 
 # Build: Build2 (depends on a compiler)
 #   BUILD2_VERSION is the single source of truth (bumped by Renovate, see renovate.json).
-#   The install script is verified against build2's per-release `.sha256` sidecar rather than a
-#   hash pinned here, so a version bump stays a one-line change.
+#   The install script is verified against build2's per-release `.sha256` sidecar,
+#    rather than a hash pinned here, so a version bump stays a one-line change.
 # renovate: datasource=github-tags depName=build2/build2-toolchain extractVersion=^v(?<version>.+)$
 ARG BUILD2_VERSION=0.16.0
 ARG OPT_IN_INTEGRATE_BUILD2='no'
@@ -157,6 +158,20 @@ RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" = "y" ]]; then                           
             --jobs $(nproc)                                                         \
         ;                                                                           \
     fi
+
+# C++ toolchain: per-target cross toolchain(s) via g++-<triplet>
+#   (pulls cross binutils + libc + libgcc + libstdc++, so C/C++ cross-compilation links; clang auto-detects it).
+#   Falls back to bare binutils + cross-libc where no cross-g++ exists. Owned by binutils.sh, not gcc.sh (which owns --multilib).
+#   Kept last in the stage so it is a single opt-in layer on top of the shared toolchain:
+#   BINUTILS_TARGETS='' (the default) installs nothing - the lean/normal variant - while a triplet list builds the cross-arch variant.
+COPY ./scripts/binutils.sh ${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh
+WORKDIR ${TOOLCHAIN_TMP_DIR}
+ARG BINUTILS_TARGETS=''
+RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh;                                              \
+    echo -e "[C++ toolchain] Installing cross toolchains BINUTILS_TARGETS=[$BINUTILS_TARGETS] ...";    \
+    chmod +x ${script_path}                                                                            \
+    && ${script_path} --silent=yes --targets="$BINUTILS_TARGETS"                                       \
+    && rm -rf /var/lib/apt/lists/*
 
 # Cleanup (keeps the published `build` image lean; `dev` re-runs `apt update` on top)
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
