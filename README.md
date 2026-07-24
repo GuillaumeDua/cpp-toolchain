@@ -72,6 +72,9 @@ The **cross-arch** flavour appends `cross` in the same slot for the four toolcha
 
 Every PR to `main` must still build all stages in both the normal and cross-arch variants ([docker-build](.github/workflows/docker-build.yml)); publishing is a separate workflow that refuses to push anything whose commit is not contained in `main`.
 
+> [!NOTE]
+> **Host architecture.** The published images are `linux/amd64` (not yet multi-platform manifests), so on an arm64 host they run under emulation. Because the toolchain already **cross-compiles** to arm64 and beyond (see [Cross-architecture compilation](#cross-architecture-compilation)), a native arm64 image is seldom needed - but when you want to build, run or debug *on* the target platform itself, the same [Dockerfile](.devcontainer/Dockerfile) rebuilds for other architectures on a **best-effort** basis - natively via `docker build` on an arm64 host, or `docker buildx build --platform linux/arm64 --load` (through QEMU) on amd64. A few pieces degrade on non-amd64: Doxygen falls back to the distro apt package, and Bazel and the `-m32` / `-mx32` multilib are amd64-only (skipped with a log).
+
 ---
 
 ## Features
@@ -80,24 +83,24 @@ Every PR to `main` must still build all stages in both the normal and cross-arch
 
 Presence per published image. It's a diamond: `static-analysis` and `documentation` both build on `build`; `dev` combines them.
 
-| Category                                                                                                    | `runtime` | `build` | `static-analysis` | `documentation` | `dev` |
-| ----------------------------------------------------------------------------------------------------------- | :-------: | :-----: | :---------------: | :-------------: | :---: |
-| C++ runtime libraries (`libc6`, `libgcc-s1`, `libstdc++6`)                                                  |    ✅     |   ✅    |        ✅         |       ✅        |  ✅   |
-| Compilers: GNU-G++, LLVM-Clang++                                                                            |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Category                                                                                                                     | `runtime` | `build` | `static-analysis` | `documentation` | `dev` |
+| ---------------------------------------------------------------------------------------------------------------------------- | :-------: | :-----: | :---------------: | :-------------: | :---: |
+| C++ runtime libraries (`libc6`, `libgcc-s1`, `libstdc++6`)                                                                   |    ✅     |   ✅    |        ✅         |       ✅        |  ✅   |
+| Compilers: GNU-G++, LLVM-Clang++                                                                                             |           |   ✅    |        ✅         |       ✅        |  ✅   |
 | Cross-compilation: per-target GNU toolchains via `g++-<triplet>` (see [Cross-architecture](#cross-architecture-compilation)) |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Multilib: secondary ABIs `-m32` / `-mx32`                                                                   |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Build systems: CMake, make/Unix-makefile, ninja, ccache (+ opt-in Bazel, Build2)                            |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Dependency management: vcpkg, conan (python3)                                                               |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Versioning: git                                                                                             |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Coverage (GNU): gcov, gcov-tool                                                                             |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Coverage (LLVM): llvm-cov, llvm-profdata                                                                    |           |         |        ✅         |       ✅        |  ✅   |
-| Static analysis: clang-tidy, clang-format, clangd, scan-build, cppcheck, iwyu (+ lldb)                      |           |         |        ✅         |                 |  ✅   |
-| Documentation: doxygen, graphviz - and coverage reports: lcov / genhtml                                     |           |         |                   |       ✅        |  ✅   |
-| Dynamic analysis / debug: valgrind, gdb                                                                     |           |         |                   |                 |  ✅   |
-| Versioning extra: subversion                                                                                |           |         |                   |                 |  ✅   |
-| Editors: emacs, nano, vim                                                                                   |           |         |                   |                 |  ✅   |
-| Shells: bash, zsh                                                                                           |           |         |                   |                 |  ✅   |
-| Misc: jq, ripgrep, docker-compose                                                                           |           |         |                   |                 |  ✅   |
+| Multilib: secondary ABIs `-m32` / `-mx32`                                                                                    |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Build systems: CMake, make/Unix-makefile, ninja, ccache (+ opt-in Bazel, Build2)                                             |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Dependency management: vcpkg, conan (python3)                                                                                |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Versioning: git                                                                                                              |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Coverage (GNU): gcov, gcov-tool                                                                                              |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Coverage (LLVM): llvm-cov, llvm-profdata                                                                                     |           |         |        ✅         |       ✅        |  ✅   |
+| Static analysis: clang-tidy, clang-format, clangd, scan-build, cppcheck, iwyu (+ lldb)                                       |           |         |        ✅         |                 |  ✅   |
+| Documentation: doxygen, graphviz - and coverage reports: lcov / genhtml                                                      |           |         |                   |       ✅        |  ✅   |
+| Dynamic analysis / debug: valgrind, gdb                                                                                      |           |         |                   |                 |  ✅   |
+| Versioning extra: subversion                                                                                                 |           |         |                   |                 |  ✅   |
+| Editors: emacs, nano, vim                                                                                                    |           |         |                   |                 |  ✅   |
+| Shells: bash, zsh                                                                                                            |           |         |                   |                 |  ✅   |
+| Misc: jq, ripgrep, docker-compose                                                                                            |           |         |                   |                 |  ✅   |
 
 The `build` stage installs Clang/LLVM minimalistically (just `clang`/`clang++`); the full LLVM tooling (`clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ...) is wired up in the `static-analysis` stage (and inherited by `dev`). `valgrind` (dynamic analysis) lives in `dev`.
 
@@ -218,19 +221,21 @@ sudo ./binutils.sh --targets='riscv64-linux-gnu s390x-linux-gnu'
 | CPU / ISA  | `mipsisa32r6-linux-gnu`, `mipsisa64r6el-linux-gnuabi64` (MIPS release 6)   |
 | Endianness | `powerpc64` vs `powerpc64le`, `mips` vs `mipsel`                           |
 
-> ℹ️ 25 of 32 target triplets have a cross-`g++` (full toolchain). The 7 without one - `ia64`, `hppa64`, `loongarch64` and the four mips-`n32` variants - fall back to cross-binutils (+ cross-libc where published); the script logs and continues.
+> [!TIP]
+> 25 of 32 target triplets have a cross-`g++` (full toolchain).  
+> The 7 without one - `ia64`, `hppa64`, `loongarch64` and the four mips-`n32` variants - fall back to cross-binutils (+ cross-libc where published); the script logs and continues.
 
 #### What works, and what does not
 
 Assuming the target has a cross-`g++` (the default targets do):
 
-| Capability                                          | Status |
-| --------------------------------------------------- | :----: |
-| Cross-compile + **link** **C**                      | ✅ |
-| Cross-compile + **link** **C++** (libstdc++)        | ✅ |
-| `clang --target=<triplet>` (C and C++, libstdc++)   | ✅ auto-detects the cross-GCC install |
-| Inspect / strip target objects (`objdump` / `strip`) | ✅ |
-| Cross-compile **C++** with **libc++**               | ❌ target libc++ not bundled - see below |
+| Capability                                           | Status                                   |
+| ---------------------------------------------------- | ---------------------------------------- |
+| Cross-compile + **link** **C**                       | ✅                                       |
+| Cross-compile + **link** **C++** (libstdc++)         | ✅                                       |
+| `clang --target=<triplet>` (C and C++, libstdc++)    | ✅ auto-detects the cross-GCC install    |
+| Inspect / strip target objects (`objdump` / `strip`) | ✅                                       |
+| Cross-compile **C++** with **libc++**                | ❌ target libc++ not bundled - see below |
 
 ```bash
 aarch64-linux-gnu-g++ main.cpp -o app          # ✅ GNU cross g++

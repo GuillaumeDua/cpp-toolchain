@@ -36,7 +36,7 @@ jobs:
           set -euo pipefail
 
           # Cross-arch target triplets for the cross-arch variant (single source of truth).
-          CROSS_TARGETS="aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu"
+          CROSS_TARGETS="x86-64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu"
 
           # Build one variant (no push). $1=BINUTILS_TARGETS build-arg, $2.. = stages.
           build_variant() {

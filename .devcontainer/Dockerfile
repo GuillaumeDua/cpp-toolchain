@@ -67,6 +67,12 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
         git                                                 \
     && rm -rf /var/lib/apt/lists/*
 
+# Git: trust any bind-mounted repository regardless of its owner (disables Git's "dubious ownership" check).
+#   Written system-wide to /etc/gitconfig, so it applies to every user and every downstream stage:
+#   consumer CI that mounts a checkout owned by another UID can then run git with no extra setup.
+#   Acceptable for an ephemeral CI/build image.
+RUN git config --system --add safe.directory '*'
+
 # C++ toolchain: native libc dev headers.
 #   Cross-arch toolchains (opt-in, per target) are installed at the end of this stage by binutils.sh,
 #   so the expensive layers below stay shared between the normal and cross-arch image variants.
@@ -85,8 +91,12 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh;                          
     && rm -rf /var/lib/apt/lists/*
 
 # Build: Bazel (https://bazel.build/install/ubuntu)
+#   Bazel's apt repository ships amd64 only (no arm64 debs), so this opt-in step is
+#   guarded to amd64 - on other architectures it is skipped (use Bazelisk instead).
 ARG OPT_IN_INTEGRATE_BAZEL='no'
-RUN if [[ "${OPT_IN_INTEGRATE_BAZEL}" = "y" ]]; then                    \
+RUN if [[ "${OPT_IN_INTEGRATE_BAZEL}" = "y" ]] && [[ "$(dpkg --print-architecture)" != "amd64" ]]; then           \
+        echo "[bazel] apt repository is amd64-only, skipping on $(dpkg --print-architecture)";                     \
+    elif [[ "${OPT_IN_INTEGRATE_BAZEL}" = "y" ]]; then                    \
         apt update -qqy && apt install -qqy --no-install-recommends     \
             apt-transport-https curl gnupg                              \
         && curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor >bazel-archive-keyring.gpg \
@@ -237,7 +247,8 @@ COPY ./scripts/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
 RUN apt update -qqy && apt install -qqy --no-install-recommends graphviz lcov \
     && rm -rf /var/lib/apt/lists/*                                            \
     && chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh                       \
-    && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}"
+    && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}"           \
+    && rm -rf /var/lib/apt/lists/*
 
 CMD ["/bin/bash"]
 
@@ -274,7 +285,8 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
 ARG DOXYGEN_RELEASE=Release_1_17_0
 COPY ./scripts/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
 RUN chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh \
-    && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}"
+    && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}" \
+    && rm -rf /var/lib/apt/lists/*
 
 # Tooling: shells - bash, zsh
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
