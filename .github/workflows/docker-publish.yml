@@ -100,7 +100,7 @@ jobs:
           set -euo pipefail
 
           # Cross-arch target triplets for the `-cross` image variant (single source of truth).
-          CROSS_TARGETS="aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu"
+          CROSS_TARGETS="x86-64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu"
 
           # Build + push one variant. $1=BINUTILS_TARGETS build-arg, $2=tag infix, $3.. = stages.
           #   infix ""       -> normal / lean:  <stage>-<tag>        (+ unprefixed <tag> for dev)

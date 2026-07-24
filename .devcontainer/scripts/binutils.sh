@@ -32,7 +32,7 @@ set -eu
 
 this_script_name=$(basename "$0")
 
-arg_targets='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'
+arg_targets='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu x86-64-linux-gnu'
 arg_with_gcc=1
 arg_list=0
 arg_silent=1
