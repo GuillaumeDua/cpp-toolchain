@@ -4,7 +4,7 @@
 [![docker-build](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml)
 [![docker-publish](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml)
 
-Up-to-date C++ toolchain docker images for development, built as a multi-stage [`Dockerfile`](.devcontainer/Dockerfile) and published as five stages on:
+Up-to-date C++ toolchain docker images for development, built as a multi-stage [`Dockerfile`](Dockerfile) and published as five stages on:
 
 - [DockerHub repository](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain)
 - [GHRC - GitHub Container Registry](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain)
@@ -64,7 +64,7 @@ These images are built to be your dev container. The full walkthrough - VS Code 
 
 ## Images
 
-The [Dockerfile](.devcontainer/Dockerfile) is a multi-stage build: `runtime` → `build`, then `static-analysis` and `documentation` branch off `build`, and `dev` combines everything. All five stages are published to the single [`guillaumedua/cpp-toolchain`](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/general) repository, one **stage-prefixed tag** per stage, so any stage is available at any version. Locally, the same stages are selected with `docker build --target <stage>` (omitting `--target` builds `dev`, the last stage):
+The [Dockerfile](Dockerfile) is a multi-stage build: `runtime` → `build`, then `static-analysis` and `documentation` branch off `build`, and `dev` combines everything. All five stages are published to the single [`guillaumedua/cpp-toolchain`](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/general) repository, one **stage-prefixed tag** per stage, so any stage is available at any version. Locally, the same stages are selected with `docker build --target <stage>` (omitting `--target` builds `dev`, the last stage):
 
 | Tag prefix | `--target` | Purpose | Size (`latest`) | Size (`experimental`) |
 | ---------- | ---------- | ------- | --------------- | --------------------- |
@@ -87,16 +87,16 @@ Each toolchain stage (`build`, `static-analysis`, `documentation`, `dev`) is pub
 Locally, add `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build to get the cross-arch flavour.
 
 ```bash
-# build a specific stage locally (context is .devcontainer)
-docker build --target runtime         -t cpp-toolchain:runtime         -f .devcontainer/Dockerfile .devcontainer
-docker build --target build           -t cpp-toolchain:build           -f .devcontainer/Dockerfile .devcontainer
-docker build --target static-analysis -t cpp-toolchain:static-analysis -f .devcontainer/Dockerfile .devcontainer
-docker build --target documentation   -t cpp-toolchain:documentation   -f .devcontainer/Dockerfile .devcontainer
-docker build --target dev             -t cpp-toolchain:dev             -f .devcontainer/Dockerfile .devcontainer
+# build a specific stage locally (context is the repo root)
+docker build --target runtime         -t cpp-toolchain:runtime         .
+docker build --target build           -t cpp-toolchain:build           .
+docker build --target static-analysis -t cpp-toolchain:static-analysis .
+docker build --target documentation   -t cpp-toolchain:documentation   .
+docker build --target dev             -t cpp-toolchain:dev             .
 
 # cross-arch flavour of any stage (adds per-target cross toolchains)
 docker build --target build --build-arg BINUTILS_TARGETS='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu' \
-    -t cpp-toolchain:build-cross -f .devcontainer/Dockerfile .devcontainer
+    -t cpp-toolchain:build-cross .
 ```
 
 SSH remote access is an opt-in extra layer on top of `dev` - see [Using as a dev environment](docs/DEVCONTAINER.md#remote-ssh).
@@ -129,7 +129,7 @@ The **cross-arch** flavour appends `cross` in the same slot for the four toolcha
 
 > [!NOTE]
 > **Host architecture:**  
-> The published images are `linux/amd64` (not yet multi-platform manifests), so on an **arm64** host they run under emulation. Because the toolchain already **cross-compiles** to **arm64** and beyond (see [Cross-architecture compilation](#cross-architecture-compilation)), a native **arm64** image is seldom needed - but when you want to build, run or debug *on* the target platform itself, the same [Dockerfile](.devcontainer/Dockerfile) rebuilds for other architectures on a **best-effort** basis - natively via `docker build` on an arm64 host, or `docker buildx build --platform linux/arm64 --load` (through QEMU) on **amd64**.  
+> The published images are `linux/amd64` (not yet multi-platform manifests), so on an **arm64** host they run under emulation. Because the toolchain already **cross-compiles** to **arm64** and beyond (see [Cross-architecture compilation](#cross-architecture-compilation)), a native **arm64** image is seldom needed - but when you want to build, run or debug *on* the target platform itself, the same [Dockerfile](Dockerfile) rebuilds for other architectures on a **best-effort** basis - natively via `docker build` on an arm64 host, or `docker buildx build --platform linux/arm64 --load` (through QEMU) on **amd64**.  
 > A few pieces degrade on non-amd64: `Doxygen` falls back to the distro apt package, and Bazel and the `-m32` / `-mx32` multilib are **amd64-only** (skipped with a log).
 
 ---
@@ -176,7 +176,7 @@ The published image installs a single `latest-stable` for `GCC` and `Clang/LLVM`
 `gcc.sh` and `llvm.sh` both support installing **multiple versions side by side** (via `update-alternatives`), which is useful when you need to test against several compiler versions in the same environment. To get that in your own build, override the version args, e.g.:
 
 ```bash
-docker build -t cpp-toolchain:dev -f .devcontainer/Dockerfile .devcontainer \
+docker build -t cpp-toolchain:dev . \
     --build-arg GCC_VERSIONS='>=13' \
     --build-arg LLVM_VERSIONS='12 20 22'
 ```
@@ -189,15 +189,15 @@ The install scripts are self-contained: fetch one and run it directly on any Deb
 
 ```bash
 # GCC (from the ubuntu-toolchain-r PPA)
-wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/.devcontainer/scripts/gcc.sh
+wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/gcc.sh
 sudo bash gcc.sh --versions='>=13'
 
 # LLVM/Clang (from apt.llvm.org)
-wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/.devcontainer/scripts/llvm.sh
+wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/llvm.sh
 sudo bash llvm.sh --versions='latest-stable'
 ```
 
-`cmake.sh` and `binutils.sh` work the same way. See [.devcontainer/scripts/README.md](.devcontainer/scripts/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference.
+`cmake.sh` and `binutils.sh` work the same way. See [scripts/README.md](scripts/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference.
 
 ---
 
@@ -244,7 +244,7 @@ clang++ -std=c++23 -stdlib=libc++ main.cpp
 
 Cross-arch is **opt-in**: the default (normal/lean) images ship no cross toolchain. You get it either by pulling a **`-cross` image** (see [Registries & tags](#registries--tags)) or by building any stage with `--build-arg BINUTILS_TARGETS='<triplets>'`. The published `-cross` images use the targets below; a custom build can name any triplets from `binutils.sh --list`.
 
-For each requested target, [`binutils.sh`](.devcontainer/scripts/binutils.sh) installs a **complete cross toolchain** via `g++-<triplet>` - which pulls cross **binutils** (`as` / `ld` / `objdump` / ...),  
+For each requested target, [`binutils.sh`](scripts/binutils.sh) installs a **complete cross toolchain** via `g++-<triplet>` - which pulls cross **binutils** (`as` / `ld` / `objdump` / ...),  
 cross **glibc**, cross **libgcc** and cross **libstdc++**.  
 That is enough to compile *and link* C and C++ for the target, and Clang auto-detects the cross-GCC install, so `clang --target=<triplet>` works with no extra flags.
 
@@ -261,8 +261,7 @@ Pick your own targets at build time, or standalone - e.g. adding modern (little-
 ```bash
 docker build --target build \
     -t cpp-toolchain:build-cross \
-    -f .devcontainer/Dockerfile .devcontainer \
-    --build-arg BINUTILS_TARGETS='aarch64-linux-gnu powerpc64le-linux-gnu'
+    --build-arg BINUTILS_TARGETS='aarch64-linux-gnu powerpc64le-linux-gnu' .
 ```
 
 ```bash

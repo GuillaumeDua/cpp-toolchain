@@ -3,8 +3,8 @@ services:
     container_name: cpp-toolchain-dev
     image: cpp-toolchain:dev # so the opt-in ssh_support layer can build FROM it
     build:
-      context: .
-      dockerfile: ./Dockerfile
+      context: .. # repo root: the Dockerfile + scripts/ live there, not in .devcontainer
+      dockerfile: Dockerfile
       target: dev # multi-stage: full dev image (runtime ⊂ build ⊂ dev)
       args:
         BASE_IMAGE: 'ubuntu:latest'

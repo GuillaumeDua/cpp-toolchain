@@ -10,7 +10,7 @@
 #   image while `--target runtime` / `--target build` stop early for leaner images.
 #
 #   SSH remote access is an opt-in extra layer, built separately on top of the `dev` image via
-#   ./ssh_support.dockerfile (see docker-compose.yaml `ssh` profile / README > Remote access).
+#   .devcontainer/ssh_support.dockerfile (see its docker-compose.yaml `ssh` profile / README > Remote access).
 # =============================================================================================
 
 # ---------------------------------------------------------------------------------------------

@@ -121,14 +121,14 @@ jobs:
 
               echo "::group::build+push cpp-toolchain:${target}-${infix}* [${TAGS}]"
               docker buildx build \
-                --file .devcontainer/Dockerfile \
+                --file Dockerfile \
                 --target "${target}" \
                 --build-arg "BINUTILS_TARGETS=${targets}" \
                 "${tag_args[@]}" \
                 --cache-from type=gha,scope=cpp-toolchain \
                 --cache-to type=gha,mode=max,scope=cpp-toolchain \
                 --push \
-                .devcontainer
+                .
               echo "::endgroup::"
             done
           }

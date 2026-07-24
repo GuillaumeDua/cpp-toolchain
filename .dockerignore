@@ -1,0 +1,22 @@
+# Build context is the repo root; the build only needs the Dockerfile + scripts/.
+# Everything below is excluded to keep the context small (does not affect layer
+# caching, which keys the COPY layers on the scripts/*.sh contents).
+
+# cache / editor
+.cache
+build
+
+# secrets
+*.env
+*.pem
+*.key
+
+# Ignore all hidden files and directories (.git, .github, .devcontainer, .vscode, .claude, ...)
+.*
+
+# Non-build content living at the repo root
+docs
+*.md
+LICENSE
+CODEOWNERS
+renovate.json

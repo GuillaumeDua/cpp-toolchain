@@ -20,8 +20,8 @@ There is a hard split between **building** (gate, runs on every PR) and **publis
 ## Opening a pull request
 
 1. Branch off `main` (branch names follow `<issue-number>-<short-description>`, e.g. `19-add-arm64-support`).
-2. Make your change. If you touch the [Dockerfile](.devcontainer/Dockerfile) or the
-   [scripts](.devcontainer/scripts/), build the affected stages locally first (see below) -
+2. Make your change. If you touch the [Dockerfile](Dockerfile) or the
+   [scripts](scripts/), build the affected stages locally first (see below) -
    a broken layer fails the gate for everyone.
 3. Open a PR against `main`. The [docker-build](.github/workflows/docker-build.yml) gate runs automatically.
 4. Keep the PR green: **all** stages must build in **both** variants before it can merge.
@@ -42,19 +42,18 @@ builder, every stage in **both** image variants:
 
 `runtime` carries no toolchain, so it has no cross variant. A break in either variant fails the gate.
 
-Reproduce it locally before pushing (context is `.devcontainer`):
+Reproduce it locally before pushing (context is the repo root):
 
 ```bash
 # normal / lean variant - all five stages
 for stage in runtime build static-analysis documentation dev; do
-  docker build --target "$stage" -f .devcontainer/Dockerfile .devcontainer
+  docker build --target "$stage" .
 done
 
 # cross-arch variant - the four toolchain stages
 CROSS_TARGETS='x86-64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'
 for stage in build static-analysis documentation dev; do
-  docker build --target "$stage" --build-arg "BINUTILS_TARGETS=${CROSS_TARGETS}" \
-      -f .devcontainer/Dockerfile .devcontainer
+  docker build --target "$stage" --build-arg "BINUTILS_TARGETS=${CROSS_TARGETS}" .
 done
 ```
 
@@ -82,4 +81,4 @@ See [Registries & tags](README.md#registries--tags) for the full tag scheme.
 ## Related docs
 
 - [README.md](README.md) - images, features, build arguments, cross-architecture compilation.
-- [.devcontainer/scripts/README.md](.devcontainer/scripts/README.md) - the standalone `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` options.
+- [scripts/README.md](scripts/README.md) - the standalone `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` options.

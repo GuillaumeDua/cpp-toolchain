@@ -25,10 +25,10 @@ The published image does **not** ship an SSH server by default. Remote/SSH acces
 ### 1. Build and start the SSH service
 
 ```bash
-# from the .devcontainer/ directory
-docker build --target dev -t cpp-toolchain:dev -f Dockerfile .
-docker compose --profile ssh build ssh_support
-docker compose --profile ssh run --service-ports ssh_support
+# from the repo root (the Dockerfile is here; the compose file stays in .devcontainer/)
+docker build --target dev -t cpp-toolchain:dev .
+docker compose -f .devcontainer/docker-compose.yaml --profile ssh build ssh_support
+docker compose -f .devcontainer/docker-compose.yaml --profile ssh run --service-ports ssh_support
 ```
 
 This creates a `vscodeuser` (password `password`) with sudo rights, and exposes SSH on port `2222`.
