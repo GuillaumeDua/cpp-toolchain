@@ -1,14 +1,66 @@
 # cpp-toolchain
 
+[![pulls](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/general)
+[![docker-build](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml)
+[![docker-publish](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml)
+
 Up-to-date C++ toolchain docker images for development, built as a multi-stage [`Dockerfile`](.devcontainer/Dockerfile) and published as five stages on:
 
 - [DockerHub repository](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain)
 - [GHRC - GitHub Container Registry](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain)
 
-[![docker-build](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml)
-[![docker-publish](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml)
-
 Published to **Docker Hub** and **GHCR** via [GitHub Actions](.github/workflows/docker-publish.yml) - see [Registries & tags](#registries--tags).
+
+## Quick start
+
+Pull the stage you need - **`dev`** for a full local dev environment, **`build`** for CI:
+
+```bash
+# Full dev environment: compilers + analysis + docs + debug, editors, shells
+docker pull ghcr.io/guillaumedua/cpp-toolchain:dev-latest
+
+# Lean CI image: compilers + build systems + dependency managers
+docker pull ghcr.io/guillaumedua/cpp-toolchain:build-latest
+
+# Check it out
+docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version
+```
+
+Prefer **GHCR** (`ghcr.io/...`) over Docker Hub for CI - public images there have no anonymous pull rate limit.
+Working in VS Code? Open the repo and **Reopen in Container** - see [Using as a dev environment](#using-as-a-dev-environment).
+
+Five stages, two variants (normal / cross-arch), three version channels - the full matrix is under [Images](#images).
+
+## Contents
+
+- [cpp-toolchain](#cpp-toolchain)
+  - [Quick start](#quick-start)
+  - [Contents](#contents)
+  - [Using as a dev environment](#using-as-a-dev-environment)
+  - [Images](#images)
+    - [Which one ?](#which-one-)
+    - [Normal and cross-arch variants](#normal-and-cross-arch-variants)
+    - [Registries \& tags](#registries--tags)
+  - [Features](#features)
+    - [Packages](#packages)
+    - [Arguments](#arguments)
+  - [Standalone use (no Docker)](#standalone-use-no-docker)
+  - [Compiling C++](#compiling-c)
+    - [Compilers \& versions](#compilers--versions)
+    - [Standard library](#standard-library)
+    - [Cross-architecture compilation](#cross-architecture-compilation)
+      - [What works, and what does not](#what-works-and-what-does-not)
+    - [Multilib - secondary ABIs](#multilib---secondary-abis)
+    - [Code coverage](#code-coverage)
+  - [Dependency updates](#dependency-updates)
+  - [Contributing](#contributing)
+
+## Using as a dev environment
+
+These images are built to be your dev container. The full walkthrough - VS Code **Reopen in Container**, the opt-in SSH server, and Remote-SSH setup - lives in **[docs/DEVCONTAINER.md](docs/DEVCONTAINER.md)**:
+
+- **Reopen in Container** needs a [`devcontainer.json`](.devcontainer/devcontainer.json) referencing a [`docker-compose.yaml`](.devcontainer/docker-compose.yaml).
+- **Remote SSH** uses the opt-in `ssh_support` layer (SSH on port `2222`).
 
 ## Images
 
@@ -18,13 +70,21 @@ The [Dockerfile](.devcontainer/Dockerfile) is a multi-stage build: `runtime` →
 | ---------- | ---------- | ------- | --------------- | --------------------- |
 | `runtime-` | `runtime` | Minimal C++ runtime (`libc`/`libstdc++`) to **run** compiled binaries | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/runtime-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/runtime-experimental)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) |
 | `build-` | `build` | **Compile** C++: compilers, build systems, dependency managers (CI) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-experimental)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) |
-| `static-analysis-` | `static-analysis` | `build` + **static analysis** (clang-tidy/clang-format/scan-build, cppcheck, iwyu) for PR checks | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-experimental)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) |
+| `static-analysis-` | `static-analysis` | `build` + **static analysis** (clang-tidy/clang-format/scan-build, cppcheck, iwyu) for PR checks and investigations | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-experimental)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) |
 | `documentation-` | `documentation` | `build` + **documentation** generators (doxygen, graphviz) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-experimental)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) |
 | `dev-` *(or no prefix)* | `dev` | Full **dev** environment: static analysis + docs + dynamic analysis, debug, editors, shells | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-experimental)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) |
 
-Pulls: [![pulls](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/general)
+### Which one ?
 
-**Normal and cross-arch variants.** Each toolchain stage (`build`, `static-analysis`, `documentation`, `dev`) is published in two flavours: the **normal / lean** image (default, unsuffixed tags) and a **cross-arch** image carrying per-target cross toolchains, tagged `<stage>-cross-<version>` — see [Cross-architecture compilation](#cross-architecture-compilation). `runtime` has no toolchain, so it is published once (no cross variant). Locally, add `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build to get the cross-arch flavour.
+- `dev` for local development
+- `build` for CI / compiling
+- `runtime` to ship a compiled binary
+- `static-analysis` and `documentation` are CI-focused subsets of `dev`.
+
+### Normal and cross-arch variants
+
+Each toolchain stage (`build`, `static-analysis`, `documentation`, `dev`) is published in two flavours: the **normal / lean** image (default, unsuffixed tags) and a **cross-arch** image carrying per-target cross toolchains, tagged `<stage>-cross-<version>` — see [Cross-architecture compilation](#cross-architecture-compilation). `runtime` has no toolchain, so it is published once (no cross variant).  
+Locally, add `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build to get the cross-arch flavour.
 
 ```bash
 # build a specific stage locally (context is .devcontainer)
@@ -39,7 +99,7 @@ docker build --target build --build-arg BINUTILS_TARGETS='aarch64-linux-gnu arm-
     -t cpp-toolchain:build-cross -f .devcontainer/Dockerfile .devcontainer
 ```
 
-SSH remote access is an opt-in extra layer on top of `dev` - see [Remote access](#remote-access-opt-in) below.
+SSH remote access is an opt-in extra layer on top of `dev` - see [Using as a dev environment](docs/DEVCONTAINER.md#remote-ssh).
 
 ### Registries & tags
 
@@ -68,12 +128,9 @@ The **cross-arch** flavour appends `cross` in the same slot for the four toolcha
 `runtime` has no cross variant. These images carry the extra per-target cross toolchains (~+200 MB installed per target), so reach for them only when you cross-compile - otherwise the unsuffixed images are leaner.
 
 > [!NOTE]
-> These images previously lived in a separate `guillaumedua/cpp-toolchain-dev` repository, which is **deprecated and frozen** (Docker Hub repositories cannot be renamed). Replace `cpp-toolchain-dev:<version>` with `cpp-toolchain:dev-<version>`.
-
-Every PR to `main` must still build all stages in both the normal and cross-arch variants ([docker-build](.github/workflows/docker-build.yml)); publishing is a separate workflow that refuses to push anything whose commit is not contained in `main`.
-
-> [!NOTE]
-> **Host architecture.** The published images are `linux/amd64` (not yet multi-platform manifests), so on an arm64 host they run under emulation. Because the toolchain already **cross-compiles** to arm64 and beyond (see [Cross-architecture compilation](#cross-architecture-compilation)), a native arm64 image is seldom needed - but when you want to build, run or debug *on* the target platform itself, the same [Dockerfile](.devcontainer/Dockerfile) rebuilds for other architectures on a **best-effort** basis - natively via `docker build` on an arm64 host, or `docker buildx build --platform linux/arm64 --load` (through QEMU) on amd64. A few pieces degrade on non-amd64: Doxygen falls back to the distro apt package, and Bazel and the `-m32` / `-mx32` multilib are amd64-only (skipped with a log).
+> **Host architecture:**  
+> The published images are `linux/amd64` (not yet multi-platform manifests), so on an **arm64** host they run under emulation. Because the toolchain already **cross-compiles** to **arm64** and beyond (see [Cross-architecture compilation](#cross-architecture-compilation)), a native **arm64** image is seldom needed - but when you want to build, run or debug *on* the target platform itself, the same [Dockerfile](.devcontainer/Dockerfile) rebuilds for other architectures on a **best-effort** basis - natively via `docker build` on an arm64 host, or `docker buildx build --platform linux/arm64 --load` (through QEMU) on **amd64**.  
+> A few pieces degrade on non-amd64: `Doxygen` falls back to the distro apt package, and Bazel and the `-m32` / `-mx32` multilib are **amd64-only** (skipped with a log).
 
 ---
 
@@ -124,21 +181,23 @@ docker build -t cpp-toolchain:dev -f .devcontainer/Dockerfile .devcontainer \
     --build-arg LLVM_VERSIONS='12 20 22'
 ```
 
-See [.devcontainer/scripts/README.md](.devcontainer/scripts/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` options (also usable standalone on any Debian/Ubuntu-based system).
+---
 
-### Remote access (opt-in)
+## Standalone use (no Docker)
 
-The published image does **not** ship an SSH server by default.  
-Remote/SSH access is an opt-in extra layer, built on top of the base image via [`.devcontainer/ssh_support.dockerfile`](.devcontainer/ssh_support.dockerfile):
+The install scripts are self-contained: fetch one and run it directly on any Debian/Ubuntu-based host to get the same toolchain, no image involved. Each needs root and takes the same options as above (`--help` lists them all):
 
 ```bash
-# from the .devcontainer/ directory
-docker build --target dev -t cpp-toolchain:dev -f Dockerfile .
-docker compose --profile ssh build ssh_support
-docker compose --profile ssh run --service-ports ssh_support
+# GCC (from the ubuntu-toolchain-r PPA)
+wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/.devcontainer/scripts/gcc.sh
+sudo bash gcc.sh --versions='>=13'
+
+# LLVM/Clang (from apt.llvm.org)
+wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/.devcontainer/scripts/llvm.sh
+sudo bash llvm.sh --versions='latest-stable'
 ```
 
-This creates a `vscodeuser` (password `password`) with sudo rights, and exposes SSH on port `2222`.
+`cmake.sh` and `binutils.sh` work the same way. See [.devcontainer/scripts/README.md](.devcontainer/scripts/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference.
 
 ---
 
@@ -221,7 +280,7 @@ sudo ./binutils.sh --targets='riscv64-linux-gnu s390x-linux-gnu'
 | CPU / ISA  | `mipsisa32r6-linux-gnu`, `mipsisa64r6el-linux-gnuabi64` (MIPS release 6)   |
 | Endianness | `powerpc64` vs `powerpc64le`, `mips` vs `mipsel`                           |
 
-> [!TIP]
+> [!WARNING]
 > 25 of 32 target triplets have a cross-`g++` (full toolchain).  
 > The 7 without one - `ia64`, `hppa64`, `loongarch64` and the four mips-`n32` variants - fall back to cross-binutils (+ cross-libc where published); the script logs and continues.
 
@@ -288,34 +347,11 @@ In `build`, Clang is installed minimalistically, so only the versioned `llvm-cov
 
 ---
 
-## Usage
-
-### vscode - "Reopen in container"
-
-Make sure to meet the following requirements:
-
-- a `devcontainer.json` file. See [this example](.devcontainer/devcontainer.json).
-- which references a `docker-compose.yaml` file. See [this example](.devcontainer/docker-compose.yaml).
-
-### vscode - "Remote SSH"
-
-In `vscode`, using `Remote SSH` extension, after starting the opt-in `ssh_support` service (see [Remote access](#remote-access-opt-in) above):
-
-- Connect window to host
-
-With a `.ssh/config` (forwards port `2222:22`) like:
-
-```config
-Host localhost
-  HostName localhost
-  User vscodeuser
-  Password password
-  ForwardAgent yes
-  Port 2222
-```
-
-with password "password"
-
 ## Dependency updates
 
-Base image, GitHub Actions, and `zsh-in-docker` version bumps are tracked via [Renovate](renovate.json), scheduled weekly.
+- `gcc`, `llvm`, `cmake` and `doxygen` use the latest-stable release available
+- Base image, GitHub Actions, and `zsh-in-docker` version bumps are tracked via [Renovate](renovate.json), scheduled weekly.
+
+## Contributing
+
+See [HOW_TO_CONTRIBUTE.md](HOW_TO_CONTRIBUTE.md) for the workflow.
