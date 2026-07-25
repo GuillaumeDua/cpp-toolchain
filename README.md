@@ -22,7 +22,7 @@ Published to **Docker Hub** and **GHCR** via [GitHub Actions](.github/workflows/
 - **Static analysis & documentation**: clang-tidy, clang-format, clangd, scan-build, cppcheck, iwyu, doxygen, graphviz ([Packages](#packages)).
 - **Coverage**: GNU `gcov` / `lcov` and LLVM `llvm-cov` / `llvm-profdata` ([Code coverage](#code-coverage)).
 - **Cross-architecture compilation**: opt-in `-cross` images variants carry complete cross toolchains,  
-  compile *and* link - for arm64, arm32 hard-float and riscv64, or any supported triplet in a custom build ([Cross-architecture compilation](#cross-architecture-compilation)).
+  compile *and* link - for `arm64`, `arm32` hard-float and `riscv64`, or any supported triplet in a custom build ([Cross-architecture compilation](#cross-architecture-compilation)).
 - **Multilib**: secondary host ABIs via `-m32` / `-mx32` ([Multilib](#multilib---secondary-abis)).
 - **Ready as a dev container**: `VS Code` *Reopen in Container*, plus an opt-in `SSH` layer for Remote-SSH ([Using as a dev environment](#using-as-a-dev-environment)).
 - **Distribution & versioning**:
@@ -49,7 +49,7 @@ docker pull ghcr.io/guillaumedua/cpp-toolchain:build-latest
 docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version
 ```
 
-> [!TIP]
+> [!TIP] GHCR or Docker Hub ?
 > Prefer [GHCR](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain) over [Docker Hub](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain) for CI - public images there have no anonymous pull rate limit.  
 > Working in [VS Code](https://code.visualstudio.com/) ? Open the repo and **Reopen in Container** - see [Using as a dev environment](#using-as-a-dev-environment).
 
@@ -84,12 +84,12 @@ Locally, the same stage name is the `docker build --target <stage>` argument (om
 Each toolchain stage (`build`, `static-analysis`, `documentation`, `dev`) is published in two flavours:
 
 - The **normal / lean** image: `<stage>-<version>`
-- A **cross-arch** image carrying per-target cross toolchains: `<stage>-cross-<version>`
+- A **cross-arch** image carrying per-target cross toolchains: `<stage>-cross-<version>` (~+200 MB installed per target, so reach for it only when you cross-compile)
 
 see [Cross-architecture compilation](#cross-architecture-compilation).
 
 > [!TIP] runtime has no toolchain
-> so it is published once (no cross variant).  
+> It is published once: no cross variant.
 
 Locally, add `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build to get the cross-arch flavour.
 
@@ -110,16 +110,7 @@ SSH remote access is an opt-in extra layer on top of `dev` - see [Using as a dev
 
 ### Registries & tags
 
-Every stage is published to both registries, under the same `cpp-toolchain` name:
-
-```bash
-docker pull guillaumedua/cpp-toolchain:build-latest          # Docker Hub
-docker pull ghcr.io/guillaumedua/cpp-toolchain:build-latest  # GitHub Container Registry
-```
-
-Prefer **GHCR** when pulling from CI: public GHCR images have no pull rate limit, whereas Docker Hub throttles anonymous pulls per IP.
-
-A tag is `<stage>[-cross]-<version>`: the **stage** picks *what is in the image* (see the table above), the optional **`cross`** picks the *cross-arch flavour* (per-target cross toolchains; absent = normal/lean), and the **version** picks *how fresh it is*.
+A tag is `<stage>[-cross]-<version>`: the **stage** picks *what is in the image* (see the table above), the optional **`cross`** picks the *cross-arch flavour*, and the **version** picks *how fresh it is*:
 
 | Version | Published by | Meaning |
 | ------- | ------------ | ------- |
@@ -127,17 +118,14 @@ A tag is `<stage>[-cross]-<version>`: the **stage** picks *what is in the image*
 | `latest` (e.g. `build-latest`) | the same release | Newest **release** - what you want unless you know otherwise |
 | `experimental` (e.g. `build-experimental`) | the **weekly** schedule (Saturday 4am UTC), from `main` | Newest **build** of `main`: *ahead of* `latest`, unreleased. Rebuilt against current upstream (toolchain PPA, apt.llvm.org, Kitware), so it may break - never aliased to `latest` |
 
-Note that `latest` tracks **releases, not recency**: `experimental` is always the more recent build of the two. Pin `<stage>-v<major>.<minor>` for reproducible builds, use `<stage>-latest` for the current release, and reach for `<stage>-experimental` only when you want the freshest toolchain between releases and can tolerate breakage.
+`latest` tracks **releases, not recency**: `experimental` is always the more recent build of the two. Pin `<stage>-v<major>.<minor>` for reproducible builds.
 
-`dev` is the Dockerfile's default target, so it also answers to the **unprefixed** versions - `cpp-toolchain:latest` is the same digest as `cpp-toolchain:dev-latest`, and likewise for `v1.0` / `experimental` (and `cross-latest` = `dev-cross-latest`). Every other stage must be named explicitly.
+`dev` is the Dockerfile's default target, so it also answers to the **unprefixed** versions - `cpp-toolchain:latest` is the same digest as `cpp-toolchain:dev-latest`, and likewise for `v1.0` / `experimental` (and `cross-experimental` = `dev-cross-experimental`). Every other stage must be named explicitly.
 
-The **cross-arch** flavour appends `cross` in the same slot for the four toolchain stages, e.g. `build-cross-latest`, `dev-cross-v1.0`, `documentation-cross-experimental` (and the unprefixed `cross-latest` for `dev`).  
-`runtime` has no cross variant. These images carry the extra per-target cross toolchains (~+200 MB installed per target), so reach for them only when you cross-compile - otherwise the unsuffixed images are leaner.
-
-> [!NOTE]
-> **Host architecture:**  
-> The published images are `linux/amd64` (not yet multi-platform manifests), so on an **arm64** host they run under emulation. Because the toolchain already **cross-compiles** to **arm64** and beyond (see [Cross-architecture compilation](#cross-architecture-compilation)), a native **arm64** image is seldom needed - but when you want to build, run or debug *on* the target platform itself, the same [Dockerfile](Dockerfile) rebuilds for other architectures on a **best-effort** basis - natively via `docker build` on an arm64 host, or `docker buildx build --platform linux/arm64 --load` (through QEMU) on **amd64**.  
-> A few pieces degrade on non-amd64: `Doxygen` falls back to the distro apt package, and Bazel and the `-m32` / `-mx32` multilib are **amd64-only** (skipped with a log).
+> [!NOTE] On host architecture:
+> The published images are `linux/amd64` (not yet multi-platform manifests), so on an **arm64** host they run under emulation.  
+> Because the toolchain already **cross-compiles** to **arm64** and beyond (see [Cross-architecture compilation](#cross-architecture-compilation)), a native **arm64** image is seldom needed - but when you want to build, run or debug *on* the target platform itself, the same [Dockerfile](Dockerfile) rebuilds for other architectures on a **best-effort** basis - natively via `docker build` on an arm64 host, or `docker buildx build --platform linux/arm64 --load` (through QEMU) on **amd64**.  
+> ⚠️ A few pieces degrade on non-amd64: `Doxygen` falls back to the distro apt package, and Bazel and the `-m32` / `-mx32` multilib are **amd64-only** (skipped with a log).
 
 ---
 
@@ -166,7 +154,9 @@ Presence per published image. It's a diamond: `static-analysis` and `documentati
 | Shells: bash, zsh                                                                                                            |           |         |                   |                 |  ✅   |
 | Misc: jq, ripgrep, docker-compose                                                                                            |           |         |                   |                 |  ✅   |
 
-The `build` stage installs Clang/LLVM minimalistically (just `clang`/`clang++`); the full LLVM tooling (`clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ...) is wired up in the `static-analysis` stage (and inherited by `dev`). `valgrind` (dynamic analysis) lives in `dev`.
+- The `build` stage installs Clang/LLVM minimalistically (just `clang`/`clang++`)
+- The full LLVM tooling (`clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ...) is wired up in the `static-analysis` stage (and inherited by `dev`).
+- `valgrind` (runtime analysis) lives in `dev`.
 
 ### Arguments
 
@@ -192,7 +182,8 @@ docker build -t cpp-toolchain:dev . \
 
 ## Standalone use (no Docker)
 
-The install scripts are self-contained: fetch one and run it directly on any Debian/Ubuntu-based host to get the same toolchain, no image involved. Each needs root and takes the same options as above (`--help` lists them all):
+The install scripts are self-contained: fetch one and run it directly on any `Debian`/`Ubuntu`-based host to get the same toolchain, no image involved.  
+Each needs root and takes the same options as above (`--help` lists them all):
 
 ```bash
 # GCC (from the ubuntu-toolchain-r PPA)
@@ -204,7 +195,9 @@ wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/l
 sudo bash llvm.sh --versions='latest-stable'
 ```
 
-`cmake.sh` and `binutils.sh` work the same way. See [scripts/README.md](scripts/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference.
+> [!TIP] On scripts documentation
+> `cmake.sh` and `binutils.sh` work the same way.  
+> See [scripts/README.md](scripts/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference.
 
 ---
 
@@ -348,7 +341,7 @@ llvm-cov show ./app -instr-profile=app.profdata
 
 In `build`, Clang is installed minimalistically, so only the versioned `llvm-cov-<N>` / `llvm-profdata-<N>` exist there; the unversioned commands are registered from `static-analysis` / `documentation` onwards. `lcov` (the Perl frontend producing HTML) ships in the coverage-oriented stages only - `gcov` itself always comes with GCC.
 
-> [!TIP]
+> [!TIP] llvm-cov compatibility mode
 > `llvm-cov` can also read GCC-style counters via its `llvm-cov gcov` compatibility mode, so `lcov --gcov-tool "llvm-cov gcov"` bridges Clang-compiled coverage into an `lcov` report.
 
 ---

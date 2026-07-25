@@ -1,8 +1,8 @@
 # How to contribute
 
 Thanks for helping improve **cpp-toolchain**.  
-This document covers the contribution
-workflow: how changes get in, what the CI gate expects, and how images get published.
+
+This document covers the contribution workflow: how changes get in, what the CI gate expects, and how images get published.
 
 ## The two workflows
 
@@ -14,7 +14,7 @@ There is a hard split between **building** (gate, runs on every PR) and **publis
 | [docker-build](.github/workflows/docker-build.yml) | every PR to `main`, every push to `main` | builds all stages in both variants | ❌ |
 | [docker-publish](.github/workflows/docker-publish.yml) | GitHub **release**, weekly schedule (Sat 4am UTC), manual dispatch | builds and pushes tags to Docker Hub + GHCR | ✅ |
 
-> [!IMPORTANT]
+> [!IMPORTANT] PR validation
 > Every PR to `main` must still build all stages in both the normal and cross-arch variants ([docker-build](.github/workflows/docker-build.yml)); publishing is a separate workflow that refuses to push anything whose commit is not contained in `main`.
 
 ## Opening a pull request
