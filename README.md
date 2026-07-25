@@ -4,16 +4,36 @@
 [![docker-build](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml)
 [![docker-publish](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml)
 
-Up-to-date C++ toolchain docker images for development, built as a multi-stage [`Dockerfile`](Dockerfile) and published as five stages on:
+Up-to-date C++ toolchain docker images for complete development cycle,  
+built as a multi-stage [`Dockerfile`](Dockerfile) and published as five stages on:
 
 - [DockerHub repository](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain)
 - [GHRC - GitHub Container Registry](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain)
 
 Published to **Docker Hub** and **GHCR** via [GitHub Actions](.github/workflows/docker-publish.yml) - see [Registries & tags](#registries--tags).
 
+## 🌟 Key features
+
+- **Five stages**, from a minimal runtime to a full dev environment,  
+  `runtime` → `build` → [`static-analysis` | `documentation` ] → `dev` - so you pull only what you need ([Images](#images)).
+- **Both toolchains side by side**: GNU `g++`/`libstdc++` and LLVM `clang++`/`libc++`,  
+  `latest-stable` of each by default, with several versions installable side by side via `update-alternatives` ([Compilers & versions](#compilers--versions)).
+- **Building**: CMake, ninja, make, ccache, vcpkg, conan - plus opt-in Bazel and Build2 ([Packages](#packages)).
+- **Static analysis & documentation**: clang-tidy, clang-format, clangd, scan-build, cppcheck, iwyu, doxygen, graphviz ([Packages](#packages)).
+- **Coverage**: GNU `gcov` / `lcov` and LLVM `llvm-cov` / `llvm-profdata` ([Code coverage](#code-coverage)).
+- **Cross-architecture compilation**: opt-in `-cross` images variants carry complete cross toolchains,  
+  compile *and* link - for arm64, arm32 hard-float and riscv64, or any supported triplet in a custom build ([Cross-architecture compilation](#cross-architecture-compilation)).
+- **Multilib**: secondary host ABIs via `-m32` / `-mx32` ([Multilib](#multilib---secondary-abis)).
+- **Ready as a dev container**: `VS Code` *Reopen in Container*, plus an opt-in `SSH` layer for Remote-SSH ([Using as a dev environment](#using-as-a-dev-environment)).
+- **Distribution & versioning**:
+  - **Two registries**: [Docker Hub](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain) and [GHCR](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain).
+  - **Three version channels** with pinned `v<major>.<minor>`, `latest`, and weekly `experimental` tags ([Registries & tags](#registries--tags)).
+- **Usable without Docker**  
+  The `gcc.sh` / `llvm.sh` / `cmake.sh` / `binutils.sh` install scripts run standalone on any Debian/Ubuntu host ([Standalone use](#standalone-use-no-docker)).
+
 ## Quick start
 
-Pull the stage you need - **`dev`** for a full local dev environment, **`build`** for CI:
+Pull the stage you need - ex: **`dev`** for a full local dev environment, **`build`** for CI:
 
 ```bash
 # Full dev environment: compilers + analysis + docs + debug, editors, shells
@@ -22,64 +42,37 @@ docker pull ghcr.io/guillaumedua/cpp-toolchain:dev-latest
 # Lean CI image: compilers + build systems + dependency managers
 docker pull ghcr.io/guillaumedua/cpp-toolchain:build-latest
 
+# NOTE: Same images on Docker Hub: https://hub.docker.com/r/guillaumedua/cpp-toolchain
+# docker pull guillaumedua/cpp-toolchain:build-latest
+
 # Check it out
 docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version
 ```
 
-Prefer **GHCR** (`ghcr.io/...`) over Docker Hub for CI - public images there have no anonymous pull rate limit.
-Working in VS Code? Open the repo and **Reopen in Container** - see [Using as a dev environment](#using-as-a-dev-environment).
-
-Five stages, two variants (normal / cross-arch), three version channels - the full matrix is under [Images](#images).
-
-## Contents
-
-- [cpp-toolchain](#cpp-toolchain)
-  - [Quick start](#quick-start)
-  - [Contents](#contents)
-  - [Using as a dev environment](#using-as-a-dev-environment)
-  - [Images](#images)
-    - [Which one ?](#which-one-)
-    - [Normal and cross-arch variants](#normal-and-cross-arch-variants)
-    - [Registries \& tags](#registries--tags)
-  - [Features](#features)
-    - [Packages](#packages)
-    - [Arguments](#arguments)
-  - [Standalone use (no Docker)](#standalone-use-no-docker)
-  - [Compiling C++](#compiling-c)
-    - [Compilers \& versions](#compilers--versions)
-    - [Standard library](#standard-library)
-    - [Cross-architecture compilation](#cross-architecture-compilation)
-      - [What works, and what does not](#what-works-and-what-does-not)
-    - [Multilib - secondary ABIs](#multilib---secondary-abis)
-    - [Code coverage](#code-coverage)
-  - [Dependency updates](#dependency-updates)
-  - [Contributing](#contributing)
+> [!TIP]
+> Prefer [GHCR](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain) over [Docker Hub](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain) for CI - public images there have no anonymous pull rate limit.  
+> Working in [VS Code](https://code.visualstudio.com/) ? Open the repo and **Reopen in Container** - see [Using as a dev environment](#using-as-a-dev-environment).
 
 ## Using as a dev environment
 
-These images are built to be your dev container. The full walkthrough - VS Code **Reopen in Container**, the opt-in SSH server, and Remote-SSH setup - lives in **[docs/DEVCONTAINER.md](docs/DEVCONTAINER.md)**:
+These images are built to be your dev container, see [docs/DEVCONTAINER.md](docs/DEVCONTAINER.md) (VS Code **Reopen in Container**, the opt-in SSH server, and Remote-SSH setup):
 
 - **Reopen in Container** needs a [`devcontainer.json`](.devcontainer/devcontainer.json) referencing a [`docker-compose.yaml`](.devcontainer/docker-compose.yaml).
 - **Remote SSH** uses the opt-in `ssh_support` layer (SSH on port `2222`).
 
 ## Images
 
-The [Dockerfile](Dockerfile) is a multi-stage build: `runtime` → `build`, then `static-analysis` and `documentation` branch off `build`, and `dev` combines everything. All five stages are published to the single [`guillaumedua/cpp-toolchain`](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/general) repository, one **stage-prefixed tag** per stage, so any stage is available at any version. Locally, the same stages are selected with `docker build --target <stage>` (omitting `--target` builds `dev`, the last stage):
+The [Dockerfile](Dockerfile) is a multi-stage build: `runtime` → `build`, then `static-analysis` and `documentation` branch off `build`, and `dev` combines everything.  
+All five stages are published to [`guillaumedua/cpp-toolchain`](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/general), one **stage-prefixed tag** per stage (`<stage>-<version>`, e.g. `build-latest`), so any stage is available at any version.  
+Locally, the same stage name is the `docker build --target <stage>` argument (omitting `--target` builds `dev`, the last stage):
 
-| Tag prefix | `--target` | Purpose | Size (`latest`) | Size (`experimental`) |
-| ---------- | ---------- | ------- | --------------- | --------------------- |
-| `runtime-` | `runtime` | Minimal C++ runtime (`libc`/`libstdc++`) to **run** compiled binaries | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/runtime-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/runtime-experimental)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) |
-| `build-` | `build` | **Compile** C++: compilers, build systems, dependency managers (CI) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-experimental)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) |
-| `static-analysis-` | `static-analysis` | `build` + **static analysis** (clang-tidy/clang-format/scan-build, cppcheck, iwyu) for PR checks and investigations | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-experimental)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) |
-| `documentation-` | `documentation` | `build` + **documentation** generators (doxygen, graphviz) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-experimental)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) |
-| `dev-` *(or no prefix)* | `dev` | Full **dev** environment: static analysis + docs + dynamic analysis, debug, editors, shells | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-experimental)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) |
-
-### Which one ?
-
-- `dev` for local development
-- `build` for CI / compiling
-- `runtime` to ship a compiled binary
-- `static-analysis` and `documentation` are CI-focused subsets of `dev`.
+| Stage / tag | Purpose | Size (`latest`) | Docker Hub |
+| ----- | ------- | --------------- | ---------- |
+| `runtime` | Minimal C++ **runtime** | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/runtime-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![runtime tags](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/runtime-latest?label=latest&logo=docker&logoColor=white&color=2496ED)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=runtime-) |
+| `build` | **Compile** C++: compilers, build systems, dependency managers | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![build tags](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/build-latest?label=latest&logo=docker&logoColor=white&color=2496ED)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-) |
+| `static-analysis` | `build` + **static analysis** for PR checks and investigations | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![static-analysis tags](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/static-analysis-latest?label=latest&logo=docker&logoColor=white&color=2496ED)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-) |
+| `documentation` | `build` + **documentation** generators | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![documentation tags](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/documentation-latest?label=latest&logo=docker&logoColor=white&color=2496ED)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-) |
+| `dev` *(default target)* | Full **dev** environment (+ everything above) | [![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-latest)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/tags) | [![dev tags](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/dev-latest?label=latest&logo=docker&logoColor=white&color=2496ED)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-) |
 
 ### Normal and cross-arch variants
 
