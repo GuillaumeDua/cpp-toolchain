@@ -44,11 +44,11 @@ jobs:
             for target in "$@"; do
               echo "::group::build cpp-toolchain:${target} [BINUTILS_TARGETS='${targets}']"
               docker buildx build \
-                --file .devcontainer/Dockerfile \
+                --file Dockerfile \
                 --target "${target}" \
                 --build-arg "BINUTILS_TARGETS=${targets}" \
                 --cache-from type=gha,scope=cpp-toolchain \
-                .devcontainer
+                .
               echo "::endgroup::"
             done
           }

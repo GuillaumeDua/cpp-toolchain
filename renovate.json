@@ -10,7 +10,7 @@
     {
       "customType": "regex",
       "description": "zsh-in-docker release URL in Dockerfile",
-      "fileMatch": ["^\\.devcontainer/Dockerfile$"],
+      "fileMatch": ["^Dockerfile$"],
       "matchStrings": [
         "github\\.com/deluan/zsh-in-docker/releases/download/v(?<currentValue>[^/]+)/zsh-in-docker\\.sh"
       ],
@@ -21,7 +21,7 @@
     {
       "customType": "regex",
       "description": "Version pins declared via `# renovate:`-annotated ARG lines in the Dockerfile (build2, doxygen, ...)",
-      "fileMatch": ["^\\.devcontainer/Dockerfile$"],
+      "fileMatch": ["^Dockerfile$"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\s+ARG \\w+=(?<currentValue>\\S+)"
       ]
