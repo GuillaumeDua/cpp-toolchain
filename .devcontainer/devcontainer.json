@@ -80,13 +80,11 @@
                 }
             },
             "extensions": [
-                // remote
                 "ms-vscode.remote-explorer",
                 "ms-vscode-remote.remote-ssh-edit",
                 "ms-vscode.remote-server",
                 "ms-vscode-remote.vscode-remote-extensionpack",
                 "ms-vscode-remote.remote-ssh",
-                // dev
                 "ms-vscode.cpptools",
                 "twxs.cmake",
                 "llvm-vs-code-extensions.vscode-clangd",
@@ -94,16 +92,15 @@
                 "ms-vscode.cpptools-extension-pack",
                 "fredericbonnet.cmake-test-adapter",
                 "josetr.cmake-language-support-vscode",
-                // misc
                 "Gruntfuggly.todo-tree",
                 "enkia.tokyo-night",
                 "ms-azuretools.vscode-docker",
                 "github.vscode-github-actions",
-                // documentation
                 "DavidAnson.vscode-markdownlint",
                 "yzhang.markdown-all-in-one",
                 "TakumiI.markdowntable",
-                "cschlosser.doxdocgen"
+                "cschlosser.doxdocgen",
+                "bierner.markdown-mermaid"
             ]
         },
         "postCreateCommand": {

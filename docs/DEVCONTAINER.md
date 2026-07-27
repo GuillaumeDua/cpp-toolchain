@@ -52,5 +52,6 @@ Then run **Remote-SSH: Connect to Host...** -> `cpp-toolchain` and enter the pas
 
 ## See also
 
-- [README.md](../README.md) - images, features, build arguments, cross-architecture compilation.
-- [Images](../README.md#images) - the five stages and what each contains.
+- [README.md](../README.md) - images, features, tags, build arguments.
+- [Pick your image](../README.md#pick-your-image) - the five stages and what each contains.
+- [docs/CROSS-COMPILATION.md](CROSS-COMPILATION.md) - cross-architecture compilation and multilib.

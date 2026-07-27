@@ -4,36 +4,34 @@
 [![docker-build](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml)
 [![docker-publish](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml)
 
-Up-to-date C++ toolchain docker images for complete development cycle,  
-built as a multi-stage [`Dockerfile`](Dockerfile) and published as five stages on:
+Up-to-date C++ toolchain images for the complete development cycle - **GNU and LLVM side by side**, from a minimal runtime to a full dev container.  
+Built as a single multi-stage [`Dockerfile`](Dockerfile), published to [Docker Hub](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain) and [GHCR](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain) by [GitHub Actions](.github/workflows/docker-publish.yml).
 
-- [DockerHub repository](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain)
-- [GHRC - GitHub Container Registry](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain)
+## Pick your image
 
-Published to **Docker Hub** and **GHCR** via [GitHub Actions](.github/workflows/docker-publish.yml) - see [Registries & tags](#registries--tags).
+```mermaid
+graph LR
+    runtime --> build
+    build --> analysis["static-analysis"]
+    build --> documentation
+    analysis --> dev
+    documentation -. "tools re-added" .-> dev
+```
 
-## 🌟 Key features
+Each stage is published as its own image, so you pull only what you need - prefix any version with the stage name: `ghcr.io/guillaumedua/cpp-toolchain:<stage>-latest`
 
-- **Five stages**, from a minimal runtime to a full dev environment,  
-  `runtime` → `build` → [`static-analysis` | `documentation` ] → `dev` - so you pull only what you need ([Images](#images)).
-- **Both toolchains side by side**: GNU `g++`/`libstdc++` and LLVM `clang++`/`libc++`,  
-  `latest-stable` of each by default, with several versions installable side by side via `update-alternatives` ([Compilers & versions](#compilers--versions)).
-- **Building**: CMake, ninja, make, ccache, vcpkg, conan - plus opt-in Bazel and Build2 ([Packages](#packages)).
-- **Static analysis & documentation**: clang-tidy, clang-format, clangd, scan-build, cppcheck, iwyu, doxygen, graphviz ([Packages](#packages)).
-- **Coverage**: GNU `gcov` / `lcov` and LLVM `llvm-cov` / `llvm-profdata` ([Code coverage](#code-coverage)).
-- **Cross-architecture compilation**: opt-in `-cross` images variants carry complete cross toolchains,  
-  compile *and* link - for `arm64`, `arm32` hard-float and `riscv64`, or any supported triplet in a custom build ([Cross-architecture compilation](#cross-architecture-compilation)).
-- **Multilib**: secondary host ABIs via `-m32` / `-mx32` ([Multilib](#multilib---secondary-abis)).
-- **Ready as a dev container**: `VS Code` *Reopen in Container*, plus an opt-in `SSH` layer for Remote-SSH ([Using as a dev environment](#using-as-a-dev-environment)).
-- **Distribution & versioning**:
-  - **Two registries**: [Docker Hub](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain) and [GHCR](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain).
-  - **Three version channels** with pinned `v<major>.<minor>`, `latest`, and weekly `experimental` tags ([Registries & tags](#registries--tags)).
-- **Usable without Docker**  
-  The `gcc.sh` / `llvm.sh` / `cmake.sh` / `binutils.sh` install scripts run standalone on any Debian/Ubuntu host ([Standalone use](#standalone-use-no-docker)).
+| Stage / tag | What's in it | `latest` | `experimental` | `cross` |
+| ----------- | ------------ | -------- | -------------- | ------- |
+| `runtime` | Minimal C++ **runtime**<br>`libc6`, `libgcc-s1`, `libstdc++6` | [![runtime-latest](https://img.shields.io/badge/runtime--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=runtime-latest) [![runtime version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/runtime-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=runtime-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/runtime-latest?label=) | [![runtime-experimental](https://img.shields.io/badge/runtime--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=runtime-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/runtime-experimental?label=) | *(no toolchain)* |
+| `build` | **Compile** C++<br>compilers, build systems, dependency managers | [![build-latest](https://img.shields.io/badge/build--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-latest) [![build version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/build-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-latest?label=) | [![build-experimental](https://img.shields.io/badge/build--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-experimental?label=) | [![build-cross-experimental](https://img.shields.io/badge/build--cross--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-cross-experimental?label=) |
+| `static-analysis` | `build` + **static analysis**<br>clang-tidy, clang-format, clangd, scan-build, cppcheck, iwyu, lldb | [![static-analysis-latest](https://img.shields.io/badge/static--analysis--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-latest) [![static-analysis version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/static-analysis-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-latest?label=) | [![static-analysis-experimental](https://img.shields.io/badge/static--analysis--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-experimental?label=) | [![static-analysis-cross-experimental](https://img.shields.io/badge/static--analysis--cross--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-cross-experimental?label=) |
+| `documentation` | `build` + **documentation**<br>doxygen, graphviz - and lcov reports | [![documentation-latest](https://img.shields.io/badge/documentation--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-latest) [![documentation version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/documentation-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-latest?label=) | [![documentation-experimental](https://img.shields.io/badge/documentation--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-experimental?label=) | [![documentation-cross-experimental](https://img.shields.io/badge/documentation--cross--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-cross-experimental?label=) |
+| `dev` *(default target)* | Full **dev** environment<br>everything above + gdb, valgrind, editors, shells, jq, ripgrep | [![dev-latest](https://img.shields.io/badge/dev--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-latest) [![dev version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/dev-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-latest?label=) | [![dev-experimental](https://img.shields.io/badge/dev--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-experimental?label=) | [![dev-cross-experimental](https://img.shields.io/badge/dev--cross--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-cross-experimental?label=) |
+
+The `-cross` images carry per-target cross toolchains (~+200 MB installed per target), so reach for them only when you cross-compile - see [Cross-compilation](docs/CROSS-COMPILATION.md). `runtime` has no toolchain, so it is published once, without a cross variant.  
+What each version means - `latest`, `experimental`, pinned `v<major>.<minor>` - is detailed in [Tags & versioning](#tags--versioning).
 
 ## Quick start
-
-Pull the stage you need - ex: **`dev`** for a full local dev environment, **`build`** for CI:
 
 ```bash
 # Full dev environment: compilers + analysis + docs + debug, editors, shells
@@ -42,75 +40,58 @@ docker pull ghcr.io/guillaumedua/cpp-toolchain:dev-latest
 # Lean CI image: compilers + build systems + dependency managers
 docker pull ghcr.io/guillaumedua/cpp-toolchain:build-latest
 
-# NOTE: Same images on Docker Hub: https://hub.docker.com/r/guillaumedua/cpp-toolchain
-# docker pull guillaumedua/cpp-toolchain:build-latest
-
 # Check it out
 docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version
 ```
 
 > [!TIP] GHCR or Docker Hub ?
-> Prefer [GHCR](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain) over [Docker Hub](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain) for CI - public images there have no anonymous pull rate limit.  
-> Working in [VS Code](https://code.visualstudio.com/) ? Open the repo and **Reopen in Container** - see [Using as a dev environment](#using-as-a-dev-environment).
+> Both registries carry the same images - prefer [GHCR](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain) for CI, public images there have no anonymous pull rate limit.  
+> Working in [VS Code](https://code.visualstudio.com/) ? Open the repo and **Reopen in Container** - see [As a dev environment](#as-a-dev-environment).
 
-## Using as a dev environment
+## 🌟 Key features
 
-These images are built to be your dev container, see [docs/DEVCONTAINER.md](docs/DEVCONTAINER.md) (VS Code **Reopen in Container**, the opt-in SSH server, and Remote-SSH setup):
+- **Five stages**, from a minimal runtime to a full dev environment - so you pull only what you need ([Pick your image](#pick-your-image)).
+- **Both toolchains side by side**: GNU `g++`/`libstdc++` and LLVM `clang++`/`libc++`, `latest-stable` of each ([Compilers & standard library](#compilers--standard-library)).
+- **Several compiler versions at once**, wired through `update-alternatives` ([Build it yourself](#build-it-yourself)).
+- **Coverage** for both ecosystems: `gcov`/`lcov` and `llvm-cov`/`llvm-profdata` ([Code coverage](docs/COVERAGE.md)).
+- **Cross-architecture compilation**: opt-in `-cross` images that compile *and* link for `arm64`, `arm32` hard-float and `riscv64` - or any supported triplet in a custom build ([Cross-compilation](docs/CROSS-COMPILATION.md)).
+- **Multilib**: secondary host ABIs via `-m32` / `-mx32` ([Multilib](docs/CROSS-COMPILATION.md#multilib---secondary-abis)).
+- **Ready as a dev container**: VS Code *Reopen in Container*, plus an opt-in `SSH` layer for Remote-SSH ([As a dev environment](#as-a-dev-environment)).
+- **Usable without Docker**: the install scripts run standalone on any Debian/Ubuntu host ([Standalone use](#standalone-use-no-docker)).
 
-- **Reopen in Container** needs a [`devcontainer.json`](.devcontainer/devcontainer.json) referencing a [`docker-compose.yaml`](.devcontainer/docker-compose.yaml).
-- **Remote SSH** uses the opt-in `ssh_support` layer (SSH on port `2222`).
+## What's inside
 
-## Images
+The stages form a diamond: `static-analysis` and `documentation` both build on `build`; `dev` inherits `static-analysis` and re-adds the documentation tools.
 
-The [Dockerfile](Dockerfile) is a multi-stage build:
+<details>
+<summary><b>📦 Full package matrix</b> - what lands in which stage</summary>
 
-- `runtime` → `build`, then `static-analysis` and `documentation` branch off `build`, and `dev` combines everything.  
-- All five stages and variants are published as dedicated images to `guillaumedua/cpp-toolchain` [ghrc](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain) and [dockerhub](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/general)
-- One **stage-prefixed tag** per stage: any stage is available at any version: `<stage>-<version>`  
-  *e.g. `build-latest`, `build-v1.0`, `build-cross-v2.0`, `build-cross-experimental`*
+| Category                                                                                                        | `runtime` | `build` | `static-analysis` | `documentation` | `dev` |
+| --------------------------------------------------------------------------------------------------------------- | :-------: | :-----: | :---------------: | :-------------: | :---: |
+| C++ runtime libraries (`libc6`, `libgcc-s1`, `libstdc++6`)                                                      |    ✅     |   ✅    |        ✅         |       ✅        |  ✅   |
+| Compilers: GNU-G++, LLVM-Clang++                                                                                |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Cross-compilation: per-target GNU toolchains via `g++-<triplet>` ([opt-in](docs/CROSS-COMPILATION.md))          |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Multilib: secondary ABIs `-m32` / `-mx32`                                                                       |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Build systems: CMake, make/Unix-makefile, ninja, ccache (+ opt-in Bazel, Build2)                                |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Dependency management: vcpkg, conan (python3)                                                                   |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Versioning: git                                                                                                 |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Coverage (GNU): gcov, gcov-tool                                                                                 |           |   ✅    |        ✅         |       ✅        |  ✅   |
+| Coverage (LLVM): llvm-cov, llvm-profdata                                                                        |           |         |        ✅         |       ✅        |  ✅   |
+| Static analysis: clang-tidy, clang-format, clangd, scan-build, cppcheck, iwyu (+ lldb)                          |           |         |        ✅         |                 |  ✅   |
+| Documentation: doxygen, graphviz - and coverage reports: lcov / genhtml                                         |           |         |                   |       ✅        |  ✅   |
+| Dynamic analysis / debug: valgrind, gdb                                                                         |           |         |                   |                 |  ✅   |
+| Versioning extra: subversion                                                                                    |           |         |                   |                 |  ✅   |
+| Editors: emacs, nano, vim                                                                                       |           |         |                   |                 |  ✅   |
+| Shells: bash, zsh                                                                                               |           |         |                   |                 |  ✅   |
+| Misc: jq, ripgrep, docker-compose                                                                               |           |         |                   |                 |  ✅   |
 
-Locally, the same stage name is the `docker build --target <stage>` argument (omitting `--target` builds `dev`, the last stage):
+</details>
 
-| Stage / tag | Purpose | `latest` | `experimental` | `cross` |
-| ----------- | ------- | -------- | -------------- | ------- |
-| `runtime` | Minimal C++ **runtime** | [![runtime-latest](https://img.shields.io/badge/runtime--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=runtime-latest) [![runtime version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/runtime-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=runtime-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/runtime-latest?label=) | [![runtime-experimental](https://img.shields.io/badge/runtime--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=runtime-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/runtime-experimental?label=) | *(no toolchain)* |
-| `build` | **Compile** C++: compilers, build systems, dependency managers | [![build-latest](https://img.shields.io/badge/build--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-latest) [![build version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/build-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-latest?label=) | [![build-experimental](https://img.shields.io/badge/build--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-experimental?label=) | [![build-cross-experimental](https://img.shields.io/badge/build--cross--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-cross-experimental?label=) |
-| `static-analysis` | `build` + **static analysis** for PR checks and investigations | [![static-analysis-latest](https://img.shields.io/badge/static--analysis--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-latest) [![static-analysis version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/static-analysis-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-latest?label=) | [![static-analysis-experimental](https://img.shields.io/badge/static--analysis--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-experimental?label=) | [![static-analysis-cross-experimental](https://img.shields.io/badge/static--analysis--cross--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-cross-experimental?label=) |
-| `documentation` | `build` + **documentation** generators | [![documentation-latest](https://img.shields.io/badge/documentation--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-latest) [![documentation version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/documentation-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-latest?label=) | [![documentation-experimental](https://img.shields.io/badge/documentation--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-experimental?label=) | [![documentation-cross-experimental](https://img.shields.io/badge/documentation--cross--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-cross-experimental?label=) |
-| `dev` *(default target)* | Full **dev** environment (+ everything above) | [![dev-latest](https://img.shields.io/badge/dev--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-latest) [![dev version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/dev-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-latest?label=) | [![dev-experimental](https://img.shields.io/badge/dev--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-experimental?label=) | [![dev-cross-experimental](https://img.shields.io/badge/dev--cross--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-cross-experimental?label=) |
+`build` installs Clang minimalistically - just `clang`/`clang++`. The full LLVM tooling (`clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ...) is wired up in `static-analysis`, and inherited by `dev`.
 
-### Normal and cross-arch variants
+## Tags & versioning
 
-Each toolchain stage (`build`, `static-analysis`, `documentation`, `dev`) is published in two flavours:
-
-- The **normal / lean** image: `<stage>-<version>`
-- A **cross-arch** image carrying per-target cross toolchains: `<stage>-cross-<version>` (~+200 MB installed per target, so reach for it only when you cross-compile)
-
-see [Cross-architecture compilation](#cross-architecture-compilation).
-
-> [!TIP] runtime has no toolchain
-> It is published once: no cross variant.
-
-Locally, add `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build to get the cross-arch flavour.
-
-```bash
-# build a specific stage locally (context is the repo root)
-docker build --target runtime         -t cpp-toolchain:runtime         .
-docker build --target build           -t cpp-toolchain:build           .
-docker build --target static-analysis -t cpp-toolchain:static-analysis .
-docker build --target documentation   -t cpp-toolchain:documentation   .
-docker build --target dev             -t cpp-toolchain:dev             .
-
-# cross-arch flavour of any stage (adds per-target cross toolchains)
-docker build --target build --build-arg BINUTILS_TARGETS='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu' \
-    -t cpp-toolchain:build-cross .
-```
-
-SSH remote access is an opt-in extra layer on top of `dev` - see [Using as a dev environment](docs/DEVCONTAINER.md#remote-ssh).
-
-### Registries & tags
-
-A tag is `<stage>[-cross]-<version>`: the **stage** picks *what is in the image* (see the table above), the optional **`cross`** picks the *cross-arch flavour*, and the **version** picks *how fresh it is*:
+A tag is `<stage>[-cross]-<version>`: the **stage** picks *what is in the image*, the optional **`cross`** picks the *cross-arch flavour*, and the **version** picks *how fresh it is*.
 
 | Version | Published by | Meaning |
 | ------- | ------------ | ------- |
@@ -124,66 +105,20 @@ A tag is `<stage>[-cross]-<version>`: the **stage** picks *what is in the image*
 
 > [!NOTE] On host architecture:
 > The published images are `linux/amd64` (not yet multi-platform manifests), so on an **arm64** host they run under emulation.  
-> Because the toolchain already **cross-compiles** to **arm64** and beyond (see [Cross-architecture compilation](#cross-architecture-compilation)), a native **arm64** image is seldom needed - but when you want to build, run or debug *on* the target platform itself, the same [Dockerfile](Dockerfile) rebuilds for other architectures on a **best-effort** basis - natively via `docker build` on an arm64 host, or `docker buildx build --platform linux/arm64 --load` (through QEMU) on **amd64**.  
+> Because the toolchain already **cross-compiles** to **arm64** and beyond, a native **arm64** image is seldom needed - but when you want to build, run or debug *on* the target platform itself, the same [Dockerfile](Dockerfile) rebuilds for other architectures on a **best-effort** basis - natively via `docker build` on an arm64 host, or `docker buildx build --platform linux/arm64 --load` (through QEMU) on **amd64**.  
 > ⚠️ A few pieces degrade on non-amd64: `Doxygen` falls back to the distro apt package, and Bazel and the `-m32` / `-mx32` multilib are **amd64-only** (skipped with a log).
 
----
+## As a dev environment
 
-## Features
+These images are built to be your dev container - see [docs/DEVCONTAINER.md](docs/DEVCONTAINER.md) for both workflows:
 
-### Packages
-
-Presence per published image. It's a diamond: `static-analysis` and `documentation` both build on `build`; `dev` combines them.
-
-| Category                                                                                                                     | `runtime` | `build` | `static-analysis` | `documentation` | `dev` |
-| ---------------------------------------------------------------------------------------------------------------------------- | :-------: | :-----: | :---------------: | :-------------: | :---: |
-| C++ runtime libraries (`libc6`, `libgcc-s1`, `libstdc++6`)                                                                   |    ✅     |   ✅    |        ✅         |       ✅        |  ✅   |
-| Compilers: GNU-G++, LLVM-Clang++                                                                                             |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Cross-compilation: per-target GNU toolchains via `g++-<triplet>` (see [Cross-architecture](#cross-architecture-compilation)) |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Multilib: secondary ABIs `-m32` / `-mx32`                                                                                    |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Build systems: CMake, make/Unix-makefile, ninja, ccache (+ opt-in Bazel, Build2)                                             |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Dependency management: vcpkg, conan (python3)                                                                                |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Versioning: git                                                                                                              |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Coverage (GNU): gcov, gcov-tool                                                                                              |           |   ✅    |        ✅         |       ✅        |  ✅   |
-| Coverage (LLVM): llvm-cov, llvm-profdata                                                                                     |           |         |        ✅         |       ✅        |  ✅   |
-| Static analysis: clang-tidy, clang-format, clangd, scan-build, cppcheck, iwyu (+ lldb)                                       |           |         |        ✅         |                 |  ✅   |
-| Documentation: doxygen, graphviz - and coverage reports: lcov / genhtml                                                      |           |         |                   |       ✅        |  ✅   |
-| Dynamic analysis / debug: valgrind, gdb                                                                                      |           |         |                   |                 |  ✅   |
-| Versioning extra: subversion                                                                                                 |           |         |                   |                 |  ✅   |
-| Editors: emacs, nano, vim                                                                                                    |           |         |                   |                 |  ✅   |
-| Shells: bash, zsh                                                                                                            |           |         |                   |                 |  ✅   |
-| Misc: jq, ripgrep, docker-compose                                                                                            |           |         |                   |                 |  ✅   |
-
-- The `build` stage installs Clang/LLVM minimalistically (just `clang`/`clang++`)
-- The full LLVM tooling (`clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ...) is wired up in the `static-analysis` stage (and inherited by `dev`).
-- `valgrind` (runtime analysis) lives in `dev`.
-
-### Arguments
-
-| Name                    | default           | description                                                                            | example                                  |
-| ----------------------- | ----------------- | -------------------------------------------------------------------------------------- | ---------------------------------------- |
-| CMAKE_VERSION           | `latest`          | `latest`<br>(exact version, e.g. `3.29.3-0kitware1ubuntu24.04.1~jammy`)                | `latest`                                 |
-| GCC_VERSIONS            | `'latest-stable'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
-| LLVM_VERSIONS           | `'latest-stable'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
-| BINUTILS_TARGETS        | `''` (none)       | Space-separated GNU target triplets to install a cross toolchain for. Empty = normal/lean image; a list = the cross-arch variant - see [Cross-architecture](#cross-architecture-compilation) | `'aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'` |
-| OPT_IN_INTEGRATE_BAZEL  | `n`               | `y` or `n`                                                                             |                                          |
-| OPT_IN_INTEGRATE_BUILD2 | `n`               | `y` or `n`                                                                             |                                          |
-
-The published image installs a single `latest-stable` for `GCC` and `Clang/LLVM` by default, to keep the image lean.  
-`gcc.sh` and `llvm.sh` both support installing **multiple versions side by side** (via `update-alternatives`), which is useful when you need to test against several compiler versions in the same environment. To get that in your own build, override the version args, e.g.:
-
-```bash
-docker build -t cpp-toolchain:dev . \
-    --build-arg GCC_VERSIONS='>=13' \
-    --build-arg LLVM_VERSIONS='12 20 22'
-```
-
----
+- **Reopen in Container** (VS Code) needs a [`devcontainer.json`](.devcontainer/devcontainer.json) referencing a [`docker-compose.yaml`](.devcontainer/docker-compose.yaml) - both are in this repo.
+- **Remote SSH** uses the opt-in `ssh_support` layer on top of `dev` (SSH on port `2222`).
 
 ## Standalone use (no Docker)
 
 The install scripts are self-contained: fetch one and run it directly on any `Debian`/`Ubuntu`-based host to get the same toolchain, no image involved.  
-Each needs root and takes the same options as above (`--help` lists them all):
+Each needs root and takes the same options as the build arguments below (`--help` lists them all):
 
 ```bash
 # GCC (from the ubuntu-toolchain-r PPA)
@@ -199,23 +134,53 @@ sudo bash llvm.sh --versions='latest-stable'
 > `cmake.sh` and `binutils.sh` work the same way.  
 > See [scripts/README.md](scripts/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference.
 
----
+## Build it yourself
 
-## Compiling C++
+The stage name is the `docker build --target <stage>` argument - omitting `--target` builds `dev`, the last stage:
 
-Everything in this section is available from the **`build`** stage onwards, and therefore also in `static-analysis`, `documentation` and `dev`.
+```bash
+# build a specific stage locally (context is the repo root)
+docker build --target runtime         -t cpp-toolchain:runtime         .
+docker build --target build           -t cpp-toolchain:build           .
+docker build --target static-analysis -t cpp-toolchain:static-analysis .
+docker build --target documentation   -t cpp-toolchain:documentation   .
+docker build --target dev             -t cpp-toolchain:dev             .
+```
 
-### Compilers & versions
+The published images install a single `latest-stable` `GCC` and `Clang/LLVM` to stay lean. `gcc.sh` and `llvm.sh` both support **multiple versions side by side** (via `update-alternatives`) - useful to test against several compiler versions in the same environment:
 
-Both toolchains are installed side by side - `latest-stable` of each by default:
+```bash
+docker build -t cpp-toolchain:dev . \
+    --build-arg GCC_VERSIONS='>=13' \
+    --build-arg LLVM_VERSIONS='12 20 22'
+```
+
+Adding `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build produces the cross-arch flavour of that stage - see [Cross-compilation](docs/CROSS-COMPILATION.md).
+
+<details>
+<summary><b>All build arguments</b></summary>
+
+| Name                    | default           | description                                                                            | example                                  |
+| ----------------------- | ----------------- | -------------------------------------------------------------------------------------- | ---------------------------------------- |
+| CMAKE_VERSION           | `latest`          | `latest`<br>(exact version, e.g. `3.29.3-0kitware1ubuntu24.04.1~jammy`)                | `latest`                                 |
+| GCC_VERSIONS            | `'latest-stable'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
+| LLVM_VERSIONS           | `'latest-stable'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
+| BINUTILS_TARGETS        | `''` (none)       | Cross toolchain target triplets; empty = lean, a list = cross-arch variant             | `'aarch64-linux-gnu riscv64-linux-gnu'`  |
+| OPT_IN_INTEGRATE_BAZEL  | `n`               | `y` or `n`                                                                             |                                          |
+| OPT_IN_INTEGRATE_BUILD2 | `n`               | `y` or `n`                                                                             |                                          |
+
+</details>
+
+## Compilers & standard library
+
+Available from the **`build`** stage onwards. Both toolchains are installed side by side - `latest-stable` of each by default:
 
 | Toolchain | Command             | Versioned command           | Also registered                                                  |
 | --------- | ------------------- | --------------------------- | ---------------------------------------------------------------- |
 | GNU       | `gcc` / `g++`       | `gcc-<N>` / `g++-<N>`       | `gcov`, `gcov-tool`                                              |
 | LLVM      | `clang` / `clang++` | `clang-<N>` / `clang++-<N>` | `clang-tidy`, `clangd`, `lldb`, ... in `static-analysis` / `dev` |
 
-Unversioned commands are `update-alternatives` symlinks; the **latest-stable version always has the highest priority**.  
-Install several versions side by side via the `GCC_VERSIONS` / `LLVM_VERSIONS` build args (see [Arguments](#arguments)), then either switch the default or call a versioned binary directly:
+Unversioned commands are `update-alternatives` symlinks; the **latest-stable version always has the highest priority**. With several versions installed ([Build it yourself](#build-it-yourself)), either switch the default or call a versioned binary directly:
 
 ```bash
 update-alternatives --config gcc      # switch the default gcc/g++/gcov/gcov-tool set
@@ -226,8 +191,6 @@ clang++-20 -std=c++23 main.cpp
 ```
 
 The installed versions are also exported as `gcc_versions` / `llvm_versions` shell variables (bash & zsh).
-
-### Standard library
 
 | Compiler  | Default standard library                | Alternative      |
 | --------- | --------------------------------------- | ---------------- |
@@ -240,111 +203,15 @@ libc++ (`libc++-<N>-dev`, `libc++abi-<N>-dev`, `libunwind-<N>-dev`) is installed
 clang++ -std=c++23 -stdlib=libc++ main.cpp
 ```
 
-### Cross-architecture compilation
+## Going further
 
-Cross-arch is **opt-in**: the default (normal/lean) images ship no cross toolchain. You get it either by pulling a **`-cross` image** (see [Registries & tags](#registries--tags)) or by building any stage with `--build-arg BINUTILS_TARGETS='<triplets>'`. The published `-cross` images use the targets below; a custom build can name any triplets from `binutils.sh --list`.
-
-For each requested target, [`binutils.sh`](scripts/binutils.sh) installs a **complete cross toolchain** via `g++-<triplet>` - which pulls cross **binutils** (`as` / `ld` / `objdump` / ...),  
-cross **glibc**, cross **libgcc** and cross **libstdc++**.  
-That is enough to compile *and link* C and C++ for the target, and Clang auto-detects the cross-GCC install, so `clang --target=<triplet>` works with no extra flags.
-
-Targets of the published `-cross` images - the live non-x86 ecosystems (ARM 64-bit servers/embedded, ARM 32-bit embedded, RISC-V):
-
-| Target triplet        | Package installed           | Pulls (cross)                              |
-| --------------------- | --------------------------- | ------------------------------------------ |
-| `aarch64-linux-gnu`   | `g++-aarch64-linux-gnu`     | binutils · glibc · libgcc · **libstdc++**  |
-| `arm-linux-gnueabihf` | `g++-arm-linux-gnueabihf`   | binutils · glibc · libgcc · **libstdc++**  |
-| `riscv64-linux-gnu`   | `g++-riscv64-linux-gnu`     | binutils · glibc · libgcc · **libstdc++**  |
-
-Pick your own targets at build time, or standalone - e.g. adding modern (little-endian) POWER:
-
-```bash
-docker build --target build \
-    -t cpp-toolchain:build-cross \
-    --build-arg BINUTILS_TARGETS='aarch64-linux-gnu powerpc64le-linux-gnu' .
-```
-
-```bash
-sudo ./binutils.sh --list # target triplets available on this host
-sudo ./binutils.sh --targets='riscv64-linux-gnu s390x-linux-gnu'
-```
-
-**CPU, FPU and ABI variants are selected by the triplet itself** - there is no separate switch:
-
-| Axis       | Example triplets                                                           |
-| ---------- | -------------------------------------------------------------------------- |
-| FPU        | `arm-linux-gnueabi` (soft-float) vs `arm-linux-gnueabihf` (hard-float VFP) |
-| ABI        | `mips64-linux-gnuabi64` (n64) vs `mips64-linux-gnuabin32` (n32)            |
-| ABI        | `x86-64-linux-gnu` (LP64) vs `x86-64-linux-gnux32` (x32)                   |
-| CPU / ISA  | `mipsisa32r6-linux-gnu`, `mipsisa64r6el-linux-gnuabi64` (MIPS release 6)   |
-| Endianness | `powerpc64` vs `powerpc64le`, `mips` vs `mipsel`                           |
-
-> [!WARNING]
-> 25 of 32 target triplets have a cross-`g++` (full toolchain).  
-> The 7 without one - `ia64`, `hppa64`, `loongarch64` and the four mips-`n32` variants - fall back to cross-binutils (+ cross-libc where published); the script logs and continues.
-
-#### What works, and what does not
-
-Assuming the target has a cross-`g++` (the default targets do):
-
-| Capability                                           | Status                                   |
-| ---------------------------------------------------- | ---------------------------------------- |
-| Cross-compile + **link** **C**                       | ✅                                       |
-| Cross-compile + **link** **C++** (libstdc++)         | ✅                                       |
-| `clang --target=<triplet>` (C and C++, libstdc++)    | ✅ auto-detects the cross-GCC install    |
-| Inspect / strip target objects (`objdump` / `strip`) | ✅                                       |
-| Cross-compile **C++** with **libc++**                | ❌ target libc++ not bundled - see below |
-
-```bash
-aarch64-linux-gnu-g++ main.cpp -o app          # ✅ GNU cross g++
-clang++ --target=aarch64-linux-gnu main.cpp    # ✅ clang, libstdc++ (auto-detected)
-clang++ --target=aarch64-linux-gnu -stdlib=libc++ main.cpp   # ❌ no target libc++
-```
-
-**For targets without a cross-`g++`** (`--with-gcc=no`, or the 7 listed above), only cross-binutils + cross-glibc are installed: enough to compile to objects and inspect, but **not** to link a full executable (no target `libgcc` / `libstdc++`).
-
-**libc++ for the target** (the GCC-free path) is **not bundled** - it has no portable apt cross package and requires an LLVM `runtimes` source build, tracked as a future `scripts/libcxx.sh`. This affects the *cross* case only: the **host** libc++ is installed, so native `clang++ -stdlib=libc++` works (see [Standard library](#standard-library)).
-
-### Multilib - secondary ABIs
-
-Distinct from cross-compilation: multilib is the *same* GCC emitting a **secondary ABI of the host architecture**, via `gcc-<N>-multilib` / `g++-<N>-multilib` (which pull `libc6-dev-i386`, `libc6-dev-x32`, `lib32stdc++-<N>-dev`, ...).
-
-```bash
-g++ -m64  main.cpp   # native LP64 (default)
-g++ -m32  main.cpp   # 32-bit x86 (i386)
-g++ -mx32 main.cpp   # x32 - 32-bit pointers, 64-bit registers
-```
-
-Installed by default, **best-effort**: multilib lags for brand-new GCC versions and does not exist on non-amd64 hosts, so an unavailable package is skipped with a log rather than failing the build. `gcc.sh` exposes `--multilib` (default on) and `-m` / `--minimalistic` (compilers only); an *explicit* `--multilib=yes` is honored strictly and fails hard if unavailable.
-
-### Code coverage
-
-Both ecosystems are supported. They are **not** interchangeable: `gcov`/`lcov` read GCC counters (`.gcno` / `.gcda`), `llvm-cov`/`llvm-profdata` read Clang's (`.profraw` / `.profdata`).
-
-| Tool                        | Toolchain |     `build`      | `static-analysis` | `documentation` | `dev` |
-| --------------------------- | --------- | :--------------: | :---------------: | :-------------: | :---: |
-| `gcov`, `gcov-tool`         | GNU       |        ✅        |        ✅         |       ✅        |  ✅   |
-| `lcov`, `genhtml`           | GNU       |                  |                   |       ✅        |  ✅   |
-| `llvm-cov`, `llvm-profdata` | LLVM      | *versioned only* |        ✅         |       ✅        |  ✅   |
-
-```bash
-# GNU: gcov counters -> lcov/genhtml HTML report
-g++ --coverage main.cpp -o app && ./app
-lcov --capture --directory . --output-file cov.info && genhtml cov.info --output-directory html
-
-# LLVM: instrumented profile -> llvm-profdata -> llvm-cov
-clang++ -fprofile-instr-generate -fcoverage-mapping main.cpp -o app
-LLVM_PROFILE_FILE=app.profraw ./app
-llvm-profdata merge -sparse app.profraw -o app.profdata
-llvm-cov show ./app -instr-profile=app.profdata
-```
-
-In `build`, Clang is installed minimalistically, so only the versioned `llvm-cov-<N>` / `llvm-profdata-<N>` exist there; the unversioned commands are registered from `static-analysis` / `documentation` onwards. `lcov` (the Perl frontend producing HTML) ships in the coverage-oriented stages only - `gcov` itself always comes with GCC.
-
-> [!TIP] llvm-cov compatibility mode
-> `llvm-cov` can also read GCC-style counters via its `llvm-cov gcov` compatibility mode, so `lcov --gcov-tool "llvm-cov gcov"` bridges Clang-compiled coverage into an `lcov` report.
-
----
+| Document | Content |
+| -------- | ------- |
+| [docs/DEVCONTAINER.md](docs/DEVCONTAINER.md) | Dev container: VS Code *Reopen in Container*, opt-in SSH server, Remote-SSH setup |
+| [docs/CROSS-COMPILATION.md](docs/CROSS-COMPILATION.md) | Cross-architecture compilation: published targets, what links and what does not, multilib |
+| [docs/COVERAGE.md](docs/COVERAGE.md) | Code coverage: GNU `gcov`/`lcov` and LLVM `llvm-cov`/`llvm-profdata` |
+| [scripts/README.md](scripts/README.md) | Installation scripts reference: `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh` |
+| [HOW_TO_CONTRIBUTE.md](HOW_TO_CONTRIBUTE.md) | Contribution workflow |
 
 ## Dependency updates
 
@@ -353,4 +220,4 @@ In `build`, Clang is installed minimalistically, so only the versioned `llvm-cov
 
 ## Contributing
 
-See [HOW_TO_CONTRIBUTE.md](HOW_TO_CONTRIBUTE.md) for the workflow.
+Issues and pull requests are welcome - see [HOW_TO_CONTRIBUTE.md](HOW_TO_CONTRIBUTE.md) for the workflow.
