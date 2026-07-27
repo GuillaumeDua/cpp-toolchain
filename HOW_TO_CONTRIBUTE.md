@@ -76,7 +76,7 @@ Two guards protect the registries:
   built commit is contained in `origin/main` (`git merge-base --is-ancestor`) and **refuses to publish**
   otherwise. This covers releases, the schedule (always `main`) and manual dispatch (could fire from any branch).
 
-See [Registries & tags](README.md#registries--tags) for the full tag scheme.
+See [Tags & versioning](README.md#tags--versioning) for the full tag scheme.
 
 ## Related docs
 
