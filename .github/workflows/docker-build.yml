@@ -38,9 +38,8 @@ jobs:
             exit 1
           fi
 
-          # `UBUNTU_SNAPSHOT` is watched by .github/workflows/ubuntu-snapshot.yml and `BASE_IMAGE` by
-          # its own renovate.json manager (a digest pin needs currentValue/currentDigest split out),
-          # so neither carries the inline annotation the others do.
+          # `UBUNTU_SNAPSHOT` is watched by .github/workflows/ubuntu-snapshot.yml and `BASE_IMAGE` by its own renovate.json manager
+          # (a digest pin needs currentValue/currentDigest split out), so neither carries the inline annotation the others do.
           python3 - <<'PY'
           import re, sys, pathlib
           lines = pathlib.Path("Dockerfile").read_text().split("\n")
