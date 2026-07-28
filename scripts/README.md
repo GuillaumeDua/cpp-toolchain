@@ -3,7 +3,8 @@
 Standalone scripts to install `CMake`, `GCC`, `LLVM/Clang`, and cross-compilation `binutils` (+ cross-libc), reusable on any Debian/Ubuntu-based system.  
 All require root privileges. Used by the [devcontainer](../Dockerfile) and the `WSL2` integrations.
 
-`gcc.sh` and `llvm.sh` can install **multiple compiler versions side by side** in the same environment (one `apt install` per requested version, wired together with `update-alternatives`) - see their `--versions` option below. The published Docker image only requests `latest-stable` for both by default to keep the image lean; pass a range (`>=11`), a list (`'11 12 13'`), or `all` via `--build-arg GCC_VERSIONS=...` / `LLVM_VERSIONS=...` to get more of them baked into your own build. `cmake.sh` does not have this multi-version story - see its own section below.
+`gcc.sh` and `llvm.sh` can install **multiple compiler versions side by side** in the same environment (one `apt install` per requested version, wired together with `update-alternatives`) - see their `--versions` option below.  
+The published Docker image only requests `latest-stable` for both by default to keep the image lean; pass a range (`>=11`), a list (`'11 12 13'`), or `all` via `--build-arg GCC_VERSIONS=...` / `LLVM_VERSIONS=...` to get more of them baked into your own build. `cmake.sh` does not have this multi-version story - see its own section below.
 
 ---
 
@@ -34,11 +35,9 @@ sudo ./cmake.sh --versions="4.4.0"                                  # upstream v
 sudo ./cmake.sh --versions="3.29.3-0kitware1ubuntu24.04.1~jammy"    # exact apt version, used verbatim
 ```
 
-An upstream version (`4.4.0`) is resolved to the Kitware apt version that carries it
-(`4.4.0-0kitware1ubuntu22.04.1`), newest first if several qualify. That indirection is what makes
-CMake trackable: the apt version string is distro-specific and published by no upstream datasource,
-so the [Dockerfile](../Dockerfile) pins the plain version and lets Renovate follow
-`Kitware/CMake` releases.
+An upstream version (`4.4.0`) is resolved to the `Kitware` apt version that carries it (`4.4.0-0kitware1ubuntu22.04.1`), newest first if several qualify.
+That indirection is what makes `CMake` trackable: the apt version string is distro-specific and published by no upstream datasource,
+so the [Dockerfile](../Dockerfile) pins the plain version and lets Renovate follow `Kitware/CMake` releases.
 
 ---
 
@@ -183,3 +182,24 @@ clang++ --target=aarch64-linux-gnu main.cpp  # Clang, libstdc++ (auto-detected)
 > **Current limitation**: The **GCC-free** cross path - Clang with **libc++** *for the target* (`-stdlib=libc++`) - is **not** bundled:  
 > `libc++` has no portable apt cross package and requires an LLVM `runtimes` source build (tracked as a future `libcxx.sh`).  
 > The *host* libc++ **is** installed by `llvm.sh`, so native `clang++ -stdlib=libc++` works without GCC - only the cross case is missing.
+
+---
+
+## Repository tooling
+
+Not toolchain installers - these two keep the Dockerfile's version pins honest, and both run locally with no arguments.  
+`check-dependencies-pins.py` is the [build gate](../.github/workflows/docker-build.yml)'s first step, so running it before pushing saves a round trip.
+
+| Script                       | Purpose                                                                                                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `check-dependencies-pins.py` | Asserts every global `ARG` is pinned to an exact version, matched by a [renovate.json](../renovate.json) manager, and not shadowed by a stage-local re-declaration |
+| `render-manifest.py`         | Renders those pins as the markdown "what's inside" table used for the GitHub release description                                                                   |
+
+```bash
+python3 check-dependencies-pins.py                              # exits non-zero and reports every violation
+python3 render-manifest.py --tag v1.2 --previous-ref v1.1
+```
+
+Both read the manager regexes out of `renovate.json` rather than restating them,  
+so what Renovate tracks, what the guard enforces, and what the release note lists cannot drift apart.  
+`UBUNTU_SNAPSHOT` is the single exempt pin - no datasource can enumerate snapshot timestamps, so [ubuntu-snapshot.yml](../.github/workflows/ubuntu-snapshot.yml) bumps it instead.

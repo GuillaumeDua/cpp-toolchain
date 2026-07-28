@@ -1,3 +1,7 @@
 # Claude Code: local assistant context, not part of the project
 .claude/
 CLAUDE.md
+
+# Python bytecode
+__pycache__/
+*.py[cod]
