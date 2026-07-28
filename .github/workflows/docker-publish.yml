@@ -5,20 +5,37 @@ name: docker-publish
 #   - each toolchain stage ships in two variants: normal/lean (default tags) and cross-arch (`<stage>-cross-<tag>`);
 #     `runtime` has no toolchain, so it is published once (no cross variant)
 #   - `dev` is the Dockerfile's default target, so it also owns the unprefixed aliases
-#     (v1.0, latest, experimental, and cross-v1.0 / cross-latest / cross-experimental for the cross-arch variant)
-#   - a GitHub release (cut from main) publishes the release tag (e.g. v1.0) + the `latest` alias
-#   - the weekly schedule publishes `experimental` only: `latest` never moves outside a release
+#     (v1.0, latest, and cross-v1.0 / cross-latest for the cross-arch variant)
 #   - images go to both Docker Hub and GHCR (ghcr.io has no pull rate limit for public images,
 #     which matters since these images are meant to be consumed by other projects' CI)
+#
+# Three channels:
+#   - MAJOR (`v2.0`) is cut by hand as a GitHub release, and means the image contract changed:
+#     a base-image bump, a stage added/removed, a tool dropped. Only a human decides that.
+#   - MINOR (`v1.1`, `v1.2`, ...) is cut on the 1st of each month, and moves `latest`.
+#   - RC (`v1.2-rc.1`) is cut on the 8th and 22nd as a GitHub pre-release. It never moves `latest`,
+#     and its image tags are pruned once the minor it leads to ships.
+#
+# Both scheduled channels publish nothing when nothing changed. Every version in the image is pinned
+# in the Dockerfile, so an unchanged commit rebuilds to the same image - a release of it would carry
+# an empty diff and burn registry storage for a duplicate.
+#
+# The release description is rendered from the Dockerfile's pinned ARGs (scripts/render-manifest.py):
+# the manifest is known before the build, so nothing needs to be introspected out of an image.
+#
+# A release created here uses GITHUB_TOKEN, and events triggered by GITHUB_TOKEN do not start new
+# workflow runs - so creating the release does not re-trigger this workflow's own `release` path.
+# Swapping it for a PAT would turn that into an infinite build loop.
 on:
   release:
-    types: [published]
+    types: [published] # major, cut by hand from main
   schedule:
-    - cron: "0 4 * * 6" # weekly, Saturday 4am UTC -> `experimental`
-  workflow_dispatch: {} # manual -> `experimental`
+    - cron: "0 5 1 * *" # monthly, 1st 5am UTC     -> next minor + `latest`
+    - cron: "0 4 8,22 * *" # 8th and 22nd 4am UTC  -> next rc pre-release
+  workflow_dispatch: {} # manual -> rc pre-release
 
 permissions:
-  contents: read
+  contents: write # create/edit releases
   packages: write # GHCR
 
 jobs:
@@ -28,7 +45,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # need history to assert the built commit is contained in main
+          fetch-depth: 0 # need history + tags to assert containment in main and to compute the next version
 
       # The release tag is used verbatim as the image tag,
       # so reject anything that is not `v<major>.<minor>` (e.g. v1.0) before it can be published next to the `latest` alias.
@@ -56,34 +73,109 @@ jobs:
             exit 1
           fi
 
+      # Three modes, discriminated by what triggered the run:
+      #   release -> the tag the human cut, + `latest`
+      #   minor   -> the next `v<major>.<minor+1>`, + `latest`     (monthly cron)
+      #   rc      -> the next `v<major>.<minor+1>-rc.<n>`, no alias (8th/22nd cron, or manual)
+      # `github.event.schedule` carries the cron expression that fired, which is how the two
+      # schedules are told apart. This cannot be one cron: restricting both day-of-month and
+      # day-of-week makes cron OR them, which would fire far more often than intended.
       - name: Resolve image tags
         id: meta
         env:
           EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          if [ "${EVENT_NAME}" = "release" ]; then
-            # image tag == the GitHub release tag (validated above), plus the `latest` alias
-            echo "tags=${RELEASE_TAG} latest" >> "$GITHUB_OUTPUT"
+
+          # Newest existing *release* tag, by version order.
+          #   `sort -V` orders v1.2 BEFORE v1.2-rc.1, so pre-releases must be filtered out here or a
+          #   pre-release would be read as the newest release and the next minor computed from it.
+          #   The version sort also matters on its own: lexically, v1.10 sorts below v1.9.
+          releases=$(git tag -l 'v*.*' | grep -vE -- '-rc\.' || true)
+          newest=$(echo "${releases}" | sed '/^$/d' | sort -V | tail -1)
+
+          # Next minor: bump the newest release's minor, or start the line at v1.0.
+          if [ -z "${newest}" ]; then
+            next="v1.0"
           else
-            # scheduled / manual rebuilds are never `latest`
-            echo "tags=experimental" >> "$GITHUB_OUTPUT"
+            major="${newest%%.*}"; major="${major#v}"
+            minor="${newest##*.}"
+            next="v${major}.$((minor + 1))"
+          fi
+
+          if [ "${EVENT_NAME}" = "release" ]; then
+            mode=release
+            primary="${RELEASE_TAG}"
+            tags="${RELEASE_TAG} latest"
+            previous=$(echo "${releases}" | sed '/^$/d' | grep -v "^${RELEASE_TAG}$" | sort -V | tail -1 || true)
+          elif [ "${EVENT_NAME}" = "schedule" ] && [ "${SCHEDULE}" = "0 5 1 * *" ]; then
+            mode=minor
+            primary="${next}"
+            tags="${next} latest"
+            previous="${newest}"
+          else
+            mode=rc
+            # rc counter is per target minor, and resets when that minor ships.
+            last_rc=$(git tag -l "${next}-rc.*" | sed 's/.*-rc\.//' | sort -n | tail -1 || true)
+            primary="${next}-rc.$(( ${last_rc:-0} + 1 ))"
+            tags="${primary}" # a pre-release never moves `latest`
+            previous="${newest}"
+          fi
+
+          {
+            echo "mode=${mode}"
+            echo "primary=${primary}"
+            echo "tags=${tags}"
+            echo "previous=${previous}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "mode=[${mode}] primary=[${primary}] tags=[${tags}] previous=[${previous}]"
+
+      # Nothing to publish if the tree has not moved since the last tag: every version is pinned, so
+      # the rebuild would be identical to what is already published.
+      #   Compares commits rather than a time window, so it survives a re-run or a late schedule.
+      #   A manual dispatch overrides it - that is the escape hatch for forcing a rebuild.
+      - name: Skip when nothing changed
+        id: changed
+        if: github.event_name == 'schedule'
+        run: |
+          set -euo pipefail
+          latest_tag=$(git for-each-ref --sort=-creatordate --format='%(refname:short)' 'refs/tags/v*' | head -1)
+
+          if [ -z "${latest_tag}" ]; then
+            echo "no tags yet - proceeding"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          tagged_sha=$(git rev-list -n1 "${latest_tag}")
+          if [ "${tagged_sha}" = "${GITHUB_SHA}" ]; then
+            echo "::notice::${GITHUB_SHA} is already published as ${latest_tag} - nothing changed, publishing nothing."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changes since ${latest_tag} ($(git rev-list --count "${latest_tag}..${GITHUB_SHA}") commit(s)) - proceeding"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Set up QEMU
+        if: steps.changed.outputs.skip != 'true'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
+        if: steps.changed.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
+        if: steps.changed.outputs.skip != 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Log in to GitHub Container Registry
+        if: steps.changed.outputs.skip != 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -92,8 +184,10 @@ jobs:
 
       # Single job, built in dependency order on one buildx builder:
       #   the heavy `build` layer is produced once and reused by static-analysis / documentation / dev
-      # A shared gha cache scope persists layers across runs.
+      # The gha cache is a plain speed-up here: with every version pinned, a cache hit means the
+      # inputs really are unchanged, so replaying a layer cannot smuggle in a stale toolchain.
       - name: Build and push all stages
+        if: steps.changed.outputs.skip != 'true'
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
@@ -127,6 +221,8 @@ jobs:
                 "${tag_args[@]}" \
                 --cache-from type=gha,scope=cpp-toolchain \
                 --cache-to type=gha,mode=max,scope=cpp-toolchain \
+                --provenance=false \
+                --sbom=false \
                 --push \
                 .
               echo "::endgroup::"
@@ -137,3 +233,118 @@ jobs:
           #   `runtime` carries no toolchain, so it gets no cross variant (a cross runtime would be byte-identical).
           build_variant ""                 ""        runtime build static-analysis documentation dev
           build_variant "${CROSS_TARGETS}" "cross-"  build static-analysis documentation dev
+
+      # Read straight from the Dockerfile - the pins are the manifest, so there is nothing to
+      # extract from a built image. Diffed against the previous release's Dockerfile, which makes
+      # the "what moved" column exact rather than inferred.
+      - name: Render the release note
+        if: steps.changed.outputs.skip != 'true'
+        env:
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+          PREVIOUS: ${{ steps.meta.outputs.previous }}
+        run: |
+          set -euo pipefail
+          python3 scripts/render-manifest.py \
+            --tag "${PRIMARY}" \
+            --previous-ref "${PREVIOUS}" \
+            > note.md
+          cat note.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Minor and rc are both wholly owned by this workflow. Created last, and only on success, so a
+      # failed build never mints a release tag. --target is the exact commit that was built, not the
+      # branch, so a concurrent push to main cannot move the tag off it.
+      - name: Create the release
+        if: success() && steps.changed.outputs.skip != 'true' && (steps.meta.outputs.mode == 'minor' || steps.meta.outputs.mode == 'rc')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MODE: ${{ steps.meta.outputs.mode }}
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+        run: |
+          set -euo pipefail
+          prerelease=()
+          [ "${MODE}" = "rc" ] && prerelease=(--prerelease)
+
+          gh release create "${PRIMARY}" \
+            --target "${GITHUB_SHA}" \
+            --title  "${PRIMARY}" \
+            "${prerelease[@]}" \
+            --notes-file note.md
+
+      # Manual major: the release already exists and may carry hand-written prose. Replace only the
+      # marked region, so re-running this workflow is idempotent and your own text survives.
+      - name: Append the manifest to the release note
+        if: success() && steps.meta.outputs.mode == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+        run: |
+          set -euo pipefail
+          gh release view "${PRIMARY}" --json body -q .body > body.md || true
+          sed '/<!-- manifest:begin -->/,/<!-- manifest:end -->/d' body.md > merged.md
+          cat note.md >> merged.md
+          gh release edit "${PRIMARY}" --notes-file merged.md
+
+      # An rc is scaffolding for the minor it leads to: once v1.2 ships, the v1.2-rc.* images are
+      # dead weight. Their GitHub pre-releases and notes are kept - those are the record of what
+      # upstream did between minors, and they cost nothing.
+      #   Non-fatal: the minor is already published by this point, and losing a prune is not worth
+      #   failing a release over. GHCR deletion of a user-scoped package may need a PAT with
+      #   `delete:packages` rather than GITHUB_TOKEN - the log says so explicitly if it fails.
+      - name: Prune superseded rc images
+        if: success() && steps.changed.outputs.skip != 'true' && steps.meta.outputs.mode == 'minor'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          echo "::group::Docker Hub"
+          jwt=$(curl -sS -H "Content-Type: application/json" \
+                  -d "{\"username\":\"${DOCKERHUB_USERNAME}\",\"password\":\"${DOCKERHUB_TOKEN}\"}" \
+                  https://hub.docker.com/v2/users/login/ \
+                | python3 -c 'import sys,json; print(json.load(sys.stdin)["token"])')
+
+          curl -sS "https://hub.docker.com/v2/repositories/guillaumedua/cpp-toolchain/tags?page_size=100" \
+            | python3 -c "
+          import sys, json
+          tags = json.load(sys.stdin).get('results', [])
+          print('\n'.join(t['name'] for t in tags if '${PRIMARY}-rc.' in t['name']))
+          " | while read -r tag; do
+            [ -n "${tag}" ] || continue
+            echo "  deleting docker.io tag ${tag}"
+            curl -sS -X DELETE -H "Authorization: JWT ${jwt}" \
+              "https://hub.docker.com/v2/repositories/guillaumedua/cpp-toolchain/tags/${tag}/"
+          done
+          echo "::endgroup::"
+
+          echo "::group::GHCR"
+          if ! gh api --paginate "/users/GuillaumeDua/packages/container/cpp-toolchain/versions" \
+                 --jq ".[] | select(.metadata.container.tags[]? | contains(\"${PRIMARY}-rc.\")) | .id" \
+               > rc-version-ids.txt; then
+            echo "::warning::could not list GHCR package versions - GITHUB_TOKEN may lack delete:packages for a user-scoped package; supply a PAT to enable rc pruning on GHCR"
+            exit 0
+          fi
+          while read -r id; do
+            [ -n "${id}" ] || continue
+            echo "  deleting ghcr version ${id}"
+            gh api -X DELETE "/users/GuillaumeDua/packages/container/cpp-toolchain/versions/${id}" \
+              || echo "::warning::failed to delete GHCR version ${id}"
+          done < rc-version-ids.txt
+          echo "::endgroup::"
+
+      # Every tag move (`latest`) orphans the digest it pointed at. GHCR keeps those as untagged
+      # versions forever; Docker Hub garbage-collects its own.
+      #   This sweep is only safe because the builds above pin `--provenance=false --sbom=false`:
+      #   buildx attestations are published as untagged child manifests of a tagged index, and an
+      #   untagged sweep would delete them out from under it.
+      - name: Prune untagged GHCR versions
+        if: success() && steps.changed.outputs.skip != 'true'
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: cpp-toolchain
+          package-type: container
+          delete-only-untagged-versions: true
+          min-versions-to-keep: 0

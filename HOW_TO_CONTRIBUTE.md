@@ -12,7 +12,8 @@ There is a hard split between **building** (gate, runs on every PR) and **publis
 | Workflow | Trigger | What it does | Pushes? |
 | -------- | ------- | ------------ | :-----: |
 | [docker-build](.github/workflows/docker-build.yml) | every PR to `main`, every push to `main` | builds all stages in both variants | ❌ |
-| [docker-publish](.github/workflows/docker-publish.yml) | GitHub **release**, weekly schedule (Sat 4am UTC), manual dispatch | builds and pushes tags to Docker Hub + GHCR | ✅ |
+| [docker-publish](.github/workflows/docker-publish.yml) | GitHub **release**, monthly (minor) and twice-monthly (rc) schedules, manual dispatch | builds and pushes tags to Docker Hub + GHCR | ✅ |
+| [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) | monthly schedule (25th), manual dispatch | opens a PR moving the Ubuntu archive snapshot forward | ❌ |
 
 > [!IMPORTANT] PR validation
 > Every PR to `main` must still build all stages in both the normal and cross-arch variants ([docker-build](.github/workflows/docker-build.yml)); publishing is a separate workflow that refuses to push anything whose commit is not contained in `main`.
@@ -65,9 +66,15 @@ so a full local run is cheaper than five independent builds.
 Publishing is [docker-publish](.github/workflows/docker-publish.yml) - a **separate** workflow that
 contributors never trigger from a PR:
 
-- A GitHub **release** cut from `main` publishes the release tag (`v<major>.<minor>`, e.g. `v1.0`) plus the `latest` alias.
-- The **weekly schedule** (Saturday 4am UTC) and manual dispatch publish `experimental` only - `latest` never moves outside a release.
+- A GitHub **release** cut from `main` publishes a **major** (`v<major>.0`, e.g. `v2.0`) plus the `latest` alias.
+- The **monthly schedule** (1st, 5am UTC) cuts the next **minor** (`v1.1`, `v1.2`, ...) and moves `latest` - the workflow creates that release itself.
+- The **twice-monthly schedule** (8th and 22nd, 4am UTC) and manual dispatch cut a **pre-release** (`v1.2-rc.1`); it never moves `latest`, and its image tags are pruned once the minor ships.
+- Both scheduled channels **publish nothing when nothing changed**: every version is pinned, so an unchanged commit would rebuild to an identical image.
 - Images go to both **Docker Hub** and **GHCR**.
+
+Release notes are generated from the Dockerfile's pinned `ARG`s by
+[scripts/render-manifest.py](scripts/render-manifest.py), so each release states exactly what it
+contains and what moved since the previous one.
 
 Two guards protect the registries:
 

@@ -17,7 +17,7 @@ Registers the [Kitware apt repository](https://apt.kitware.com/) (via its `kitwa
 
 | Option             | Type    | Default  | Description                                                                                                |
 | ------------------ | ------- | -------- | ---------------------------------------------------------------------------------------------------------- |
-| `-v`, `--versions` | string  | `latest` | `latest` \| an exact version string as reported by `--list` (e.g. `'3.29.3-0kitware1ubuntu24.04.1~jammy'`) |
+| `-v`, `--versions` | string  | `latest` | `latest` \| an upstream version (e.g. `'4.4.0'`) \| an exact apt version string as reported by `--list` (e.g. `'3.29.3-0kitware1ubuntu24.04.1~jammy'`) |
 | `-l`, `--list`     | boolean | `0`      | Only list the versions available via `apt-cache madison cmake`, without installing anything                |
 | `-s`, `--silent`   | boolean | `1`      | Suppress log output                                                                                        |
 | `-a`, `--alias`    | boolean | `0`      | Append the resulting `cmake_version` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                   |
@@ -30,8 +30,15 @@ Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
 ```bash
 sudo ./cmake.sh --list
-sudo ./cmake.sh --versions="3.29.3-0kitware1ubuntu24.04.1~jammy"
+sudo ./cmake.sh --versions="4.4.0"                                  # upstream version, resolved against apt
+sudo ./cmake.sh --versions="3.29.3-0kitware1ubuntu24.04.1~jammy"    # exact apt version, used verbatim
 ```
+
+An upstream version (`4.4.0`) is resolved to the Kitware apt version that carries it
+(`4.4.0-0kitware1ubuntu22.04.1`), newest first if several qualify. That indirection is what makes
+CMake trackable: the apt version string is distro-specific and published by no upstream datasource,
+so the [Dockerfile](../Dockerfile) pins the plain version and lets Renovate follow
+`Kitware/CMake` releases.
 
 ---
 

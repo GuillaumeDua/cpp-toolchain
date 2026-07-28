@@ -9,14 +9,11 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "zsh-in-docker release URL in Dockerfile",
+      "description": "Commit-pinned sources: `# renovate: ... currentValue=<branch>` above an `ARG <NAME>=<sha>`. Needed for repositories that publish no releases or tags at all (oh-my-zsh), where a commit is the only stable identifier and Renovate has to track the branch head as a digest",
       "fileMatch": ["^Dockerfile$"],
       "matchStrings": [
-        "github\\.com/deluan/zsh-in-docker/releases/download/v(?<currentValue>[^/]+)/zsh-in-docker\\.sh"
-      ],
-      "depNameTemplate": "deluan/zsh-in-docker",
-      "datasourceTemplate": "github-releases",
-      "extractVersionTemplate": "^v(?<version>.*)$"
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+)\\s+ARG \\w+=(?<currentDigest>[a-f0-9]{40})"
+      ]
     },
     {
       "customType": "regex",
@@ -32,6 +29,15 @@
       "fileMatch": ["^\\.devcontainer/docker-compose\\.ya?ml$"],
       "matchStrings": [
         "BASE_IMAGE:\\s*['\"]?(?<depName>[^:'\"@\\s]+):(?<currentValue>[^'\"@\\s]+)(@(?<currentDigest>sha256:[a-f0-9]+))?['\"]?"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Base image declared as `ARG BASE_IMAGE=` in the Dockerfile - needs its own manager rather than the `# renovate:`-annotated one above, because a digest pin has to capture currentValue and currentDigest separately",
+      "fileMatch": ["^Dockerfile$"],
+      "matchStrings": [
+        "ARG BASE_IMAGE=(?<depName>[^:@\\s]+):(?<currentValue>[^@\\s]+)(@(?<currentDigest>sha256:[a-f0-9]+))?"
       ],
       "datasourceTemplate": "docker"
     }

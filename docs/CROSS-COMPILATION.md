@@ -11,7 +11,7 @@ Cross-arch is **opt-in**: the default (lean) images ship no cross toolchain. You
 
 ```bash
 # pull the published cross variant of a stage
-docker pull ghcr.io/guillaumedua/cpp-toolchain:build-cross-experimental
+docker pull ghcr.io/guillaumedua/cpp-toolchain:build-cross-latest
 
 # or build your own, with your own targets
 docker build --target build \

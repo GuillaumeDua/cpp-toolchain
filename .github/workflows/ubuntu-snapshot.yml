@@ -1,0 +1,83 @@
+name: ubuntu-snapshot
+
+# `UBUNTU_SNAPSHOT` is the one version pin Renovate cannot own:
+#   a datasource has to enumerate the available versions, and snapshot.ubuntu.com accepts any timestamp without publishing an index of them.
+#   This workflow stands in for Renovate - same cadence, same `dependencies` label, same review path through a pull request and the build gate.
+#
+# Moving the timestamp forward is what lets the ~20 unpinned distro packages (ninja, cppcheck, valgrind, gdb, lcov, ...) pick up upstream updates.
+# Between bumps they are frozen, which is what makes two builds of the same commit produce the same image.
+on:
+  schedule:
+    - cron: "0 3 25 * *" # 25th, so the PR can be reviewed and merged before the monthly minor on the 1st
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute and validate a new snapshot timestamp
+        id: snapshot
+        run: |
+          set -euo pipefail
+
+          current=$(grep -oP '^ARG UBUNTU_SNAPSHOT=\K\S+' Dockerfile)
+          candidate="$(date -u +%Y%m%d)T000000Z"
+          echo "current=[${current}] candidate=[${candidate}]"
+
+          if [ "${candidate}" = "${current}" ]; then
+            echo "already at ${current} - nothing to do"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Never propose a timestamp the archive cannot actually serve: a snapshot that 404s would
+          # break every build until someone reverted it.
+          #   The suites track BASE_IMAGE (ubuntu:24.04 -> noble); a base image bump to a new LTS
+          #   needs this list updated with it.
+          for suite in noble noble-updates noble-security; do
+            url="https://snapshot.ubuntu.com/ubuntu/${candidate}/dists/${suite}/Release"
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "${url}")
+            if [ "${code}" != "200" ]; then
+              echo "::error::snapshot ${candidate} does not serve ${suite} (HTTP ${code}) - keeping ${current}"
+              exit 1
+            fi
+            echo "  ${suite} ok"
+          done
+
+          sed -i -E "s|^ARG UBUNTU_SNAPSHOT=.*|ARG UBUNTU_SNAPSHOT=${candidate}|" Dockerfile
+
+          {
+            echo "changed=true"
+            echo "current=${current}"
+            echo "candidate=${candidate}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open the pull request
+        if: steps.snapshot.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/ubuntu-snapshot
+          delete-branch: true
+          labels: dependencies
+          commit-message: "chore(deps): ubuntu archive snapshot ${{ steps.snapshot.outputs.candidate }}"
+          title: "chore(deps): ubuntu archive snapshot ${{ steps.snapshot.outputs.candidate }}"
+          body: |
+            Moves the Ubuntu archive snapshot forward, so the distro packages installed by the images pick up upstream updates.
+
+            | | |
+            | --- | --- |
+            | from | `${{ steps.snapshot.outputs.current }}` |
+            | to | `${{ steps.snapshot.outputs.candidate }}` |
+
+            All three suites (`noble`, `noble-updates`, `noble-security`) were verified to resolve before this PR was opened.
+            The build gate is the real check: if the new snapshot cannot satisfy the apt dependencies, this stays red and the previous timestamp holds.
+
+            Opened by [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) - Renovate cannot track this pin,
+            because snapshot.ubuntu.com publishes no index of valid timestamps.
