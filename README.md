@@ -95,20 +95,20 @@ A tag is `<stage>[-cross]-<version>`: the **stage** picks *what is in the image*
 
 | Version | Published by | Meaning |
 | ------- | ------------ | ------- |
-| `v<major>.<minor>` (e.g. `build-v1.0`) | **major**: a GitHub release, cut by hand from `main`<br>**minor**: the **monthly** schedule (1st, 5am UTC) | A specific **release**, pinned and immutable; the version matches the release tag exactly |
+| `v<major>.<minor>` (e.g. `build-v1.0`) | **major**: a GitHub release, cut by hand from `main`<br>**minor**: **promoted by hand** from a release candidate | A specific **release**, pinned and immutable; the version matches the release tag exactly |
 | `latest` (e.g. `build-latest`) | the newest release, major or minor | Newest **release** - what you want unless you know otherwise |
-| `v<major>.<minor>-rc.<n>` (e.g. `build-v1.2-rc.1`) | the **twice-monthly** schedule (8th and 22nd, 4am UTC), from `main` | A **pre-release** leading to the next minor: *ahead of* `latest`, so upstream breakage surfaces before it reaches a release. Never aliased to `latest` |
+| `v<major>.<minor>-rc.<n>` (e.g. `build-v1.2-rc.1`) | the twice-monthly **rc schedule** ([cadence](docs/RELEASE_PROCESS.md)), from `main` | A **release candidate** for the next minor: *ahead of* `latest`, so upstream breakage surfaces before it reaches a release. Never aliased to `latest` |
 
-The three channels differ in *who decides*, not in how they are built:
+The three channels differ in *who decides*, not in what they contain:
 
 - **major** = the image contract changed - a base-image bump, a stage added or removed, a tool dropped. Only a human decides that.
-- **minor** = a content refresh: Renovate moved a version and it is worth publishing.
-- **rc** = the same, published early for validation.
+- **minor** = a validated rc, promoted. Renovate moved versions, the rc proved they hold up, a human shipped it.
+- **rc** = a fresh build from `main`, published early for validation.
 
 Every version in the image is **pinned** in the [Dockerfile](Dockerfile) and updated by [Renovate](renovate.json), so a scheduled run **publishes nothing when nothing changed** - no release is cut just because a date arrived.
 
 > [!NOTE]
-> `rc` image tags are **deleted** once the minor they lead to ships - `v1.2-rc.1` disappears when `v1.2` is published. The GitHub pre-release and its notes are kept, so the record survives. Never pin an `rc` in anything long-lived.
+> A minor is not rebuilt from its rc's commit - it **is** the rc: promotion re-tags the exact image digests that were validated, so `v1.2` is byte-identical to the `v1.2-rc.<n>` it was promoted from. rc tags stay published and cost nothing (shared digests). How releases are cut is documented in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md).
 
 `dev` is the Dockerfile's default target, so it also answers to the **unprefixed** versions - `cpp-toolchain:latest` is the same digest as `cpp-toolchain:dev-latest`, and likewise for `v1.0` / `v1.2-rc.1` (and `cross-latest` = `dev-cross-latest`). Every other stage must be named explicitly.
 
@@ -160,7 +160,7 @@ docker build --target documentation   -t cpp-toolchain:documentation   .
 docker build --target dev             -t cpp-toolchain:dev             .
 ```
 
-The published images install a single `latest-stable` `GCC` and `Clang/LLVM` to stay lean. `gcc.sh` and `llvm.sh` both support **multiple versions side by side** (via `update-alternatives`) - useful to test against several compiler versions in the same environment:
+The published images install a single pinned `GCC` and `Clang/LLVM` to stay lean. `gcc.sh` and `llvm.sh` both support **multiple versions side by side** (via `update-alternatives`) - useful to test against several compiler versions in the same environment:
 
 ```bash
 docker build -t cpp-toolchain:dev . \
@@ -173,11 +173,11 @@ Adding `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build produ
 <details>
 <summary><b>All build arguments</b></summary>
 
-| Name                    | default           | description                                                                            | example                                  |
+| Name                    | default (pinned)  | description                                                                            | example                                  |
 | ----------------------- | ----------------- | -------------------------------------------------------------------------------------- | ---------------------------------------- |
-| CMAKE_VERSION           | `latest`          | `latest`<br>(exact version, e.g. `3.29.3-0kitware1ubuntu24.04.1~jammy`)                | `latest`                                 |
-| GCC_VERSIONS            | `'latest-stable'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
-| LLVM_VERSIONS           | `'latest-stable'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
+| CMAKE_VERSION           | `4.4.0`           | exact version, or `latest`                                                             | `latest`                                 |
+| GCC_VERSIONS            | `15`              | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
+| LLVM_VERSIONS           | `22`              | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
 | BINUTILS_TARGETS        | `''` (none)       | Cross toolchain target triplets; empty = lean, a list = cross-arch variant             | `'aarch64-linux-gnu riscv64-linux-gnu'`  |
 | OPT_IN_INTEGRATE_BAZEL  | `n`               | `y` or `n`                                                                             |                                          |
 | OPT_IN_INTEGRATE_BUILD2 | `n`               | `y` or `n`                                                                             |                                          |
@@ -186,7 +186,7 @@ Adding `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build produ
 
 ## Compilers & standard library
 
-Available from the **`build`** stage onwards. Both toolchains are installed side by side - `latest-stable` of each by default:
+Available from the **`build`** stage onwards. Both toolchains are installed side by side - the pinned version of each by default:
 
 | Toolchain | Command             | Versioned command           | Also registered                                                  |
 | --------- | ------------------- | --------------------------- | ---------------------------------------------------------------- |

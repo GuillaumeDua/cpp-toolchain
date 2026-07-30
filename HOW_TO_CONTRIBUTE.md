@@ -12,7 +12,8 @@ There is a hard split between **building** (gate, runs on every PR) and **publis
 | Workflow | Trigger | What it does | Pushes? |
 | -------- | ------- | ------------ | :-----: |
 | [docker-build](.github/workflows/docker-build.yml) | every PR to `main`, every push to `main` | builds all stages in both variants | ❌ |
-| [docker-publish](.github/workflows/docker-publish.yml) | GitHub **release**, monthly (minor) and twice-monthly (rc) schedules, manual dispatch | builds and pushes tags to Docker Hub + GHCR | ✅ |
+| [docker-publish](.github/workflows/docker-publish.yml) | GitHub **release** (major), merged **candidate PR** (minor), twice-monthly rc schedule, manual dispatch | builds rcs/majors, promotes minors, pushes tags to Docker Hub + GHCR | ✅ |
+| [release-candidate-check](.github/workflows/release-candidate-check.yml) | PRs touching `releases/**` | validates the promotion record and smoke-tests the candidate image by digest | ❌ |
 | [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) | monthly schedule (25th), manual dispatch | opens a PR moving the Ubuntu archive snapshot forward | ❌ |
 
 > [!IMPORTANT] PR validation
@@ -66,22 +67,28 @@ so a full local run is cheaper than five independent builds.
 Publishing is [docker-publish](.github/workflows/docker-publish.yml) - a **separate** workflow that
 contributors never trigger from a PR:
 
-- A GitHub **release** cut from `main` publishes a **major** (`v<major>.0`, e.g. `v2.0`) plus the `latest` alias.
-- The **monthly schedule** (1st, 5am UTC) cuts the next **minor** (`v1.1`, `v1.2`, ...) and moves `latest` - the workflow creates that release itself.
-- The **twice-monthly schedule** (8th and 22nd, 4am UTC) and manual dispatch cut a **pre-release** (`v1.2-rc.1`); it never moves `latest`, and its image tags are pruned once the minor ships.
-- Both scheduled channels **publish nothing when nothing changed**: every version is pinned, so an unchanged commit would rebuild to an identical image.
+- The twice-monthly **rc schedule** and manual dispatch cut a **release candidate** (`v1.2-rc.1`) and open a candidate PR; it never moves `latest`.
+- A **minor** (`v1.1`, `v1.2`, ...) ships when the maintainer **merges that candidate PR**: the rc's image digests are re-tagged, so the release is byte-identical to the rc that was validated - no rebuild.
+- A GitHub **release** cut by hand from `main` publishes a **major** (`v<major>.0`, e.g. `v2.0`) plus the `latest` alias.
+- The scheduled rc **publishes nothing when nothing changed**: every version is pinned, so an unchanged commit would rebuild to an identical image.
 - Images go to both **Docker Hub** and **GHCR**.
+
+The full release procedure (promotion, urgent fixes, rollback, failure modes) is in
+[docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) - the cadence is stated there and nowhere else.
 
 Release notes are generated from the Dockerfile's pinned `ARG`s by
 [scripts/render-manifest.py](scripts/render-manifest.py), so each release states exactly what it
 contains and what moved since the previous one.
 
-Two guards protect the registries:
+Guards protecting the registries:
 
-- **Tag format** - a release tag that is not `v<major>.<minor>` is rejected before anything is published.
+- **Tag format** - a hand-cut release tag that is not a major (`v<major>.0`) is rejected before
+  anything is published: minors ship by merging a candidate PR, never by cutting a release.
 - **Publish from `main` only** - a release or tag can be cut from any commit, so the workflow verifies the
   built commit is contained in `origin/main` (`git merge-base --is-ancestor`) and **refuses to publish**
   otherwise. This covers releases, the schedule (always `main`) and manual dispatch (could fire from any branch).
+- **Promotion by digest** - a promotion re-tags the digests recorded in `releases/v*.yaml` and fails
+  if any tag moved since the rc was built, so what ships is exactly what was validated.
 
 See [Tags & versioning](README.md#tags--versioning) for the full tag scheme.
 

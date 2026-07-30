@@ -12,7 +12,14 @@ The two cannot drift apart, because there is only one definition.
 so it is matched separately here and bumped by .github/workflows/ubuntu-snapshot.yml.
 
 Usage:
-    render-manifest.py --tag v1.2 [--previous-ref v1.1]
+    render-manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
+
+`--ref` reads the Dockerfile and renovate.json from a git ref instead of the worktree,
+so the manifest can be rendered for the exact commit an image was built from,
+even when the checkout has moved past it.
+
+`--bumps-yaml` emits the moved pins as a YAML `bumps:` mapping instead of the markdown manifest -
+the shape recorded in releases/v*.yaml and re-checked by check-release-file.py.
 """
 
 import argparse
@@ -108,16 +115,44 @@ def delta(current, previous):
     return f"{arrow} {previous}"
 
 
+def bumps_yaml(current, previous, diffing):
+    """The moved pins as a YAML mapping. JSON quoting keeps this dependency-free:
+    every emitted line is a YAML flow mapping, and json.dumps escapes the slashes in depNames."""
+    moved = {}
+    if diffing:
+        for name in sorted(set(current) | set(previous)):
+            if current.get(name) != previous.get(name):
+                moved[name] = (previous.get(name), current.get(name))
+    if not moved:
+        return "bumps: {}"
+    lines = ["bumps:"]
+    for name, (old, new) in moved.items():
+        lines.append(f"  {json.dumps(name)}: {{ \"from\": {json.dumps(old)}, \"to\": {json.dumps(new)} }}")
+    return "\n".join(lines)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", required=True, help="tag being released, e.g. v1.2")
     parser.add_argument("--previous-ref", default="", help="git ref to diff against, e.g. v1.1")
+    parser.add_argument("--ref", default="",
+                        help="git ref to read the Dockerfile and renovate.json from (default: the worktree)")
+    parser.add_argument("--bumps-yaml", action="store_true",
+                        help="emit the moved pins as a YAML `bumps:` mapping instead of the markdown manifest")
     parser.add_argument("--dockerfile", default="Dockerfile")
     parser.add_argument("--renovate", default="renovate.json")
     args = parser.parse_args()
 
-    renovate_config = pathlib.Path(args.renovate).read_text(encoding="utf-8")
-    current = parse(pathlib.Path(args.dockerfile).read_text(encoding="utf-8"), renovate_config)
+    if args.ref:
+        renovate_config = git_show(args.ref, args.renovate)
+        dockerfile = git_show(args.ref, args.dockerfile)
+        if renovate_config is None or dockerfile is None:
+            raise SystemExit(f"::error::cannot read {args.dockerfile} / {args.renovate} at ref {args.ref}")
+    else:
+        renovate_config = pathlib.Path(args.renovate).read_text(encoding="utf-8")
+        dockerfile = pathlib.Path(args.dockerfile).read_text(encoding="utf-8")
+
+    current = parse(dockerfile, renovate_config)
     if not current:
         raise SystemExit("::error::no pinned versions found - has the Dockerfile or renovate.json changed shape?")
 
@@ -133,6 +168,11 @@ def main():
             previous = parse(old_dockerfile, renovate_config)
 
     diffing = bool(previous)
+
+    if args.bumps_yaml:
+        print(bumps_yaml(current, previous, diffing))
+        return
+
     ordered = [name for name, _ in LABELS if name in current]
     ordered += sorted(name for name in current if name not in dict(LABELS))
     labels = dict(LABELS)
