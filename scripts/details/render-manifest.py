@@ -11,8 +11,8 @@ The two cannot drift apart, because there is only one definition.
 `UBUNTU_SNAPSHOT` is the documented exception - no datasource can enumerate snapshot timestamps,
 so it is matched separately here and bumped by .github/workflows/ubuntu-snapshot.yml.
 
-Usage:
-    render-manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
+Usage, from the repository root - `--dockerfile` and `--renovate` default to paths relative to it:
+    python3 scripts/details/render-manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
 
 `--ref` reads the Dockerfile and renovate.json from a git ref instead of the worktree,
 so the manifest can be rendered for the exact commit an image was built from,

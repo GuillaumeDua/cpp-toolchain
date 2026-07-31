@@ -24,11 +24,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # The invariants the whole design rests on: nothing floats, nothing is unwatched, nothing is shadowed.
-      # Cheap, and they fail long before a 40-minute build.
-      # Run it locally with `python3 scripts/check-dependencies-pins.py` before pushing.
       - name: Assert every version is pinned and watched
-        run: python3 scripts/check-dependencies-pins.py
+        run: python3 scripts/details/check-dependencies-pins.py
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

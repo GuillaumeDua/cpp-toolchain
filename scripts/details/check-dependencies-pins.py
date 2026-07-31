@@ -3,21 +3,21 @@
 
 Three invariants, all cheap, all failing long before a 40-minute build:
 
-  1. nothing floats     - a `latest` / `master` value makes two builds of one commit differ
-  2. nothing is unwatched - a pin nobody updates silently rots
-  3. nothing is shadowed  - a stage re-declaring `ARG FOO=<value>` overrides the global pin,
-                            which is the exact bug hoisting the ARGs was meant to remove
+  1. nothing floats         - a `latest` / `master` value makes two builds of one commit differ
+  2. nothing is unwatched   - a pin nobody updates silently rots
+  3. nothing is shadowed    - a stage re-declaring `ARG FOO=<value>` overrides the global pin,
+                              which is the exact bug hoisting the ARGs was meant to remove
 
-"Watched" is not decided by guessing which ARG names look like versions. The renovate.json manager
-regexes are run over the Dockerfile and the matched character spans recorded; an ARG line inside a
-span is one Renovate can actually see. So the check tests the real manager set rather than a naming
-convention, and an oddly-named pin (`ARG NODE_TAG=22`) fails instead of slipping through.
+"Watched" is not decided by guessing which ARG names look like versions.
+The renovate.json manager regexes are run over the Dockerfile and the matched character spans recorded;
+an ARG line inside a span is one Renovate can actually see.
+So the check tests the real manager set rather than a naming convention, and an oddly-named pin (`ARG NODE_TAG=22`) fails instead of slipping through.
 
 `UBUNTU_SNAPSHOT` is the one documented exception - no datasource can enumerate snapshot timestamps,
 so it is bumped by .github/workflows/ubuntu-snapshot.yml instead.
 
-Usage:
-    check-dependencies-pins.py [--dockerfile Dockerfile] [--renovate renovate.json]
+Usage, from the repository root - both defaults are paths relative to it:
+    python3 scripts/details/check-dependencies-pins.py [--dockerfile Dockerfile] [--renovate renovate.json]
 
 Exits non-zero and reports every violation it found, rather than only the first.
 """
@@ -31,8 +31,8 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 
-# Importing render-manifest.py below would drop a scripts/__pycache__/ next to the sources,
-# on every local run and every CI run. Nothing reimports these often enough for the cache to pay off.
+# Importing render-manifest.py below would drop a scripts/details/__pycache__/ next to the sources, on every local run and every CI run.
+# Nothing reimports these often enough for the cache to pay off.
 sys.dont_write_bytecode = True
 
 # ARG name -> why it carries no Renovate annotation.
@@ -49,8 +49,8 @@ ARG_DECL = re.compile(r"^ARG ([A-Za-z_][A-Za-z0-9_]*)=(\S+)")
 def load_render_manifest():
     """render-manifest.py, imported by path - the hyphen makes it not a normal module name.
 
-    Sharing js_to_py/dockerfile_managers is the point: both tools have to read renovate.json
-    the same way, or the manifest and this guard disagree about what Renovate covers.
+    Sharing js_to_py/dockerfile_managers is the point:
+        both tools have to read renovate.json the same way, or the manifest and this guard disagree about what Renovate covers.
     """
     spec = importlib.util.spec_from_file_location("render_manifest", HERE / "render-manifest.py")
     module = importlib.util.module_from_spec(spec)

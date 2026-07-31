@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
 """Validate a releases/v*.yaml promotion record, and derive the promotion plan from it.
 
-A releases/v*.yaml file is the reviewed, in-git record of a promotion: which rc it came from,
-the exact commit that was built, and the manifest digest of every stage that was pushed.
-Merging it to main is what promotes - so this file is the single place its schema is known,
-and everything that reads or writes one goes through here.
+A releases/v*.yaml file is the reviewed, in-git record of a promotion:
 
-The stage lists are the canonical ones (--print-stages) - docker-publish.yml reads them from
-this script rather than restating them, so the digests recorded by the rc build and the targets
-derived at promotion cannot drift apart.
+- which rc it came from
+- the exact commit that was built
+- the manifest digest of every stage that was pushed
 
-Usage:
-    check-release-file.py releases/v1.2.yaml                      # schema only (offline)
-    check-release-file.py releases/v1.2.yaml --check-supersession # newest-rc assert, tags on stdin
-    check-release-file.py releases/v1.2.yaml --check-git          # candidate tag / commit / main
-    check-release-file.py releases/v1.2.yaml --check-bumps        # bumps == render-manifest recompute
-    check-release-file.py releases/v1.2.yaml --print-targets      # promotion plan, one line per prefix
-    check-release-file.py releases/v1.2.yaml --print-digest dev   # one recorded digest
-    check-release-file.py --print-stages normal|cross             # canonical stage lists
+Merging it to main is what promotes - so this file is the single place its schema is known, and everything that reads or writes one goes through here.
+
+The stage lists are the canonical ones (--print-stages) - docker-publish.yml reads them from this script rather than restating them,
+so the digests recorded by the rc build and the targets derived at promotion cannot drift apart.
+
+Usage, from the repository root - the git checks and the bumps recompute both read the worktree:
+    python3 scripts/details/check-release-file.py releases/v1.2.yaml                      # schema only (offline)
+    python3 scripts/details/check-release-file.py releases/v1.2.yaml --check-supersession # newest-rc assert, tags on stdin
+    python3 scripts/details/check-release-file.py releases/v1.2.yaml --check-git          # candidate tag / commit / main
+    python3 scripts/details/check-release-file.py releases/v1.2.yaml --check-bumps        # bumps == render-manifest recompute
+    python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-targets      # promotion plan, one line per prefix
+    python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-digest dev   # one recorded digest
+    python3 scripts/details/check-release-file.py --print-stages normal|cross             # canonical stage lists
 
 Exits non-zero and reports every violation it found, rather than only the first.
 """
@@ -33,8 +35,7 @@ sys.dont_write_bytecode = True
 HERE = pathlib.Path(__file__).resolve().parent
 
 # The canonical stage lists. docker-publish.yml consumes these via --print-stages:
-# the build loop, the digests recorded per rc, and the targets derived per promotion
-# all come from this one definition.
+# the build loop, the digests recorded per rc, and the targets derived per promotion all come from this one definition.
 NORMAL_STAGES = ("runtime", "build", "static-analysis", "documentation", "dev")
 CROSS_STAGES = ("build", "static-analysis", "documentation", "dev")  # runtime has no toolchain -> no cross variant
 
@@ -100,8 +101,8 @@ def validate(path, data):
         if not match:
             errors.append(f"candidate '{candidate}' is malformed - expected v<major>.<minor>-rc.<n>")
         elif version and match.group(1) != version and not str(version).endswith(".0"):
-            # A candidate normally promotes to its own target minor. The one sanctioned exception
-            # is retitling a candidate to the next major (vX.0) - see docs/RELEASE_PROCESS.md.
+            # A candidate normally promotes to its own target minor.
+            # The one sanctioned exception is retitling a candidate to the next major (vX.0) - see docs/RELEASE_PROCESS.md.
             errors.append(f"version '{version}' is neither candidate '{candidate}'s target minor nor a major (vX.0)")
 
     commit = data.get("commit", "")

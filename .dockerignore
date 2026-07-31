@@ -14,8 +14,13 @@ build
 # Ignore all hidden files and directories (.git, .github, .devcontainer, .vscode, .claude, ...)
 .*
 
+# Repository tooling - pin guard, release-note renderer, promotion-record schema, smoke test.
+# Nothing here is COPYed by the Dockerfile; the smoke test reaches a built image by bind-mount.
+scripts/details
+
 # Non-build content living at the repo root
 docs
+releases
 *.md
 LICENSE
 CODEOWNERS

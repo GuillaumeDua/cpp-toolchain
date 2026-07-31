@@ -51,7 +51,7 @@ docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version
 ## 🌟 Key features
 
 - **Five stages**, from a minimal runtime to a full dev environment - so you pull only what you need ([Pick your image](#pick-your-image)).
-- **Both toolchains side by side**: GNU `g++`/`libstdc++` and LLVM `clang++`/`libc++`, `latest-stable` of each ([Compilers & standard library](#compilers--standard-library)).
+- **Both toolchains side by side**: GNU `g++`/`libstdc++` and LLVM `clang++`/`libc++`, a pinned major of each ([Compilers & standard library](#compilers--standard-library)).
 - **Several compiler versions at once**, wired through `update-alternatives` ([Build it yourself](#build-it-yourself)).
 - **Coverage** for both ecosystems: `gcov`/`lcov` and `llvm-cov`/`llvm-profdata` ([Code coverage](docs/COVERAGE.md)).
 - **Cross-architecture compilation**: opt-in `-cross` images that compile *and* link for `arm64`, `arm32` hard-float and `riscv64` - or any supported triplet in a custom build ([Cross-compilation](docs/CROSS-COMPILATION.md)).
@@ -135,17 +135,17 @@ Each needs root and takes the same options as the build arguments below (`--help
 
 ```bash
 # GCC (from the ubuntu-toolchain-r PPA)
-wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/gcc.sh
+wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/install/gcc.sh
 sudo bash gcc.sh --versions='>=13'
 
 # LLVM/Clang (from apt.llvm.org)
-wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/llvm.sh
+wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/install/llvm.sh
 sudo bash llvm.sh --versions='latest-stable'
 ```
 
 > [!TIP] On scripts documentation
 > `cmake.sh` and `binutils.sh` work the same way.  
-> See [scripts/README.md](scripts/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference.
+> See [scripts/install/README.md](scripts/install/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference.
 
 ## Build it yourself
 
@@ -223,7 +223,7 @@ clang++ -std=c++23 -stdlib=libc++ main.cpp
 | [docs/DEVCONTAINER.md](docs/DEVCONTAINER.md) | Dev container: VS Code *Reopen in Container*, opt-in SSH server, Remote-SSH setup |
 | [docs/CROSS-COMPILATION.md](docs/CROSS-COMPILATION.md) | Cross-architecture compilation: published targets, what links and what does not, multilib |
 | [docs/COVERAGE.md](docs/COVERAGE.md) | Code coverage: GNU `gcov`/`lcov` and LLVM `llvm-cov`/`llvm-profdata` |
-| [scripts/README.md](scripts/README.md) | Installation scripts reference: `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh` |
+| [scripts/install/README.md](scripts/install/README.md) | Installation scripts reference: `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh` |
 | [HOW_TO_CONTRIBUTE.md](HOW_TO_CONTRIBUTE.md) | Contribution workflow |
 
 ## Dependency updates

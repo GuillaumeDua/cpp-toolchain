@@ -7,15 +7,16 @@ name: release-candidate-check
 # and smoke-tests the exact image being promoted, by digest - not by tag, which could have
 # moved since the record was written.
 #
-# Intended as a required status check on main. It only fires when releases/** is touched;
-# docker-build remains the always-on gate for every other PR.
+# Intended as a required status check on main, and therefore deliberately NOT path-filtered
+# (same rationale as docker-build: a path-filtered required check that never runs leaves the PR
+# waiting forever on a status that never reports). On a PR that touches no promotion record the
+# identify step exits green in seconds.
 #
 # Read-only by design: no secrets, no registry writes - the image is pulled anonymously from
 # GHCR, which is also why this works for a hand-opened PR from a fork.
 on:
   pull_request:
     branches: [main]
-    paths: ["releases/**"]
 
 permissions:
   contents: read
@@ -70,8 +71,8 @@ jobs:
           FILE: ${{ steps.record.outputs.file }}
         run: |
           set -euo pipefail
-          python3 scripts/check-release-file.py "${FILE}" --check-git --check-bumps
-          git tag -l | python3 scripts/check-release-file.py "${FILE}" --check-supersession
+          python3 scripts/details/check-release-file.py "${FILE}" --check-git --check-bumps
+          git tag -l | python3 scripts/details/check-release-file.py "${FILE}" --check-supersession
 
       # The artifact under test is the digest, not the tag: this exercises the exact bytes a merge
       # would promote. Anonymous pull - GHCR needs no credentials for public images.
@@ -81,9 +82,9 @@ jobs:
           FILE: ${{ steps.record.outputs.file }}
         run: |
           set -euo pipefail
-          digest=$(python3 scripts/check-release-file.py "${FILE}" --print-digest dev)
+          digest=$(python3 scripts/details/check-release-file.py "${FILE}" --print-digest dev)
           echo "smoke-testing ghcr.io/guillaumedua/cpp-toolchain@${digest}"
           docker run --rm \
-            --volume "${PWD}/scripts:/opt/cpp-toolchain-scripts:ro" \
+            --volume "${PWD}/scripts/details:/opt/cpp-toolchain-scripts:ro" \
             "ghcr.io/guillaumedua/cpp-toolchain@${digest}" \
             bash /opt/cpp-toolchain-scripts/smoke-test.sh

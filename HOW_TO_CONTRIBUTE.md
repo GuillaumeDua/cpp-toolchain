@@ -13,7 +13,7 @@ There is a hard split between **building** (gate, runs on every PR) and **publis
 | -------- | ------- | ------------ | :-----: |
 | [docker-build](.github/workflows/docker-build.yml) | every PR to `main`, every push to `main` | builds all stages in both variants | ❌ |
 | [docker-publish](.github/workflows/docker-publish.yml) | GitHub **release** (major), merged **candidate PR** (minor), twice-monthly rc schedule, manual dispatch | builds rcs/majors, promotes minors, pushes tags to Docker Hub + GHCR | ✅ |
-| [release-candidate-check](.github/workflows/release-candidate-check.yml) | PRs touching `releases/**` | validates the promotion record and smoke-tests the candidate image by digest | ❌ |
+| [release-candidate-check](.github/workflows/release-candidate-check.yml) | every PR to `main` (no-op unless a promotion record is touched) | validates the promotion record and smoke-tests the candidate image by digest | ❌ |
 | [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) | monthly schedule (25th), manual dispatch | opens a PR moving the Ubuntu archive snapshot forward | ❌ |
 
 > [!IMPORTANT] PR validation
@@ -77,7 +77,7 @@ The full release procedure (promotion, urgent fixes, rollback, failure modes) is
 [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) - the cadence is stated there and nowhere else.
 
 Release notes are generated from the Dockerfile's pinned `ARG`s by
-[scripts/render-manifest.py](scripts/render-manifest.py), so each release states exactly what it
+[scripts/details/render-manifest.py](scripts/details/render-manifest.py), so each release states exactly what it
 contains and what moved since the previous one.
 
 Guards protecting the registries:
@@ -95,4 +95,5 @@ See [Tags & versioning](README.md#tags--versioning) for the full tag scheme.
 ## Related docs
 
 - [README.md](README.md) - images, features, build arguments, cross-architecture compilation.
-- [scripts/README.md](scripts/README.md) - the standalone `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` options.
+- [scripts/install/README.md](scripts/install/README.md) - the standalone `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` options.
+- [scripts/details/README.md](scripts/details/README.md) - the repository's own tooling: pin guard, release-note renderer, promotion-record schema, smoke test.

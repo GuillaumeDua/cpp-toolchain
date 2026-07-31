@@ -17,7 +17,7 @@
 # Pinned versions - the single source of truth for what these images contain.
 #
 #   Every version is pinned and `# renovate:`-annotated,
-#   so Renovate owns the updates and this block *is* the image manifest: scripts/render-manifest.py reads these same lines to build each release note.
+#   so Renovate owns the updates and this block *is* the image manifest: scripts/details/render-manifest.py reads these same lines to build each release note.
 #   Nothing resolves at build time, so two builds of one commit produce the same image.
 #
 #   Declared once, before the first FROM, and re-declared bare (`ARG LLVM_VERSIONS`) in each stage that needs one.
@@ -174,7 +174,7 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Build: CMake (https://apt.kitware.com/)
-COPY ./scripts/cmake.sh ${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh
+COPY ./scripts/install/cmake.sh ${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG CMAKE_VERSION
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh;                          \
@@ -222,7 +222,7 @@ RUN \
 # C++ toolchain: GNU/GCC
 #   apt update here: gcc.sh only refreshes lists when it has to add the ubuntu-toolchain-r PPA,
 #   which the `runtime` stage already registered, so it relies on a populated apt cache.
-COPY ./scripts/gcc.sh ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
+COPY ./scripts/install/gcc.sh ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG GCC_VERSIONS
 RUN apt-get update -qqy                                                       \
@@ -234,7 +234,7 @@ RUN apt-get update -qqy                                                       \
 # C++ toolchain: LLVM/Clang (https://apt.llvm.org/)
 #   `--minimalistic`: register only the clang/clang++ compilers here.
 #   The rest of the LLVM toolchain (clang-tidy, clang-format, clangd, lldb, scan-build, ...) is a static-analysis / dev concern and is wired up in the `dev` stage below.
-COPY ./scripts/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
+COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           \
@@ -266,7 +266,7 @@ RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" = "y" ]]; then                           
 #   Falls back to bare binutils + cross-libc where no cross-g++ exists. Owned by binutils.sh, not gcc.sh (which owns --multilib).
 #   Kept last in the stage so it is a single opt-in layer on top of the shared toolchain:
 #   BINUTILS_TARGETS='' (the default) installs nothing - the lean/normal variant - while a triplet list builds the cross-arch variant.
-COPY ./scripts/binutils.sh ${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh
+COPY ./scripts/install/binutils.sh ${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG BINUTILS_TARGETS=''
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh;                                              \
@@ -292,7 +292,7 @@ SHELL ["/bin/bash", "-c"]
 # C++ toolchain: LLVM/Clang - full toolchain (clang-tidy, clang-format, clangd, lldb, scan-build).
 #   Re-runs llvm.sh non-minimalistically to register the analysis tools alongside the clang/clang++
 #   compilers already installed by the `build` stage.
-COPY ./scripts/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
+COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                       \
@@ -321,7 +321,7 @@ SHELL ["/bin/bash", "-c"]
 #   The `build` stage installed clang `--minimalistic` (compilers only); re-run llvm.sh in
 #   `--coverage` mode to add the llvm-cov/llvm-profdata alternatives - the GCC side (gcov) already
 #   ships with GCC and lcov (`genhtml`) is installed below.
-COPY ./scripts/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
+COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                            \
@@ -333,7 +333,7 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
 # Documentation: Doxygen (pre-built binary - Ubuntu's apt package lags upstream) + graphviz (`dot`).
 #   lcov (`genhtml`) covers the GCC coverage path of CMake `doc` targets; gcov ships with GCC already.
 ARG DOXYGEN_RELEASE
-COPY ./scripts/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
+COPY ./scripts/install/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
 RUN apt update -qqy && apt install -qqy --no-install-recommends graphviz lcov \
     && rm -rf /var/lib/apt/lists/*                                            \
     && chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh                       \
@@ -372,7 +372,7 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
 # Documentation: Doxygen pre-built binary - re-added here because dev inherits `static-analysis`,
 #                not the sibling `documentation` stage (mirrors the graphviz re-add above).
 ARG DOXYGEN_RELEASE
-COPY ./scripts/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
+COPY ./scripts/install/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
 RUN chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh \
     && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}" \
     && rm -rf /var/lib/apt/lists/*
