@@ -94,30 +94,19 @@ SHELL ["/bin/bash", "-c"]
 
 # apt -> Ubuntu archive snapshot, so every stage below installs from a frozen archive.
 #
-#   snapshot.ubuntu.com is HTTPS-only and the base image carries no CA bundle,
-#   so ca-certificates is bootstrapped from the stock archive first,
-#   then every package is realigned onto the snapshot - after which no Ubuntu archive content comes from a moving source.
-#   The third-party repositories added later (the toolchain PPA, apt.llvm.org, apt.kitware.com, etc.) have no snapshot service,
-#   so the ARGs above pin a major or an upstream version there, not a deb revision.
+#   snapshot.ubuntu.com is HTTPS-only and the base image has no CA bundle, so ca-certificates comes from the live archive first.
+#   That bootstrap drags openssl forward, and libssl-dev pins its runtime with `=`,
+#   so every package is realigned onto the snapshot afterwards - downgrades included.
 #
-#   This realignment runs before the toolchain PPA is added, and that ordering is load-bearing:
-#   run it afterwards and apt-cache policy would start seeing PPA candidates for libstdc++6 and friends.
+#   The temporary pin is what makes the downgrades possible at all:
+#       at apt's default priority of 500 a repository never wins against an installed higher version,
+#       so the realignment silently degrades into an upgrade-only pass and leaves exactly the skew it exists to remove.
+#   Only a priority above 1000 lets apt pick a lower version (apt_preferences(5)).
 #
-#   That realignment is not cosmetic.
-#   The bootstrap is the one moment this image talks to the live archive,
-#   and ca-certificates hard-depends on openssl,
-#   so apt drags openssl and libssl3t64 forward to whatever the live archive publishes today.
-#   The frozen archive still carries the older pair, and libssl-dev depends on its runtime with `=`,
-#   so a stage asking for any -dev package later fails on held broken packages.
-#   Downgrades are therefore allowed: the snapshot, not the live archive, decides what is installed.
+#   The pin is dropped again immediately: kept around, it would outrank the toolchain PPA added below,
+#   and drag libstdc++6 and friends back down to their Ubuntu archive versions.
 #
-#   Diffing installed against candidate, rather than naming the packages the bootstrap moves today,
-#   keeps this correct if ca-certificates grows a dependency:
-#   the failure it prevents stays silent until a -dev counterpart is requested, several stages later.
-#
-#   Noble uses deb822 (/etc/apt/sources.list.d/ubuntu.sources); the legacy sources.list is rewritten too, so this keeps working if the base image layout changes.
-#   The snapshot service unifies every architecture under a single /ubuntu/ path:
-#       there is no /ubuntu-ports/ equivalent - so the non-amd64 ports.ubuntu.com sources are redirected there too.
+#   This fix build failures like "The following packages have unmet dependencies: libssl-dev : Depends: libssl3t64 (= 3.0.13-0ubuntu3.11) but 3.0.13-0ubuntu3.12 is to be installed"
 RUN apt-get update -qqy                                                                             \
     && apt-get install -qqy --no-install-recommends ca-certificates                                 \
     && for src in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do                  \
@@ -127,13 +116,11 @@ RUN apt-get update -qqy                                                         
                "${src}";                                                                            \
            true;                                                                                    \
        done                                                                                         \
+    && printf 'Package: *\nPin: origin "snapshot.ubuntu.com"\nPin-Priority: 1001\n'                 \
+           > /etc/apt/preferences.d/99-snapshot-realign                                              \
     && apt-get update -qqy                                                                          \
-    && mapfile -t realign < <(apt-cache policy $(dpkg-query -W -f='${binary:Package}\n')            \
-           | awk '/^[^ ]/{pkg=$1;sub(/:$/,"",pkg)} /^ +Installed:/{inst=$2} /^ +Candidate:/{if(inst!=$2 && $2!="(none)" && inst!="(none)")print pkg"="$2}') \
-    && if ((${#realign[@]})); then                                                                  \
-           echo "[C++ toolchain] realigning onto the snapshot: ${realign[*]}";                      \
-           apt-get install -qqy --no-install-recommends --allow-downgrades "${realign[@]}";         \
-       fi                                                                                           \
+    && apt-get dist-upgrade -qqy --allow-downgrades --no-remove                                     \
+    && rm -f /etc/apt/preferences.d/99-snapshot-realign                                             \
     && echo "[C++ toolchain] apt frozen at snapshot ${UBUNTU_SNAPSHOT}"
 
 # C++ runtime libraries, pulled from the same PPA the `build` stage installs GCC from,
@@ -284,10 +271,11 @@ RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" = "y" ]]; then                           
     fi
 
 # C++ toolchain: per-target cross toolchain(s) via g++-<triplet>
-#   (pulls cross binutils + libc + libgcc + libstdc++, so C/C++ cross-compilation links; clang auto-detects it).
-#   Falls back to bare binutils + cross-libc where no cross-g++ exists. Owned by binutils.sh, not gcc.sh (which owns --multilib).
+#   Pulls cross binutils + libc + libgcc + libstdc++, so C/C++ cross-compilation links; clang auto-detects it.
+#   Falls back to bare binutils + cross-libc where no cross-g++ exists.
+#   Owned by binutils.sh, not gcc.sh (which owns --multilib).
 #   Kept last in the stage so it is a single opt-in layer on top of the shared toolchain:
-#   BINUTILS_TARGETS='' (the default) installs nothing - the lean/normal variant - while a triplet list builds the cross-arch variant.
+#       BINUTILS_TARGETS='' (the default) installs nothing - the lean/normal variant - while a triplet list builds the cross-arch variant.
 COPY ./scripts/install/binutils.sh ${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG BINUTILS_TARGETS=''
@@ -324,8 +312,10 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
     && rm -rf /var/lib/apt/lists/*
 
 # Dedicated static analysers
+# TODO: sonarlint
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
-        cppcheck iwyu \
+        cppcheck \
+        iwyu \
     && rm -rf /var/lib/apt/lists/*
 
 CMD ["/bin/bash"]
