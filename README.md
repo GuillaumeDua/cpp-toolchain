@@ -130,7 +130,7 @@ These images are built to be your dev container - see [docs/DEVCONTAINER.md](doc
 
 ## Standalone use (no Docker)
 
-The install scripts are self-contained: fetch one and run it directly on any `Debian`/`Ubuntu`-based host to get the same toolchain, no image involved.  
+The **install scripts are self-contained**: fetch one and run it directly on any `Debian`/`Ubuntu`-based host to get the same toolchain, no image involved.  
 Each needs root and takes the same options as the build arguments below (`--help` lists them all):
 
 ```bash

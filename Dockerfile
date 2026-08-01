@@ -96,7 +96,24 @@ SHELL ["/bin/bash", "-c"]
 #
 #   snapshot.ubuntu.com is HTTPS-only and the base image carries no CA bundle,
 #   so ca-certificates is bootstrapped from the stock archive first,
-#   then realigned against the snapshot - after which nothing in the image comes from a moving source.
+#   then every package is realigned onto the snapshot - after which no Ubuntu archive content comes from a moving source.
+#   The third-party repositories added later (the toolchain PPA, apt.llvm.org, apt.kitware.com, etc.) have no snapshot service,
+#   so the ARGs above pin a major or an upstream version there, not a deb revision.
+#
+#   This realignment runs before the toolchain PPA is added, and that ordering is load-bearing:
+#   run it afterwards and apt-cache policy would start seeing PPA candidates for libstdc++6 and friends.
+#
+#   That realignment is not cosmetic.
+#   The bootstrap is the one moment this image talks to the live archive,
+#   and ca-certificates hard-depends on openssl,
+#   so apt drags openssl and libssl3t64 forward to whatever the live archive publishes today.
+#   The frozen archive still carries the older pair, and libssl-dev depends on its runtime with `=`,
+#   so a stage asking for any -dev package later fails on held broken packages.
+#   Downgrades are therefore allowed: the snapshot, not the live archive, decides what is installed.
+#
+#   Diffing installed against candidate, rather than naming the packages the bootstrap moves today,
+#   keeps this correct if ca-certificates grows a dependency:
+#   the failure it prevents stays silent until a -dev counterpart is requested, several stages later.
 #
 #   Noble uses deb822 (/etc/apt/sources.list.d/ubuntu.sources); the legacy sources.list is rewritten too, so this keeps working if the base image layout changes.
 #   The snapshot service unifies every architecture under a single /ubuntu/ path:
@@ -111,7 +128,12 @@ RUN apt-get update -qqy                                                         
            true;                                                                                    \
        done                                                                                         \
     && apt-get update -qqy                                                                          \
-    && apt-get install -qqy --no-install-recommends --only-upgrade ca-certificates                  \
+    && mapfile -t realign < <(apt-cache policy $(dpkg-query -W -f='${binary:Package}\n')            \
+           | awk '/^[^ ]/{pkg=$1;sub(/:$/,"",pkg)} /^ +Installed:/{inst=$2} /^ +Candidate:/{if(inst!=$2 && $2!="(none)" && inst!="(none)")print pkg"="$2}') \
+    && if ((${#realign[@]})); then                                                                  \
+           echo "[C++ toolchain] realigning onto the snapshot: ${realign[*]}";                      \
+           apt-get install -qqy --no-install-recommends --allow-downgrades "${realign[@]}";         \
+       fi                                                                                           \
     && echo "[C++ toolchain] apt frozen at snapshot ${UBUNTU_SNAPSHOT}"
 
 # C++ runtime libraries, pulled from the same PPA the `build` stage installs GCC from,
