@@ -192,7 +192,18 @@ fi
 
 if [ "$arg_versions" = 'latest' ]; then
     cmake_version=$(apt-cache policy cmake | grep -oP 'Candidate:\s*\K.*')
+elif [[ "$arg_versions" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+    # An upstream version (e.g. '4.4.0'), resolved to the Kitware apt version that carries it.
+    #   The apt version is a longer, distro-specific string ('4.4.0-0kitware1ubuntu22.04.1') that no
+    #   upstream datasource publishes, so pinning the plain version is what lets Renovate track CMake
+    #   at all. Anchored on a '-' so '4.4.0' cannot match '4.4.01'; newest wins if several qualify.
+    cmake_version=$(echo "${all_cmake_versions_available}" | grep -E "^${arg_versions//./\\.}-" | sort -V | tail -1)
+    if [ -z "${cmake_version}" ]; then
+        error "no apt package found for CMake version [${arg_versions}]. Available versions: [$(echo -e ${all_cmake_versions_available})]"
+    fi
+    log "resolved CMake [${arg_versions}] -> apt version [${cmake_version}]"
 else
+    # An exact apt version string, used verbatim.
     cmake_version="${arg_versions}"
 fi
 

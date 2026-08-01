@@ -24,6 +24,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Assert every version is pinned and watched
+        run: python3 scripts/details/check-dependencies-pins.py
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 

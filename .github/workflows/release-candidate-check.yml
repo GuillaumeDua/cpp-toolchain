@@ -1,0 +1,90 @@
+name: release-candidate-check
+
+# The merge gate for promotion pull requests - the ones adding a releases/v*.yaml record
+# (opened by docker-publish.yml after each rc; docs/RELEASE_PROCESS.md is the runbook).
+#
+# Merging such a PR is what promotes an rc to a release, so this check validates the record
+# and smoke-tests the exact image being promoted, by digest - not by tag, which could have
+# moved since the record was written.
+#
+# Intended as a required status check on main, and therefore deliberately NOT path-filtered
+# (same rationale as docker-build: a path-filtered required check that never runs leaves the PR
+# waiting forever on a status that never reports). On a PR that touches no promotion record the
+# identify step exits green in seconds.
+#
+# Read-only by design: no secrets, no registry writes - the image is pulled anonymously from
+# GHCR, which is also why this works for a hand-opened PR from a fork.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-candidate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags for the candidate/supersession checks, history for the bumps recompute
+
+      # The checkout is the PR merge commit, so its first parent is current main and this diff is
+      # exactly what the PR changes. releases/*.yaml are immutable promotion records: only an added
+      # one is a promotion, a modified or deleted one is refused, and a PR touching only docs under
+      # releases/ passes with nothing to validate.
+      - name: Identify the promotion record
+        id: record
+        run: |
+          set -euo pipefail
+          added=()
+          while IFS=$'\t' read -r status path; do
+            [[ "${path}" =~ ^releases/v[0-9]+\.[0-9]+\.yaml$ ]] || continue
+            case "${status}" in
+              A) added+=("${path}") ;;
+              *) echo "::error::${path} is an immutable promotion record - it cannot be ${status}-changed."
+                 exit 1 ;;
+            esac
+          done < <(git diff --name-status HEAD^1 HEAD -- releases/)
+
+          if [ "${#added[@]}" -eq 0 ]; then
+            echo "::notice::no promotion record in this PR - nothing to validate."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${#added[@]}" -gt 1 ]; then
+            echo "::error::one promotion per PR - found: ${added[*]}"
+            exit 1
+          fi
+          {
+            echo "skip=false"
+            echo "file=${added[0]}"
+          } >> "$GITHUB_OUTPUT"
+
+      # Schema, candidate tag -> commit, containment in main, newest-rc supersession, and the
+      # bumps recompute (bumps is generated, never hand-edited - so it must equal what
+      # render-manifest.py derives at the recorded commit).
+      - name: Validate the record
+        if: steps.record.outputs.skip != 'true'
+        env:
+          FILE: ${{ steps.record.outputs.file }}
+        run: |
+          set -euo pipefail
+          python3 scripts/details/check-release-file.py "${FILE}" --check-git --check-bumps
+          git tag -l | python3 scripts/details/check-release-file.py "${FILE}" --check-supersession
+
+      # The artifact under test is the digest, not the tag: this exercises the exact bytes a merge
+      # would promote. Anonymous pull - GHCR needs no credentials for public images.
+      - name: Smoke test the candidate image
+        if: steps.record.outputs.skip != 'true'
+        env:
+          FILE: ${{ steps.record.outputs.file }}
+        run: |
+          set -euo pipefail
+          digest=$(python3 scripts/details/check-release-file.py "${FILE}" --print-digest dev)
+          echo "smoke-testing ghcr.io/guillaumedua/cpp-toolchain@${digest}"
+          docker run --rm \
+            --volume "${PWD}/scripts/details:/opt/cpp-toolchain-scripts:ro" \
+            "ghcr.io/guillaumedua/cpp-toolchain@${digest}" \
+            bash /opt/cpp-toolchain-scripts/smoke-test.sh

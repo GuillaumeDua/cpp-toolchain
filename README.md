@@ -20,16 +20,16 @@ graph LR
 
 Each stage is published as its own image, so you pull only what you need - prefix any version with the stage name: `ghcr.io/guillaumedua/cpp-toolchain:<stage>-latest`
 
-| Stage / tag | What's in it | `latest` | `experimental` | `cross` |
-| ----------- | ------------ | -------- | -------------- | ------- |
-| `runtime` | Minimal C++ **runtime**<br>`libc6`, `libgcc-s1`, `libstdc++6` | [![runtime-latest](https://img.shields.io/badge/runtime--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=runtime-latest) [![runtime version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/runtime-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=runtime-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/runtime-latest?label=) | [![runtime-experimental](https://img.shields.io/badge/runtime--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=runtime-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/runtime-experimental?label=) | *(no toolchain)* |
-| `build` | **Compile** C++<br>compilers, build systems, dependency managers | [![build-latest](https://img.shields.io/badge/build--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-latest) [![build version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/build-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-latest?label=) | [![build-experimental](https://img.shields.io/badge/build--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-experimental?label=) | [![build-cross-experimental](https://img.shields.io/badge/build--cross--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-cross-experimental?label=) |
-| `static-analysis` | `build` + **static analysis**<br>clang-tidy, clang-format, clangd, scan-build, cppcheck, iwyu, lldb | [![static-analysis-latest](https://img.shields.io/badge/static--analysis--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-latest) [![static-analysis version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/static-analysis-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-latest?label=) | [![static-analysis-experimental](https://img.shields.io/badge/static--analysis--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-experimental?label=) | [![static-analysis-cross-experimental](https://img.shields.io/badge/static--analysis--cross--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-cross-experimental?label=) |
-| `documentation` | `build` + **documentation**<br>doxygen, graphviz - and lcov reports | [![documentation-latest](https://img.shields.io/badge/documentation--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-latest) [![documentation version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/documentation-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-latest?label=) | [![documentation-experimental](https://img.shields.io/badge/documentation--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-experimental?label=) | [![documentation-cross-experimental](https://img.shields.io/badge/documentation--cross--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-cross-experimental?label=) |
-| `dev` *(default target)* | Full **dev** environment<br>everything above + gdb, valgrind, editors, shells, jq, ripgrep | [![dev-latest](https://img.shields.io/badge/dev--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-latest) [![dev version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/dev-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-latest?label=) | [![dev-experimental](https://img.shields.io/badge/dev--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-experimental)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-experimental?label=) | [![dev-cross-experimental](https://img.shields.io/badge/dev--cross--experimental-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-cross-experimental?label=) |
+| Stage / tag | What's in it | `latest` | `cross` |
+| ----------- | ------------ | -------- | ------- |
+| `runtime` | Minimal C++ **runtime**<br>`libc6`, `libgcc-s1`, `libstdc++6` | [![runtime-latest](https://img.shields.io/badge/runtime--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=runtime-latest) [![runtime version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/runtime-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=runtime-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/runtime-latest?label=) | *(no toolchain)* |
+| `build` | **Compile** C++<br>compilers, build systems, dependency managers | [![build-latest](https://img.shields.io/badge/build--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-latest) [![build version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/build-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-latest?label=) | [![build-cross-latest](https://img.shields.io/badge/build--cross--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=build-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/build-cross-latest?label=) |
+| `static-analysis` | `build` + **static analysis**<br>clang-tidy, clang-format, clangd, scan-build, cppcheck, iwyu, lldb | [![static-analysis-latest](https://img.shields.io/badge/static--analysis--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-latest) [![static-analysis version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/static-analysis-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-latest?label=) | [![static-analysis-cross-latest](https://img.shields.io/badge/static--analysis--cross--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=static-analysis-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/static-analysis-cross-latest?label=) |
+| `documentation` | `build` + **documentation**<br>doxygen, graphviz - and lcov reports | [![documentation-latest](https://img.shields.io/badge/documentation--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-latest) [![documentation version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/documentation-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-latest?label=) | [![documentation-cross-latest](https://img.shields.io/badge/documentation--cross--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-cross-latest?label=) |
+| `dev` *(default target)* | Full **dev** environment<br>everything above + gdb, valgrind, editors, shells, jq, ripgrep | [![dev-latest](https://img.shields.io/badge/dev--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-latest) [![dev version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/dev-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-latest?label=) | [![dev-cross-latest](https://img.shields.io/badge/dev--cross--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-cross-latest?label=) |
 
 The `-cross` images carry per-target cross toolchains (~+200 MB installed per target), so reach for them only when you cross-compile - see [Cross-compilation](docs/CROSS-COMPILATION.md). `runtime` has no toolchain, so it is published once, without a cross variant.  
-What each version means - `latest`, `experimental`, pinned `v<major>.<minor>` - is detailed in [Tags & versioning](#tags--versioning).
+What each version means - `latest`, pre-release `v<major>.<minor>-rc.<n>`, pinned `v<major>.<minor>` - is detailed in [Tags & versioning](#tags--versioning).
 
 ## Quick start
 
@@ -51,7 +51,7 @@ docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version
 ## 🌟 Key features
 
 - **Five stages**, from a minimal runtime to a full dev environment - so you pull only what you need ([Pick your image](#pick-your-image)).
-- **Both toolchains side by side**: GNU `g++`/`libstdc++` and LLVM `clang++`/`libc++`, `latest-stable` of each ([Compilers & standard library](#compilers--standard-library)).
+- **Both toolchains side by side**: GNU `g++`/`libstdc++` and LLVM `clang++`/`libc++`, a pinned major of each ([Compilers & standard library](#compilers--standard-library)).
 - **Several compiler versions at once**, wired through `update-alternatives` ([Build it yourself](#build-it-yourself)).
 - **Coverage** for both ecosystems: `gcov`/`lcov` and `llvm-cov`/`llvm-profdata` ([Code coverage](docs/COVERAGE.md)).
 - **Cross-architecture compilation**: opt-in `-cross` images that compile *and* link for `arm64`, `arm32` hard-float and `riscv64` - or any supported triplet in a custom build ([Cross-compilation](docs/CROSS-COMPILATION.md)).
@@ -95,13 +95,26 @@ A tag is `<stage>[-cross]-<version>`: the **stage** picks *what is in the image*
 
 | Version | Published by | Meaning |
 | ------- | ------------ | ------- |
-| `v<major>.<minor>` (e.g. `build-v1.0`) | a GitHub **release**, cut from `main` | A specific **release**, pinned and immutable; the version matches the release tag exactly |
-| `latest` (e.g. `build-latest`) | the same release | Newest **release** - what you want unless you know otherwise |
-| `experimental` (e.g. `build-experimental`) | the **weekly** schedule (Saturday 4am UTC), from `main` | Newest **build** of `main`: *ahead of* `latest`, unreleased. Rebuilt against current upstream (toolchain PPA, apt.llvm.org, Kitware), so it may break - never aliased to `latest` |
+| `v<major>.<minor>` (e.g. `build-v1.0`) | **major**: a GitHub release, cut by hand from `main`<br>**minor**: **promoted by hand** from a release candidate | A specific **release**, pinned and immutable; the version matches the release tag exactly |
+| `latest` (e.g. `build-latest`) | the newest release, major or minor | Newest **release** - what you want unless you know otherwise |
+| `v<major>.<minor>-rc.<n>` (e.g. `build-v1.2-rc.1`) | the twice-monthly **rc schedule** ([cadence](docs/RELEASE_PROCESS.md)), from `main` | A **release candidate** for the next minor: *ahead of* `latest`, so upstream breakage surfaces before it reaches a release. Never aliased to `latest` |
 
-`latest` tracks **releases, not recency**: `experimental` is always the more recent build of the two. Pin `<stage>-v<major>.<minor>` for reproducible builds.
+The three channels differ in *who decides*, not in what they contain:
 
-`dev` is the Dockerfile's default target, so it also answers to the **unprefixed** versions - `cpp-toolchain:latest` is the same digest as `cpp-toolchain:dev-latest`, and likewise for `v1.0` / `experimental` (and `cross-experimental` = `dev-cross-experimental`). Every other stage must be named explicitly.
+- **major** = the image contract changed - a base-image bump, a stage added or removed, a tool dropped. Only a human decides that.
+- **minor** = a validated rc, promoted. Renovate moved versions, the rc proved they hold up, a human shipped it.
+- **rc** = a fresh build from `main`, published early for validation.
+
+Every version in the image is **pinned** in the [Dockerfile](Dockerfile) and updated by [Renovate](renovate.json), so a scheduled run **publishes nothing when nothing changed** - no release is cut just because a date arrived.
+
+> [!NOTE]
+> A minor is not rebuilt from its rc's commit - it **is** the rc: promotion re-tags the exact image digests that were validated, so `v1.2` is byte-identical to the `v1.2-rc.<n>` it was promoted from. rc tags stay published and cost nothing (shared digests). How releases are cut is documented in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md).
+
+`dev` is the Dockerfile's default target, so it also answers to the **unprefixed** versions - `cpp-toolchain:latest` is the same digest as `cpp-toolchain:dev-latest`, and likewise for `v1.0` / `v1.2-rc.1` (and `cross-latest` = `dev-cross-latest`). Every other stage must be named explicitly.
+
+### What's inside a given tag
+
+Every release note lists the exact versions that release contains - compilers, build systems, dependency managers, documentation tooling - and what moved since the previous one. Because the versions are pinned rather than resolved at build time, that list is the image's contents rather than a snapshot of them, and **two builds of the same commit produce the same image**.
 
 > [!NOTE] On host architecture:
 > The published images are `linux/amd64` (not yet multi-platform manifests), so on an **arm64** host they run under emulation.  
@@ -117,22 +130,22 @@ These images are built to be your dev container - see [docs/DEVCONTAINER.md](doc
 
 ## Standalone use (no Docker)
 
-The install scripts are self-contained: fetch one and run it directly on any `Debian`/`Ubuntu`-based host to get the same toolchain, no image involved.  
+The **install scripts are self-contained**: fetch one and run it directly on any `Debian`/`Ubuntu`-based host to get the same toolchain, no image involved.  
 Each needs root and takes the same options as the build arguments below (`--help` lists them all):
 
 ```bash
 # GCC (from the ubuntu-toolchain-r PPA)
-wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/gcc.sh
+wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/install/gcc.sh
 sudo bash gcc.sh --versions='>=13'
 
 # LLVM/Clang (from apt.llvm.org)
-wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/llvm.sh
+wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/install/llvm.sh
 sudo bash llvm.sh --versions='latest-stable'
 ```
 
 > [!TIP] On scripts documentation
 > `cmake.sh` and `binutils.sh` work the same way.  
-> See [scripts/README.md](scripts/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference.
+> See [scripts/install/README.md](scripts/install/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference.
 
 ## Build it yourself
 
@@ -147,7 +160,7 @@ docker build --target documentation   -t cpp-toolchain:documentation   .
 docker build --target dev             -t cpp-toolchain:dev             .
 ```
 
-The published images install a single `latest-stable` `GCC` and `Clang/LLVM` to stay lean. `gcc.sh` and `llvm.sh` both support **multiple versions side by side** (via `update-alternatives`) - useful to test against several compiler versions in the same environment:
+The published images install a single pinned `GCC` and `Clang/LLVM` to stay lean. `gcc.sh` and `llvm.sh` both support **multiple versions side by side** (via `update-alternatives`) - useful to test against several compiler versions in the same environment:
 
 ```bash
 docker build -t cpp-toolchain:dev . \
@@ -160,11 +173,11 @@ Adding `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build produ
 <details>
 <summary><b>All build arguments</b></summary>
 
-| Name                    | default           | description                                                                            | example                                  |
+| Name                    | default (pinned)  | description                                                                            | example                                  |
 | ----------------------- | ----------------- | -------------------------------------------------------------------------------------- | ---------------------------------------- |
-| CMAKE_VERSION           | `latest`          | `latest`<br>(exact version, e.g. `3.29.3-0kitware1ubuntu24.04.1~jammy`)                | `latest`                                 |
-| GCC_VERSIONS            | `'latest-stable'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
-| LLVM_VERSIONS           | `'latest-stable'` | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
+| CMAKE_VERSION           | `4.4.0`           | exact version, or `latest`                                                             | `latest`                                 |
+| GCC_VERSIONS            | `15`              | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
+| LLVM_VERSIONS           | `22`              | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
 | BINUTILS_TARGETS        | `''` (none)       | Cross toolchain target triplets; empty = lean, a list = cross-arch variant             | `'aarch64-linux-gnu riscv64-linux-gnu'`  |
 | OPT_IN_INTEGRATE_BAZEL  | `n`               | `y` or `n`                                                                             |                                          |
 | OPT_IN_INTEGRATE_BUILD2 | `n`               | `y` or `n`                                                                             |                                          |
@@ -173,7 +186,7 @@ Adding `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build produ
 
 ## Compilers & standard library
 
-Available from the **`build`** stage onwards. Both toolchains are installed side by side - `latest-stable` of each by default:
+Available from the **`build`** stage onwards. Both toolchains are installed side by side - the pinned version of each by default:
 
 | Toolchain | Command             | Versioned command           | Also registered                                                  |
 | --------- | ------------------- | --------------------------- | ---------------------------------------------------------------- |
@@ -210,13 +223,20 @@ clang++ -std=c++23 -stdlib=libc++ main.cpp
 | [docs/DEVCONTAINER.md](docs/DEVCONTAINER.md) | Dev container: VS Code *Reopen in Container*, opt-in SSH server, Remote-SSH setup |
 | [docs/CROSS-COMPILATION.md](docs/CROSS-COMPILATION.md) | Cross-architecture compilation: published targets, what links and what does not, multilib |
 | [docs/COVERAGE.md](docs/COVERAGE.md) | Code coverage: GNU `gcov`/`lcov` and LLVM `llvm-cov`/`llvm-profdata` |
-| [scripts/README.md](scripts/README.md) | Installation scripts reference: `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh` |
+| [scripts/install/README.md](scripts/install/README.md) | Installation scripts reference: `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh` |
 | [HOW_TO_CONTRIBUTE.md](HOW_TO_CONTRIBUTE.md) | Contribution workflow |
 
 ## Dependency updates
 
-- `gcc`, `llvm`, `cmake` and `doxygen` use the latest-stable release available
-- Base image, GitHub Actions, and `zsh-in-docker` version bumps are tracked via [Renovate](renovate.json), scheduled weekly.
+**Every version is pinned in the [Dockerfile](Dockerfile)** - base image (by digest), GCC, Clang/LLVM, CMake, vcpkg, Conan, Doxygen, build2, oh-my-zsh (by commit) and powerlevel10k - and each pin is tracked by [Renovate](renovate.json). Nothing resolves to "whatever is newest" at build time.
+
+That has two consequences worth knowing:
+
+- **Updates arrive as reviewable pull requests**, not silently on a rebuild. A version bump that the upstream apt repository has not published yet fails the build gate, so it stays a red PR instead of a broken image.
+- **The ~20 distro packages** (`ninja`, `cppcheck`, `valgrind`, `gdb`, `lcov`, ...) are frozen by an [Ubuntu archive snapshot](https://snapshot.ubuntu.com) rather than pinned one by one. The timestamp moves monthly via [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) - Renovate cannot track it, because the service publishes no index of valid timestamps.
+
+> [!NOTE] On reproducibility
+> Two builds of the same commit produce the same image. Rebuilding a *years-old* tag is a weaker promise: GCC, Clang and CMake come from a PPA and two third-party apt repositories, none of which keep superseded versions. The published image is the durable artifact, not the ability to recreate it.
 
 ## Contributing
 

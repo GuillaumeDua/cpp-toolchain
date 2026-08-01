@@ -11,7 +11,7 @@ Cross-arch is **opt-in**: the default (lean) images ship no cross toolchain. You
 
 ```bash
 # pull the published cross variant of a stage
-docker pull ghcr.io/guillaumedua/cpp-toolchain:build-cross-experimental
+docker pull ghcr.io/guillaumedua/cpp-toolchain:build-cross-latest
 
 # or build your own, with your own targets
 docker build --target build \
@@ -19,7 +19,7 @@ docker build --target build \
     --build-arg BINUTILS_TARGETS='aarch64-linux-gnu powerpc64le-linux-gnu' .
 ```
 
-For each requested target, [`binutils.sh`](../scripts/binutils.sh) installs a **complete cross toolchain** via `g++-<triplet>` - which pulls cross **binutils** (`as` / `ld` / `objdump` / ...), cross **glibc**, cross **libgcc** and cross **libstdc++**.  
+For each requested target, [`binutils.sh`](../scripts/install/binutils.sh) installs a **complete cross toolchain** via `g++-<triplet>` - which pulls cross **binutils** (`as` / `ld` / `objdump` / ...), cross **glibc**, cross **libgcc** and cross **libstdc++**.  
 That is enough to compile *and link* C and C++ for the target, and Clang auto-detects the cross-GCC install, so `clang --target=<triplet>` works with no extra flags.
 
 ### Published targets
@@ -32,7 +32,7 @@ The `-cross` images carry the live non-x86 ecosystems - ARM 64-bit (servers/embe
 | `arm-linux-gnueabihf` | `g++-arm-linux-gnueabihf` | binutils · glibc · libgcc · **libstdc++** |
 | `riscv64-linux-gnu`   | `g++-riscv64-linux-gnu`   | binutils · glibc · libgcc · **libstdc++** |
 
-A custom build can name any triplet from `binutils.sh --list` - **CPU, FPU, ABI and endianness are selected by the triplet itself**, there is no separate switch. See [scripts/README.md](../scripts/README.md#binutilssh) for the axes, the full option reference, and the 7 triplets (out of 32) that have no cross-`g++` and fall back to bare binutils.
+A custom build can name any triplet from `binutils.sh --list` - **CPU, FPU, ABI and endianness are selected by the triplet itself**, there is no separate switch. See [scripts/install/README.md](../scripts/install/README.md#binutilssh) for the axes, the full option reference, and the 7 triplets (out of 32) that have no cross-`g++` and fall back to bare binutils.
 
 ### What works, and what does not
 
@@ -69,5 +69,5 @@ Installed by default, **best-effort**: multilib lags for brand-new GCC versions 
 ## See also
 
 - [README.md](../README.md) - images, features, tags, build arguments.
-- [scripts/README.md](../scripts/README.md#binutilssh) - `binutils.sh` reference: available triplets, triplet axes, fallback behaviour.
+- [scripts/install/README.md](../scripts/install/README.md#binutilssh) - `binutils.sh` reference: available triplets, triplet axes, fallback behaviour.
 - [docs/COVERAGE.md](COVERAGE.md) - GNU and LLVM code coverage.

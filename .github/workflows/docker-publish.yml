@@ -1,37 +1,234 @@
 name: docker-publish
 
-# Publishing rules:
-#   - all five stages live in the single `cpp-toolchain` repository, stage-prefixed: `<stage>-<tag>` (e.g. build-v1.0)
-#   - each toolchain stage ships in two variants: normal/lean (default tags) and cross-arch (`<stage>-cross-<tag>`);
-#     `runtime` has no toolchain, so it is published once (no cross variant)
-#   - `dev` is the Dockerfile's default target, so it also owns the unprefixed aliases
-#     (v1.0, latest, experimental, and cross-v1.0 / cross-latest / cross-experimental for the cross-arch variant)
-#   - a GitHub release (cut from main) publishes the release tag (e.g. v1.0) + the `latest` alias
-#   - the weekly schedule publishes `experimental` only: `latest` never moves outside a release
-#   - images go to both Docker Hub and GHCR (ghcr.io has no pull rate limit for public images,
-#     which matters since these images are meant to be consumed by other projects' CI)
+# Pushes images to Docker Hub and GHCR.
+# docs/RELEASE_PROCESS.md is the runbook: the release model, the cadence, the urgent-fix path and the failure modes are documented there, and stated nowhere else.
+#
+# The short version:
+# - an rc is a fresh build published as a pre-release,
+#   which opens a candidate pull request adding releases/v1.2.yaml - the manifest digest of every stage it pushed.
+# - a minor is that PR being merged: the promote job re-tags the recorded digests,
+#   so the release is byte-identical to the rc that was validated.
+# - a major is a hand-cut vX.0 release, fresh build.
+#
+# Tags are `<stage>-<version>`, with a `cross-` infix for the cross-arch variant,
+# and `dev` also owns the unprefixed aliases (v1.2, latest, cross-v1.2, cross-latest) as the default target.
+# See README.md#tags--versioning has the full scheme.
+#
+# Two rules the steps below rely on and cannot state for themselves:
+#   - releases/ is excluded from the skip-when-unchanged comparison. Every promotion merges a
+#     record onto main, so without the exclusion each release would spawn a pointless rc at the
+#     next cron, from a tree that builds to an identical image.
+#   - events triggered by GITHUB_TOKEN start no workflow runs. That is load-bearing twice over:
+#     the release created here does not re-trigger this workflow (a PAT there would be an
+#     infinite build loop), and the candidate PR must therefore be created with RELEASE_PR_TOKEN
+#     or its checks would never run. Same reason its merge has to be a human, never a token.
+#
+# The build job holds all of its permissions for all of its steps, including the ~40-minute build.
+# Splitting the PR upkeep into a separate job would cost an artifact hop per output,
+# and the build runs no third-party code beyond the pinned actions.
 on:
   release:
-    types: [published]
+    types: [published] # major (vX.0), cut by hand - always a fresh build
+  push:
+    branches: [main]
+    paths: ["releases/**"] # a merged candidate PR - the promotion path
   schedule:
-    - cron: "0 4 * * 6" # weekly, Saturday 4am UTC -> `experimental`
-  workflow_dispatch: {} # manual -> `experimental`
+    - cron: "0 4 8,22 * *" # 8th and 22nd 4am UTC -> next rc pre-release
+  workflow_dispatch: {} # manual -> rc pre-release
 
 permissions:
-  contents: read
+  contents: write # create/edit releases
   packages: write # GHCR
+  pull-requests: write # close superseded candidate PRs (creation uses RELEASE_PR_TOKEN)
+
+# Two paths mutate `latest` (a promotion and a major build), and runs can overlap - a cron while a promotion is in flight.
+# Queue, never cancel: cancelling mid-push manufactures exactly the partial-registry state the digest assertions exist to catch.
+concurrency:
+  group: docker-publish
+  cancel-in-progress: false
 
 jobs:
-  build-and-push:
+  # ------------------------------------------------------------------------------------------
+  # Promotion: a releases/v*.yaml merged onto main.
+  # No QEMU, no build - the recorded digests are verified against both registries, then re-tagged.
+  # Seconds instead of ~40 minutes, and the release is byte-identical to the rc that was validated.
+  # ------------------------------------------------------------------------------------------
+  promote:
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # need history to assert the built commit is contained in main
+          fetch-depth: 0 # tags for the supersession assert, history for the release-note diff
 
-      # The release tag is used verbatim as the image tag,
-      # so reject anything that is not `v<major>.<minor>` (e.g. v1.0) before it can be published next to the `latest` alias.
+      # The merge commit's first parent is the main that was merged onto, so this diff is exactly what the PR changed.
+      # Only an added record promotes; releases/*.yaml are immutable records,
+      # so a modified or deleted one fails loudly instead of silently re-promoting shipped bytes.
+      - name: Identify the promotion record
+        id: record
+        run: |
+          set -euo pipefail
+          added=()
+          while IFS=$'\t' read -r status path; do
+            [[ "${path}" =~ ^releases/v[0-9]+\.[0-9]+\.yaml$ ]] || continue
+            case "${status}" in
+              A) added+=("${path}") ;;
+              *) echo "::error::${path} is an immutable promotion record - it cannot be ${status}-changed. Revert this merge."
+                 exit 1 ;;
+            esac
+          done < <(git diff --name-status "${GITHUB_SHA}^1" "${GITHUB_SHA}" -- releases/)
+
+          if [ "${#added[@]}" -eq 0 ]; then
+            echo "::notice::no promotion record in this push (docs-only change under releases/) - nothing to promote."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${#added[@]}" -gt 1 ]; then
+            echo "::error::one promotion per merge - found: ${added[*]}"
+            exit 1
+          fi
+
+          file="${added[0]}"
+          {
+            echo "skip=false"
+            echo "file=${file}"
+            python3 -c "
+          import sys, yaml
+          data = yaml.safe_load(open(sys.argv[1]))
+          print('version=' + str(data['version']))
+          print('commit=' + str(data['commit']))
+          " "${file}"
+          } >> "$GITHUB_OUTPUT"
+
+      # All asserts run before any mutation: schema, candidate tag -> commit, containment in main, newest-rc supersession.
+      # A hand-crafted YAML in an ordinary PR reaches this same trigger, so none of this trusts the candidate PR machinery.
+      - name: Validate the record
+        if: steps.record.outputs.skip != 'true'
+        env:
+          FILE: ${{ steps.record.outputs.file }}
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main
+          python3 scripts/details/check-release-file.py "${FILE}" --check-git
+          git tag -l | python3 scripts/details/check-release-file.py "${FILE}" --check-supersession
+          python3 scripts/details/check-release-file.py "${FILE}" --print-targets > plan.txt
+          cat plan.txt
+
+      - name: Log in to Docker Hub
+        if: steps.record.outputs.skip != 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        if: steps.record.outputs.skip != 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # An alarm, not a correctness requirement - the re-tag below sources from the digest,
+      # so it would ship the right bytes even if a tag had moved. 
+      # But a moved rc tag means either a re-run (this candidate is stale) or tampering, and both warrant a stop, not a silent recovery.
+      - name: Assert the rc digests have not moved
+        if: steps.record.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          while read -r digest source release latest; do
+            for registry in docker.io/guillaumedua ghcr.io/guillaumedua; do
+              actual=$(docker buildx imagetools inspect "${registry}/cpp-toolchain:${source}" --format '{{.Manifest.Digest}}')
+              if [ "${actual}" != "${digest}" ]; then
+                echo "::error::${registry}/cpp-toolchain:${source} is ${actual}, but the record says ${digest} - the rc moved since it was built. This is not the artifact you validated: cut a fresh rc."
+                exit 1
+              fi
+            done
+          done < plan.txt
+          echo "all recorded digests verified on both registries"
+
+      # Manifest copies within a registry - no layer transfer, and `imagetools create` onto identical content is a no-op,
+      # which is what makes a re-run of this job safe.
+      - name: Re-tag the digests
+        if: steps.record.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          while read -r digest source release latest; do
+            for registry in docker.io/guillaumedua ghcr.io/guillaumedua; do
+              echo "::group::${registry}/cpp-toolchain:${release} + :${latest} <- ${digest}"
+              docker buildx imagetools create \
+                --tag "${registry}/cpp-toolchain:${release}" \
+                --tag "${registry}/cpp-toolchain:${latest}" \
+                "${registry}/cpp-toolchain@${digest}"
+              echo "::endgroup::"
+            done
+          done < plan.txt
+
+      # Rendered at the recorded commit, not the merge commit:
+      # if main moved between the rc and the merge, the merge commit's Dockerfile is newer than the image,
+      # and rendering from it would describe pins the image does not have.
+      - name: Render the release note
+        if: steps.record.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.record.outputs.version }}
+          RC_COMMIT: ${{ steps.record.outputs.commit }}
+        run: |
+          set -euo pipefail
+          previous=$(git tag -l 'v*.*' | grep -vE -- '-rc\.' | grep -vx "${VERSION}" | sort -V | tail -1 || true)
+          args=(--tag "${VERSION}" --ref "${RC_COMMIT}")
+          [ -n "${previous}" ] && args+=(--previous-ref "${previous}")
+          python3 scripts/details/render-manifest.py "${args[@]}" > note.md
+          cat note.md >> "$GITHUB_STEP_SUMMARY"
+
+      # The human's action was the merge, so no release exists yet - this job creates it, at the recorded commit (the exact tree the image was built from). 
+      # GITHUB_TOKEN-created releases fire no workflow runs, so this cannot re-trigger the release path. Upserts throughout,
+      # so a re-run after a partial failure converges instead of erroring;
+      # a tag already existing at a different commit is the one non-recoverable state, and fails.
+      - name: Create the release
+        if: steps.record.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.record.outputs.version }}
+          RC_COMMIT: ${{ steps.record.outputs.commit }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+            tagged=$(git rev-list -n1 "${VERSION}")
+            if [ "${tagged}" != "${RC_COMMIT}" ]; then
+              echo "::error::tag ${VERSION} already exists at ${tagged}, not the recorded commit ${RC_COMMIT} - refusing to move a release tag."
+              exit 1
+            fi
+          fi
+          if gh release view "${VERSION}" >/dev/null 2>&1; then
+            # Already exists: a records merge for a hand-cut major, or a re-run. Replace only the
+            # marked manifest region, so hand-written release prose survives.
+            gh release view "${VERSION}" --json body -q .body > body.md || true
+            sed '/<!-- manifest:begin -->/,/<!-- manifest:end -->/d' body.md > merged.md
+            cat note.md >> merged.md
+            gh release edit "${VERSION}" --notes-file merged.md
+          else
+            gh release create "${VERSION}" \
+              --target "${RC_COMMIT}" \
+              --title  "${VERSION}" \
+              --notes-file note.md
+          fi
+
+  # ------------------------------------------------------------------------------------------
+  # Fresh build: an rc (schedule / dispatch) or a hand-cut major (release).
+  # Builds and pushes every stage, then opens the pull request whose merge is the promotion.
+  # ------------------------------------------------------------------------------------------
+  build-and-push:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need history + tags to assert containment in main and to compute the next version
+
+      # Minors are promoted by merging a candidate PR, never by cutting a release.
+      # a hand-cut v1.2 here would silently rebuild instead of promoting, shipping an artifact nobody tested.
       #   NB: the tag is untrusted input -> passed via env, never interpolated into the script.
       - name: Assert release tag format
         if: github.event_name == 'release'
@@ -39,8 +236,8 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Release tag '${RELEASE_TAG}' is malformed - expected v<major>.<minor>, e.g. v1.0."
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.0$ ]]; then
+            echo "::error::Release tag '${RELEASE_TAG}' is not a major (v<major>.0). Minors are promoted by merging the open candidate PR - see docs/RELEASE_PROCESS.md."
             exit 1
           fi
           echo "Release tag '${RELEASE_TAG}' is well-formed."
@@ -56,6 +253,9 @@ jobs:
             exit 1
           fi
 
+      # Two modes, discriminated by the trigger:
+      #   release -> the vX.0 tag the human cut, + `latest`
+      #   rc      -> the next `v<major>.<minor+1>-rc.<n>`, no alias (cron, or manual dispatch)
       - name: Resolve image tags
         id: meta
         env:
@@ -63,27 +263,91 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          if [ "${EVENT_NAME}" = "release" ]; then
-            # image tag == the GitHub release tag (validated above), plus the `latest` alias
-            echo "tags=${RELEASE_TAG} latest" >> "$GITHUB_OUTPUT"
+
+          # Newest existing *release* tag, by version order.
+          #   `sort -V` orders v1.2 BEFORE v1.2-rc.1, so pre-releases must be filtered out here or a
+          #   pre-release would be read as the newest release and the next minor computed from it.
+          #   The version sort also matters on its own: lexically, v1.10 sorts below v1.9.
+          releases=$(git tag -l 'v*.*' | grep -vE -- '-rc\.' || true)
+          newest=$(echo "${releases}" | sed '/^$/d' | sort -V | tail -1)
+
+          # Next minor: bump the newest release's minor, or start the line at v1.0.
+          if [ -z "${newest}" ]; then
+            next="v1.0"
           else
-            # scheduled / manual rebuilds are never `latest`
-            echo "tags=experimental" >> "$GITHUB_OUTPUT"
+            major="${newest%%.*}"; major="${major#v}"
+            minor="${newest##*.}"
+            next="v${major}.$((minor + 1))"
+          fi
+
+          if [ "${EVENT_NAME}" = "release" ]; then
+            mode=release
+            version="${RELEASE_TAG}"
+            primary="${RELEASE_TAG}"
+            tags="${RELEASE_TAG} latest"
+            previous=$(echo "${releases}" | sed '/^$/d' | grep -v "^${RELEASE_TAG}$" | sort -V | tail -1 || true)
+          else
+            mode=rc
+            # rc counter is per target minor, and resets when that minor ships.
+            last_rc=$(git tag -l "${next}-rc.*" | sed 's/.*-rc\.//' | sort -n | tail -1 || true)
+            version="${next}"
+            primary="${next}-rc.$(( ${last_rc:-0} + 1 ))"
+            tags="${primary}" # a pre-release never moves `latest`
+            previous="${newest}"
+          fi
+
+          {
+            echo "mode=${mode}"
+            echo "version=${version}"
+            echo "primary=${primary}"
+            echo "tags=${tags}"
+            echo "previous=${previous}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "mode=[${mode}] version=[${version}] primary=[${primary}] tags=[${tags}] previous=[${previous}]"
+
+      # Nothing to publish if the image inputs have not moved since the last tag:
+      # every version is pinned, so the rebuild would be identical to what is already published.
+      #   releases/ is excluded: a promotion merge changes only the record, not the image, and must not count as "something to build".
+      #   A manual dispatch overrides it - that is the escape hatch for forcing a rebuild.
+      - name: Skip when nothing changed
+        id: changed
+        if: github.event_name == 'schedule'
+        run: |
+          set -euo pipefail
+          latest_tag=$(git for-each-ref --sort=-creatordate --format='%(refname:short)' 'refs/tags/v*' | head -1)
+
+          if [ -z "${latest_tag}" ]; then
+            echo "no tags yet - proceeding"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git diff --quiet "${latest_tag}" "${GITHUB_SHA}" -- . ':(exclude)releases'; then
+            echo "::notice::nothing outside releases/ changed since ${latest_tag} - the image would be identical, publishing nothing."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changes since ${latest_tag} ($(git rev-list --count "${latest_tag}..${GITHUB_SHA}") commit(s)) - proceeding"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Set up QEMU
+        if: steps.changed.outputs.skip != 'true'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
+        if: steps.changed.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
+        if: steps.changed.outputs.skip != 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Log in to GitHub Container Registry
+        if: steps.changed.outputs.skip != 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -92,12 +356,17 @@ jobs:
 
       # Single job, built in dependency order on one buildx builder:
       #   the heavy `build` layer is produced once and reused by static-analysis / documentation / dev
-      # A shared gha cache scope persists layers across runs.
+      # The gha cache is a plain speed-up here:
+      #   with every version pinned, a cache hit means the inputs really are unchanged, so replaying a layer cannot smuggle in a stale toolchain.
+      # Each build writes a metadata file:
+      #   the digests in there become the promotion record, so whatever this step pushes is exactly what a later promotion re-tags.
       - name: Build and push all stages
+        if: steps.changed.outputs.skip != 'true'
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           set -euo pipefail
+          mkdir -p build-metadata
 
           # Cross-arch target triplets for the `-cross` image variant (single source of truth).
           CROSS_TARGETS="x86-64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu"
@@ -127,13 +396,194 @@ jobs:
                 "${tag_args[@]}" \
                 --cache-from type=gha,scope=cpp-toolchain \
                 --cache-to type=gha,mode=max,scope=cpp-toolchain \
+                --provenance=false \
+                --sbom=false \
+                --metadata-file "build-metadata/${target}${infix:+-cross}.json" \
                 --push \
                 .
               echo "::endgroup::"
             done
           }
 
+          # The stage lists are canonical in check-release-file.py - reading them from there keeps
+          # this loop, the recorded digests and the derived promotion targets from drifting apart.
+          NORMAL_STAGES="$(python3 scripts/details/check-release-file.py --print-stages normal)"
+          CROSS_STAGES="$(python3 scripts/details/check-release-file.py --print-stages cross)"
+
           # Normal variant first, so its shared toolchain layers populate the gha cache the cross pass reuses.
           #   `runtime` carries no toolchain, so it gets no cross variant (a cross runtime would be byte-identical).
-          build_variant ""                 ""        runtime build static-analysis documentation dev
-          build_variant "${CROSS_TARGETS}" "cross-"  build static-analysis documentation dev
+          build_variant ""                 ""        ${NORMAL_STAGES}
+          build_variant "${CROSS_TARGETS}" "cross-"  ${CROSS_STAGES}
+
+      # Read straight from the Dockerfile:
+      #   the pins are the manifest, so there is nothing to extract from a built image.
+      # Diffed against the previous release's Dockerfile, which makes the "what moved" column exact rather than inferred.
+      - name: Render the release note
+        if: steps.changed.outputs.skip != 'true'
+        env:
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+          PREVIOUS: ${{ steps.meta.outputs.previous }}
+        run: |
+          set -euo pipefail
+          args=(--tag "${PRIMARY}")
+          [ -n "${PREVIOUS}" ] && args+=(--previous-ref "${PREVIOUS}")
+          python3 scripts/details/render-manifest.py "${args[@]}" > note.md
+          cat note.md >> "$GITHUB_STEP_SUMMARY"
+
+      # The rc pre-release is what mints the v1.2-rc.N git tag:
+      #   candidate verification, the skip check and the rc counter all key off it.
+      # Created only on success, so a failed build never mints a tag.
+      # --target is the exact commit that was built, not the branch, so a concurrent push to main cannot move the tag off it.
+      - name: Create the pre-release
+        if: success() && steps.changed.outputs.skip != 'true' && steps.meta.outputs.mode == 'rc'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+        run: |
+          set -euo pipefail
+          gh release create "${PRIMARY}" \
+            --target "${GITHUB_SHA}" \
+            --title  "${PRIMARY}" \
+            --prerelease \
+            --notes-file note.md
+
+      # Manual major:
+      #   the release already exists and may carry hand-written prose.
+      #   Replace only the marked region, so re-running this workflow is idempotent and your own text survives.
+      - name: Append the manifest to the release note
+        if: success() && steps.changed.outputs.skip != 'true' && steps.meta.outputs.mode == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+        run: |
+          set -euo pipefail
+          gh release view "${PRIMARY}" --json body -q .body > body.md || true
+          sed '/<!-- manifest:begin -->/,/<!-- manifest:end -->/d' body.md > merged.md
+          cat note.md >> merged.md
+          gh release edit "${PRIMARY}" --notes-file merged.md
+
+      # The promotion record:
+      #   the digest of every stage just pushed, plus the generated bumps.
+      #   Composed from the build metadata and validated on the spot - a partial build must fail here, not at promotion time.
+      - name: Compose the promotion record
+        if: success() && steps.changed.outputs.skip != 'true'
+        env:
+          MODE: ${{ steps.meta.outputs.mode }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+          PREVIOUS: ${{ steps.meta.outputs.previous }}
+        run: |
+          set -euo pipefail
+          mkdir -p releases
+
+          digest_of() {
+            python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' \
+              "build-metadata/$1.json"
+          }
+
+          {
+            echo "version: \"${VERSION}\""
+            [ "${MODE}" = "rc" ] && echo "candidate: \"${PRIMARY}\""
+            echo "commit: \"${GITHUB_SHA}\""
+            echo "digests:"
+            for stage in $(python3 scripts/details/check-release-file.py --print-stages normal); do
+              echo "  ${stage}: \"$(digest_of "${stage}")\""
+            done
+            for stage in $(python3 scripts/details/check-release-file.py --print-stages cross); do
+              echo "  ${stage}-cross: \"$(digest_of "${stage}-cross")\""
+            done
+            bumps_args=(--tag "${VERSION}" --bumps-yaml)
+            [ -n "${PREVIOUS}" ] && bumps_args+=(--previous-ref "${PREVIOUS}")
+            python3 scripts/details/render-manifest.py "${bumps_args[@]}"
+          } > "releases/${VERSION}.yaml"
+
+          cat "releases/${VERSION}.yaml"
+          python3 scripts/details/check-release-file.py "releases/${VERSION}.yaml"
+
+      # The branch is pushed with GITHUB_TOKEN (nothing subscribes to release/* branches),
+      # but the PR itself is created with RELEASE_PR_TOKEN - see the token notes in the header.
+      # Upserts, so a re-run refreshes the PR instead of failing on "already exists".
+      - name: Open the promotion pull request
+        if: success() && steps.changed.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN }}
+          MODE: ${{ steps.meta.outputs.mode }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+        run: |
+          set -euo pipefail
+          if [ "${MODE}" = "rc" ]; then
+            branch="release/candidate/${PRIMARY}"
+            title="Promote ${PRIMARY}"
+            {
+              echo "Merging this pull request promotes \`${PRIMARY}\` to \`${VERSION}\` and moves \`latest\`:"
+              echo "the digests recorded in \`releases/${VERSION}.yaml\` are re-tagged, byte-identical, no rebuild."
+              echo
+              echo "Candidate built: $(date -u +%F) - see [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md)."
+              echo
+              cat note.md
+            } > pr-body.md
+          else
+            branch="release/records/${PRIMARY}"
+            title="Promotion record for ${PRIMARY}"
+            {
+              echo "Bookkeeping for the hand-cut \`${PRIMARY}\` release: \`releases/${VERSION}.yaml\` records"
+              echo "the digests just published, so releases/ stays the complete record rollbacks read from."
+              echo "Merging re-fires the promote job, which is an idempotent no-op re-tag."
+              echo
+              cat note.md
+            } > pr-body.md
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "${branch}"
+          git add "releases/${VERSION}.yaml"
+          git commit -m "${title}"
+          git push -f origin "${branch}"
+
+          if gh pr list --state open --head "${branch}" --json number --jq length | grep -qx 0; then
+            gh pr create --base main --head "${branch}" --title "${title}" --body-file pr-body.md
+          else
+            gh pr edit "${branch}" --title "${title}" --body-file pr-body.md
+          fi
+
+      # One open candidate at all times, so there is never doubt about which rc is current.
+      # Closing destroys nothing (the images and the pre-release stay),
+      # and closing with GITHUB_TOKEN is fine - nothing needs to fire on a close.
+      - name: Close superseded candidate PRs
+        if: success() && steps.changed.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MODE: ${{ steps.meta.outputs.mode }}
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+        run: |
+          set -euo pipefail
+          current="release/candidate/${PRIMARY}"
+          [ "${MODE}" = "release" ] && current="" # a major obsoletes every open candidate
+          gh pr list --state open --json number,headRefName \
+            --jq '.[] | [.number, .headRefName] | @tsv' \
+          | while IFS=$'\t' read -r number head; do
+              case "${head}" in
+                release/candidate/*) ;;
+                *) continue ;;
+              esac
+              [ "${head}" = "${current}" ] && continue
+              echo "closing superseded candidate PR #${number} (${head})"
+              gh pr comment "${number}" --body "Superseded by ${PRIMARY}."
+              gh pr close "${number}" --delete-branch
+            done
+
+      # Every tag move (`latest`) orphans the digest it pointed at.
+      # GHCR keeps those as untagged versions forever; Docker Hub garbage-collects its own.
+      #   This sweep is only safe because the builds above pin `--provenance=false --sbom=false`:
+      #   buildx attestations are published as untagged child manifests of a tagged index,
+      #   and an untagged sweep would delete them out from under it.
+      - name: Prune untagged GHCR versions
+        if: success() && steps.changed.outputs.skip != 'true'
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: cpp-toolchain
+          package-type: container
+          delete-only-untagged-versions: true
+          min-versions-to-keep: 0

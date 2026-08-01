@@ -14,18 +14,120 @@
 # =============================================================================================
 
 # ---------------------------------------------------------------------------------------------
+# Pinned versions - the single source of truth for what these images contain.
+#
+#   Every version is pinned and `# renovate:`-annotated,
+#   so Renovate owns the updates and this block *is* the image manifest: scripts/details/render-manifest.py reads these same lines to build each release note.
+#   Nothing resolves at build time, so two builds of one commit produce the same image.
+#
+#   Declared once, before the first FROM, and re-declared bare (`ARG LLVM_VERSIONS`) in each stage that needs one.
+#   A per-stage default would be a second value for Renovate to keep in step.
+#
+#   The annotation must sit directly above its ARG,
+#   and follow the field order datasource / depName / versioning / extractVersion - that is what renovate.json's custom manager matches. 
+#   Values must be unquoted: it captures `\S+`, so quotes would be read as part of them.
+# ---------------------------------------------------------------------------------------------
+
+# Base image.
+#   Tracked by its own renovate.json manager rather than the annotation above,
+#   because a digest pin needs currentValue and currentDigest captured separately.
+ARG BASE_IMAGE=ubuntu:24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
+
+# Ubuntu archive snapshot (https://snapshot.ubuntu.com).
+#   freezes apt to a point in time, so the distro packages installed below resolve identically on every rebuild without pinning each one.
+#   The only pin Renovate cannot own - a datasource must enumerate available versions,
+#   and the service accepts any timestamp without publishing an index.
+#   Bumped by .github/workflows/ubuntu-snapshot.yml.
+ARG UBUNTU_SNAPSHOT=20260720T000000Z
+
+# GCC, from ppa:ubuntu-toolchain-r/test.
+#   Only major versions exist as packages (g++-15).
+#   The `\.\d+\.\d+$` tail keeps this on released tags: gcc-mirror also carries basepoints and
+#   prereleases, and the PPA's newest series is a dated trunk snapshot, not a release.
+# renovate: datasource=github-tags depName=gcc-mirror/gcc extractVersion=^releases/gcc-(?<version>\d+)\.\d+\.\d+$
+ARG GCC_VERSIONS=15
+
+# LLVM/Clang, from apt.llvm.org.
+#   Same shape: major only, released tags only - llvm-project publishes release candidates (llvmorg-23.1.0-rc1) that would otherwise propose a major the apt repo lacks.
+# renovate: datasource=github-releases depName=llvm/llvm-project extractVersion=^llvmorg-(?<version>\d+)\.\d+\.\d+$
+ARG LLVM_VERSIONS=22
+
+# CMake, from apt.kitware.com.
+#   cmake.sh resolves this against `apt-cache madison`.
+#   The strict x.y.z tail drops release candidates (v4.4.0-rc3) rather than relying on Renovate's
+#   unstable-filtering default, matching the GCC and LLVM patterns above.
+# renovate: datasource=github-releases depName=Kitware/CMake extractVersion=^v(?<version>\d+\.\d+\.\d+)$
+ARG CMAKE_VERSION=4.4.0
+
+# vcpkg release tag - dated, so loose versioning rather than semver.
+# renovate: datasource=github-tags depName=microsoft/vcpkg versioning=loose
+ARG VCPKG_VERSION=2026.06.24
+
+# renovate: datasource=pypi depName=conan
+ARG CONAN_VERSION=2.31.1
+
+# Doxygen tags use underscores (Release_1_17_0) while the download asset uses dots - doxygen.sh derives both.
+# renovate: datasource=github-releases depName=doxygen/doxygen versioning=regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$
+ARG DOXYGEN_RELEASE=Release_1_17_0
+
+# The install script is verified against build2's per-release `.sha256` sidecar rather than a hash pinned here, so a version bump stays a one-line change.
+# renovate: datasource=github-tags depName=build2/build2-toolchain extractVersion=^v(?<version>.+)$
+ARG BUILD2_VERSION=0.16.0
+
+# oh-my-zsh publishes no releases and no tags - a commit is the only stable identifier it has, so it
+#   is pinned by SHA and Renovate follows the branch head via the git-refs datasource.
+#   Matched by its own renovate.json manager: a digest pin needs currentDigest rather than
+#   currentValue, which the annotation manager above cannot express.
+# renovate: datasource=git-refs depName=https://github.com/ohmyzsh/ohmyzsh currentValue=master
+ARG OHMYZSH_COMMIT=7ea697fd8138550ddf7262456d412f0dcd1cbf84
+
+# renovate: datasource=github-tags depName=romkatv/powerlevel10k extractVersion=^v(?<version>.+)$
+ARG POWERLEVEL10K_VERSION=1.20.0
+
+# ---------------------------------------------------------------------------------------------
 # Stage: runtime - minimal image able to run binaries produced by the `build` stage.
 # ---------------------------------------------------------------------------------------------
-ARG BASE_IMAGE=ubuntu:latest
 FROM ${BASE_IMAGE} AS runtime
 ARG DEBIAN_FRONTEND=noninteractive
+ARG UBUNTU_SNAPSHOT
 SHELL ["/bin/bash", "-c"]
 
-# Latest C++ runtime libraries, pulled from the same PPA the `build` stage installs GCC from,
-# so `--target runtime` can execute binaries linked against the newest libstdc++.
+# apt -> Ubuntu archive snapshot, so every stage below installs from a frozen archive.
+#
+#   snapshot.ubuntu.com is HTTPS-only and the base image has no CA bundle, so ca-certificates comes from the live archive first.
+#   That bootstrap drags openssl forward, and libssl-dev pins its runtime with `=`,
+#   so every package is realigned onto the snapshot afterwards - downgrades included.
+#
+#   The temporary pin is what makes the downgrades possible at all:
+#       at apt's default priority of 500 a repository never wins against an installed higher version,
+#       so the realignment silently degrades into an upgrade-only pass and leaves exactly the skew it exists to remove.
+#   Only a priority above 1000 lets apt pick a lower version (apt_preferences(5)).
+#
+#   The pin is dropped again immediately: kept around, it would outrank the toolchain PPA added below,
+#   and drag libstdc++6 and friends back down to their Ubuntu archive versions.
+#
+#   This fix build failures like "The following packages have unmet dependencies: libssl-dev : Depends: libssl3t64 (= 3.0.13-0ubuntu3.11) but 3.0.13-0ubuntu3.12 is to be installed"
+RUN apt-get update -qqy                                                                             \
+    && apt-get install -qqy --no-install-recommends ca-certificates                                 \
+    && for src in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do                  \
+           [[ -f "${src}" ]] && sed -i -E                                                           \
+               -e "s#https?://(archive|security)\.ubuntu\.com/ubuntu/?#https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT}/#g" \
+               -e "s#https?://ports\.ubuntu\.com/ubuntu-ports/?#https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT}/#g" \
+               "${src}";                                                                            \
+           true;                                                                                    \
+       done                                                                                         \
+    && printf 'Package: *\nPin: origin "snapshot.ubuntu.com"\nPin-Priority: 1001\n'                 \
+           > /etc/apt/preferences.d/99-snapshot-realign                                              \
+    && apt-get update -qqy                                                                          \
+    && apt-get dist-upgrade -qqy --allow-downgrades --no-remove                                     \
+    && rm -f /etc/apt/preferences.d/99-snapshot-realign                                             \
+    && echo "[C++ toolchain] apt frozen at snapshot ${UBUNTU_SNAPSHOT}"
+
+# C++ runtime libraries, pulled from the same PPA the `build` stage installs GCC from,
+# so `--target runtime` can execute binaries linked against the pinned libstdc++.
 RUN apt-get update -qqy \
     && apt-get install -qqy --no-install-recommends \
-        ca-certificates tzdata \
+        tzdata \
         gnupg software-properties-common \
     && add-apt-repository -y ppa:ubuntu-toolchain-r/test \
     && apt-get update -qqy \
@@ -69,7 +171,7 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
 
 # Git: trust any bind-mounted repository regardless of its owner (disables Git's "dubious ownership" check).
 #   Written system-wide to /etc/gitconfig, so it applies to every user and every downstream stage:
-#   consumer CI that mounts a checkout owned by another UID can then run git with no extra setup.
+#       consumer CI that mounts a checkout owned by another UID can then run git with no extra setup.
 #   Acceptable for an ephemeral CI/build image.
 RUN git config --system --add safe.directory '*'
 
@@ -81,9 +183,9 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Build: CMake (https://apt.kitware.com/)
-COPY ./scripts/cmake.sh ${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh
+COPY ./scripts/install/cmake.sh ${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
-ARG CMAKE_VERSION='latest'
+ARG CMAKE_VERSION
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh;                          \
     echo -e "[C++ toolchain] Installing CMAKE_VERSION=[$CMAKE_VERSION] ..." ;   \
     chmod +x ${script_path}                                                     \
@@ -109,27 +211,29 @@ RUN if [[ "${OPT_IN_INTEGRATE_BAZEL}" = "y" ]] && [[ "$(dpkg --print-architectur
     fi
 
 # Dependency managers
-ENV VCPKG_URL       https://github.com/microsoft/vcpkg/archive/master.tar.gz
+ARG VCPKG_VERSION
 RUN \
-    # vcpkg
-    wget -qO vcpkg.tar.gz ${VCPKG_URL}                          \
+    # vcpkg, from a release tag rather than `master`: GitHub's tarball for a tag is immutable,
+    # so the same VCPKG_VERSION always yields the same tree.
+    wget -qO vcpkg.tar.gz "https://github.com/microsoft/vcpkg/archive/refs/tags/${VCPKG_VERSION}.tar.gz" \
     && mkdir /opt/vcpkg                                         \
     && tar xf vcpkg.tar.gz --strip-components=1 -C /opt/vcpkg   \
     && /opt/vcpkg/bootstrap-vcpkg.sh -disableMetrics            \
     && ln -s /opt/vcpkg/vcpkg /usr/local/bin/vcpkg
+ARG CONAN_VERSION
 RUN \
     # conan (with work-around for pip "error: externally-managed-environment")
     apt update -qqy && apt install -qqy --no-install-recommends \
         pipx                                                    \
-    && (pipx install conan > /dev/null 2>&1)                    \
+    && (pipx install "conan==${CONAN_VERSION}" > /dev/null 2>&1) \
     && rm -rf /var/lib/apt/lists/*
 
 # C++ toolchain: GNU/GCC
 #   apt update here: gcc.sh only refreshes lists when it has to add the ubuntu-toolchain-r PPA,
 #   which the `runtime` stage already registered, so it relies on a populated apt cache.
-COPY ./scripts/gcc.sh ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
+COPY ./scripts/install/gcc.sh ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
-ARG GCC_VERSIONS='latest-stable'
+ARG GCC_VERSIONS
 RUN apt-get update -qqy                                                       \
     && script_path=${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh                        \
     && echo -e "[C++ toolchain] Installing GCC_VERSIONS=[$GCC_VERSIONS] ..."  \
@@ -139,20 +243,17 @@ RUN apt-get update -qqy                                                       \
 # C++ toolchain: LLVM/Clang (https://apt.llvm.org/)
 #   `--minimalistic`: register only the clang/clang++ compilers here.
 #   The rest of the LLVM toolchain (clang-tidy, clang-format, clangd, lldb, scan-build, ...) is a static-analysis / dev concern and is wired up in the `dev` stage below.
-COPY ./scripts/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
+COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
-ARG LLVM_VERSIONS='latest-stable'
+ARG LLVM_VERSIONS
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           \
     echo -e "[C++ toolchain] Installing LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ;   \
     chmod +x ${script_path}                                                     \
     && ${script_path} --silent=yes --alias=yes --minimalistic --versions="$LLVM_VERSIONS"
 
 # Build: Build2 (depends on a compiler)
-#   BUILD2_VERSION is the single source of truth (bumped by Renovate, see renovate.json).
-#   The install script is verified against build2's per-release `.sha256` sidecar,
-#    rather than a hash pinned here, so a version bump stays a one-line change.
-# renovate: datasource=github-tags depName=build2/build2-toolchain extractVersion=^v(?<version>.+)$
-ARG BUILD2_VERSION=0.16.0
+#   BUILD2_VERSION is declared once at the top of this file (bumped by Renovate).
+ARG BUILD2_VERSION
 ARG OPT_IN_INTEGRATE_BUILD2='no'
 RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" = "y" ]]; then                               \
         mkdir -p /tmp/build2-build && cd /tmp/build2-build                          \
@@ -170,11 +271,12 @@ RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" = "y" ]]; then                           
     fi
 
 # C++ toolchain: per-target cross toolchain(s) via g++-<triplet>
-#   (pulls cross binutils + libc + libgcc + libstdc++, so C/C++ cross-compilation links; clang auto-detects it).
-#   Falls back to bare binutils + cross-libc where no cross-g++ exists. Owned by binutils.sh, not gcc.sh (which owns --multilib).
+#   Pulls cross binutils + libc + libgcc + libstdc++, so C/C++ cross-compilation links; clang auto-detects it.
+#   Falls back to bare binutils + cross-libc where no cross-g++ exists.
+#   Owned by binutils.sh, not gcc.sh (which owns --multilib).
 #   Kept last in the stage so it is a single opt-in layer on top of the shared toolchain:
-#   BINUTILS_TARGETS='' (the default) installs nothing - the lean/normal variant - while a triplet list builds the cross-arch variant.
-COPY ./scripts/binutils.sh ${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh
+#       BINUTILS_TARGETS='' (the default) installs nothing - the lean/normal variant - while a triplet list builds the cross-arch variant.
+COPY ./scripts/install/binutils.sh ${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG BINUTILS_TARGETS=''
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh;                                              \
@@ -190,8 +292,7 @@ CMD ["/bin/bash"]
 
 # ---------------------------------------------------------------------------------------------
 # Stage: static-analysis - static-analysis tooling for CI / PR evaluation, on top of `build`.
-#   Registers the full LLVM toolchain - clang-tidy, etc. -,
-#   (the `build` stage installed the clang packages minimalistically),
+#   Registers the full LLVM toolchain - clang-tidy, etc. (the `build` stage installed the clang packages minimalistically),
 #   and adds the dedicated static analysers (cppcheck, iwyu).
 # ---------------------------------------------------------------------------------------------
 FROM build AS static-analysis
@@ -201,9 +302,9 @@ SHELL ["/bin/bash", "-c"]
 # C++ toolchain: LLVM/Clang - full toolchain (clang-tidy, clang-format, clangd, lldb, scan-build).
 #   Re-runs llvm.sh non-minimalistically to register the analysis tools alongside the clang/clang++
 #   compilers already installed by the `build` stage.
-COPY ./scripts/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
+COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
-ARG LLVM_VERSIONS='latest-stable'
+ARG LLVM_VERSIONS
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                       \
     echo -e "[C++ analysis] Registering LLVM tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ;    \
     chmod +x ${script_path}                                                                 \
@@ -211,8 +312,10 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
     && rm -rf /var/lib/apt/lists/*
 
 # Dedicated static analysers
+# TODO: sonarlint
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
-        cppcheck iwyu \
+        cppcheck \
+        iwyu \
     && rm -rf /var/lib/apt/lists/*
 
 CMD ["/bin/bash"]
@@ -230,9 +333,9 @@ SHELL ["/bin/bash", "-c"]
 #   The `build` stage installed clang `--minimalistic` (compilers only); re-run llvm.sh in
 #   `--coverage` mode to add the llvm-cov/llvm-profdata alternatives - the GCC side (gcov) already
 #   ships with GCC and lcov (`genhtml`) is installed below.
-COPY ./scripts/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
+COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
-ARG LLVM_VERSIONS='latest-stable'
+ARG LLVM_VERSIONS
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                            \
     echo -e "[C++ coverage] Registering LLVM coverage tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..."; \
     chmod +x ${script_path}                                                                      \
@@ -241,9 +344,8 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
 
 # Documentation: Doxygen (pre-built binary - Ubuntu's apt package lags upstream) + graphviz (`dot`).
 #   lcov (`genhtml`) covers the GCC coverage path of CMake `doc` targets; gcov ships with GCC already.
-# renovate: datasource=github-releases depName=doxygen/doxygen versioning=regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$
-ARG DOXYGEN_RELEASE=Release_1_17_0
-COPY ./scripts/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
+ARG DOXYGEN_RELEASE
+COPY ./scripts/install/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
 RUN apt update -qqy && apt install -qqy --no-install-recommends graphviz lcov \
     && rm -rf /var/lib/apt/lists/*                                            \
     && chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh                       \
@@ -281,19 +383,48 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
 
 # Documentation: Doxygen pre-built binary - re-added here because dev inherits `static-analysis`,
 #                not the sibling `documentation` stage (mirrors the graphviz re-add above).
-# renovate: datasource=github-releases depName=doxygen/doxygen versioning=regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$
-ARG DOXYGEN_RELEASE=Release_1_17_0
-COPY ./scripts/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
+ARG DOXYGEN_RELEASE
+COPY ./scripts/install/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
 RUN chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh \
     && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}" \
     && rm -rf /var/lib/apt/lists/*
 
-# Tooling: shells - bash, zsh
-RUN apt update -qqy && apt install -qqy --no-install-recommends \
-        bash zsh \
-    # ZSH: Default powerline10k theme, no plugins installed
-    && yes | sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v1.1.5/zsh-in-docker.sh)" \
-    && rm -rf /var/lib/apt/lists/*
+# Tooling: shells - bash, zsh, with oh-my-zsh + the powerlevel10k theme and no plugins.
+#   [TO_TEST] Installed directly rather than through zsh-in-docker,
+#   which hardcoded oh-my-zsh to `master` and powerlevel10k to its default branch with no way to pin either.
+#   The two pieces most likely to change under a rebuild were the only ones left floating.
+#   The generated .zshrc reproduces what zsh-in-docker wrote for this configuration.
+ARG OHMYZSH_COMMIT
+ARG POWERLEVEL10K_VERSION
+RUN apt update -qqy && apt install -qqy --no-install-recommends       \
+        bash zsh locales                                              \
+    && rm -rf /var/lib/apt/lists/*                                    \
+    # oh-my-zsh, pinned by commit: the repository publishes no tags at all.
+    && git clone --quiet https://github.com/ohmyzsh/ohmyzsh.git "${HOME}/.oh-my-zsh"                 \
+    && git -C "${HOME}/.oh-my-zsh" checkout --quiet "${OHMYZSH_COMMIT}"                              \
+    # powerlevel10k, pinned by release tag.
+    && git clone --quiet --depth 1 --branch "v${POWERLEVEL10K_VERSION}"                              \
+        https://github.com/romkatv/powerlevel10k.git                                                 \
+        "${HOME}/.oh-my-zsh/custom/themes/powerlevel10k"                                             \
+    && printf '%s\n'                                                  \
+        "export LANG='en_US.UTF-8'"                                   \
+        "export LANGUAGE='en_US:en'"                                  \
+        "export LC_ALL='en_US.UTF-8'"                                 \
+        "export TERM=xterm"                                           \
+        ""                                                            \
+        "##### Zsh/Oh-my-Zsh Configuration"                           \
+        "export ZSH=\"${HOME}/.oh-my-zsh\""                           \
+        ""                                                            \
+        "ZSH_THEME=\"powerlevel10k/powerlevel10k\""                   \
+        "plugins=()"                                                  \
+        ""                                                            \
+        "source \$ZSH/oh-my-zsh.sh"                                   \
+        "POWERLEVEL9K_SHORTEN_STRATEGY=\"truncate_to_last\""          \
+        "POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(user dir vcs status)"     \
+        "POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=()"                       \
+        "POWERLEVEL9K_STATUS_OK=false"                                \
+        "POWERLEVEL9K_STATUS_CROSS=true"                              \
+        > "${HOME}/.zshrc"
 # see https://stackoverflow.com/questions/55987337/visual-studio-code-remote-containers-change-shell
 
 # Cleanup

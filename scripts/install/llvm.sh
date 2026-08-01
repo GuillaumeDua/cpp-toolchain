@@ -3,8 +3,7 @@
 set -eu
 
 # =============================================================================================
-# This file is part of https://github.com/GuillaumeDua/CppShelf,
-# and will soon be part of https://hub.docker.com/repository/docker/gussd/cpp-toolchain/general
+# This file is part of https://github.com/GuillaumeDua/CppShelf
 # License: see https://github.com/GuillaumeDua/CppShelf/blob/main/LICENSE
 #
 # libc++ scope: the `all` package set installs the host libc++ (libc++-<N>-dev / libc++abi-<N>-dev / libunwind-<N>-dev),
