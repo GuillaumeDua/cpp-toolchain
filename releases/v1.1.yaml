@@ -1,0 +1,14 @@
+version: "v1.1"
+candidate: "v1.1-rc.1"
+commit: "62b8efef0c594159a580398a542f42513a12fa84"
+digests:
+  runtime: "sha256:cc29fcb91e94cd65e31f79641e7cdef854ede8a74f927cb6d7dd111a642ded75"
+  build: "sha256:75dae83f45ac757cd3133c9cc8ff2f929f330b7be2e8747419cb308d11466b1c"
+  static-analysis: "sha256:14cd57431ac4934345b9c3104ad7268116953de4a0cf8e21bac459b327ae5d93"
+  documentation: "sha256:bb7110e6839f108faedc0850a287c90dbf6ce92f4021531485f573547eafe9b2"
+  dev: "sha256:8bb871526f019b2eab180361a1745694f584da55a8c12fc2f222c512c170de9f"
+  build-cross: "sha256:a01a4ca87aba52e1b1689d043bc88c426f52bd14db2aaf9f95fa3b14adedfcf9"
+  static-analysis-cross: "sha256:baf739e6c422373e005cffe1eec8aa688f30c9e9c1318b4e2e2f27386cf33a24"
+  documentation-cross: "sha256:57a0aa5b87eb68aa2900ffa12d9007a0dbe0fd74ee70fe18800eac47aa719723"
+  dev-cross: "sha256:1d18186104111857f0c44c8f28b29e4d05cf92ce643397a7bc176a2317a3ddfa"
+bumps: {}
