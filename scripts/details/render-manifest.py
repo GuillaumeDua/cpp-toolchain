@@ -186,8 +186,13 @@ def main():
             row += f" {delta(current[name], previous.get(name))} |"
         out.append(row)
 
-    out += ["", "Every version above is pinned in the [Dockerfile](Dockerfile) and updated by Renovate, "
-                "so this is the image's contents, not a snapshot of them.", "", "<!-- manifest:end -->"]
+    out += [
+        "",
+        "Every version listed above is pinned in the [Dockerfile](Dockerfile) and kept current by Renovate,  ",
+        "so this table is the authoritative manifest of the image's contents, not a point-in-time snapshot.",
+        "",
+        "<!-- manifest:end -->"
+    ]
     print("\n".join(out))
 
 
