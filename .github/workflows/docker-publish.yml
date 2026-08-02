@@ -98,6 +98,7 @@ jobs:
           data = yaml.safe_load(open(sys.argv[1]))
           print('version=' + str(data['version']))
           print('commit=' + str(data['commit']))
+          print('candidate=' + str(data.get('candidate') or ''))
           " "${file}"
           } >> "$GITHUB_OUTPUT"
 
@@ -213,6 +214,35 @@ jobs:
               --title  "${VERSION}" \
               --notes-file note.md
           fi
+
+      # The rc pre-release is kept forever (its digests are shared with the release,
+      # so deleting it is unsafe - see docs/RELEASE_PROCESS.md), which means readers can still land on it.
+      # Point them at the stable release it became, in a marked region like the manifest,
+      # so a re-run replaces the banner instead of stacking copies.
+      # A records file has no candidate, and a missing pre-release is a warning, not a failure:
+      # the release is already out, this banner is a courtesy.
+      - name: Mark the rc pre-release as promoted
+        if: steps.record.outputs.skip != 'true' && steps.record.outputs.candidate != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.record.outputs.version }}
+          CANDIDATE: ${{ steps.record.outputs.candidate }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "${CANDIDATE}" --json body -q .body > rc-body.md 2>/dev/null; then
+            echo "::warning::no pre-release found for ${CANDIDATE} - nothing to mark as promoted."
+            exit 0
+          fi
+          {
+            echo "<!-- promoted:begin -->"
+            echo "> [!IMPORTANT]"
+            echo "> Promoted to [${VERSION}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${VERSION}) - same digests, byte-identical.  "
+            echo "> Use the stable release; this pre-release remains as the record of what was validated."
+            echo "<!-- promoted:end -->"
+            echo
+            sed '/<!-- promoted:begin -->/,/<!-- promoted:end -->/d' rc-body.md
+          } > rc-merged.md
+          gh release edit "${CANDIDATE}" --notes-file rc-merged.md
 
   # ------------------------------------------------------------------------------------------
   # Fresh build: an rc (schedule / dispatch) or a hand-cut major (release).
