@@ -45,6 +45,10 @@ LABELS = [
     ("romkatv/powerlevel10k", "powerlevel10k"),
 ]
 
+# Registry pages the images are published to - hardcoded like LABELS, this script is repository-specific.
+GHCR_PAGE = "https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain"
+DOCKERHUB_PAGE = "https://hub.docker.com/r/guillaumedua/cpp-toolchain"
+
 
 def js_to_py(pattern):
     """Renovate regexes are JS; Python spells named groups (?P<x>) instead of (?<x>)."""
@@ -177,7 +181,26 @@ def main():
     ordered += sorted(name for name in current if name not in dict(LABELS))
     labels = dict(LABELS)
 
-    out = ["<!-- manifest:begin -->", f"## What's inside {args.tag}", ""]
+    # GHCR URLs cannot filter versions by tag name (its per-tag pages are keyed by a numeric
+    # version id only the Packages API knows), so the closest deep link is the tagged-only view.
+    out = [
+        "<!-- manifest:begin -->",
+        f"## What's inside {args.tag}",
+        "",
+        f"Published to [GHCR]({GHCR_PAGE}/versions?filters%5Bversion_type%5D=tagged)"
+        f" and [Docker Hub]({DOCKERHUB_PAGE}/tags?name={args.tag}) -"
+        f" `docker pull ghcr.io/guillaumedua/cpp-toolchain:{args.tag}`",
+        "",
+    ]
+    # The promotion record lands on main only when the candidate merges,
+    # so an rc cannot link it - once promoted, its banner points at the release, which can.
+    if not re.search(r"-rc\.\d+$", args.tag):
+        out += [
+            f"Scripts can read the promotion record, the manifest digest of every stage:"
+            f" [releases/{args.tag}.yaml]"
+            f"(https://github.com/GuillaumeDua/cpp-toolchain/blob/main/releases/{args.tag}.yaml)",
+            "",
+        ]
     out.append("| Component | Version |" + (f" Since {args.previous_ref} |" if diffing else ""))
     out.append("| --- | --- |" + (" --- |" if diffing else ""))
     for name in ordered:
