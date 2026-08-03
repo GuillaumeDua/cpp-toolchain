@@ -1,0 +1,23 @@
+name: Documentation
+description: Report a gap or error in the README or docs
+title: "[docs] "
+labels: [documentation]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Which document / section
+      placeholder: "README.md - Tags & versioning, docs/CROSS-COMPILATION.md, ..."
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: What is wrong or missing
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested fix
+      description: Optional - proposed wording or structure

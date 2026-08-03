@@ -1,0 +1,29 @@
+name: CI / release
+description: Workflow failure, publishing or promotion problem
+title: "[CI] "
+labels: [CI]
+body:
+  - type: dropdown
+    id: workflow
+    attributes:
+      label: Workflow
+      options:
+        - docker-build
+        - docker-publish
+        - release-candidate-check
+        - ubuntu-snapshot
+        - other
+    validations:
+      required: true
+  - type: input
+    id: run
+    attributes:
+      label: Run link
+      placeholder: "https://github.com/GuillaumeDua/cpp-toolchain/actions/runs/..."
+  - type: textarea
+    id: description
+    attributes:
+      label: What failed / what is wrong
+      description: Failing step, error message, or unexpected publishing behavior
+    validations:
+      required: true
