@@ -3,6 +3,63 @@
 The operator's runbook: consumers should read [Tags & versioning](../README.md#tags--versioning) instead.  
 This page is about *cutting* releases, and it is the only place the cadence and the procedures are documented/stated.
 
+## In a nutshell
+
+An rc is **built**, a release is that same rc **re-tagged**. Merging the candidate pull request is what promotes it:
+
+```mermaid
+graph LR
+    main["main"] -->|"cron, or gh workflow run"| build["fresh build<br>~40 min"]
+    build --> rc["pre-release v1.2-rc.1<br>every stage pushed"]
+    rc --> pr["candidate PR<br>adds releases/v1.2.yaml"]
+    pr -->|"you merge"| promote["re-tag the recorded digests<br>~90 s, no rebuild"]
+    promote --> release["release v1.2<br>+ latest"]
+```
+
+The whole cycle, on demand:
+
+```bash
+# 1. Cut the rc - fresh build from main HEAD, ~40 min.
+#    A dispatch bypasses the skip-when-unchanged check, so it always builds.
+gh workflow run docker-publish.yml --ref main
+
+# 2. Validate what it actually published, then read the candidate PR it opened.
+docker pull ghcr.io/guillaumedua/cpp-toolchain:dev-v1.2-rc.1
+
+# 3. Promote - merging the candidate PR is the entire procedure.
+gh pr merge release/candidate/v1.2-rc.1 --merge
+```
+
+Substitute the rc the dispatch actually minted: **you do not choose the number**.
+It is the newest release tag with its minor bumped, so with `v1.1` released the dispatch cuts `v1.2-rc.1`, and a second dispatch cuts `v1.2-rc.2` and closes the first candidate as superseded.
+
+### Promoting that rc as a major instead
+
+Same rc, same digests - only the record is retitled, between steps 2 and 3 above:
+
+```bash
+git fetch origin release/candidate/v1.2-rc.1
+git checkout release/candidate/v1.2-rc.1
+git mv releases/v1.2.yaml releases/v2.0.yaml
+# then edit that file: version: "v1.2" -> version: "v2.0"
+# leave candidate: untouched - it is what sources the digests being re-tagged
+git commit -am "Promote v1.2-rc.1 as v2.0"
+git push
+```
+
+Merging then re-tags the rc's digests to `v2.0` + `latest`.
+The schema sanctions exactly this one mismatch between `version` and `candidate` - a target ending in `.0` - and `bumps` survives the rename untouched, because it is recomputed against the newest release either way.
+The other route to a major, when no rc was built at the commit you want, is in [Cutting a major](#cutting-a-major).
+
+### What you cannot do
+
+| Not available | Why |
+| ------------- | --- |
+| Choose the rc number, or cut an rc *for* a given version | Computed from the newest release tag - see above |
+| Cut a minor by hand as a GitHub release | Refused: it would rebuild instead of promoting, shipping an artifact nobody tested |
+| Release a commit that is not on `main` | Both the build and the promotion assert containment in `main` - no cherry-pick channel |
+| Move `latest` faster than one build | The byte-identical guarantee costs one rc build, always |
+
 ## The model
 
 | Channel              | Cut by                                                | Moves `latest` | How                                                                                                     |
@@ -73,6 +130,13 @@ back to the old digests in seconds. The digests being in git is what makes this 
 > `v1.2`-shaped release tags are **refused**:  
 > minors ship by merging a candidate, never by cutting a release.  
 > A hand-cut minor would silently rebuild instead of promoting - an artifact nobody tested.
+
+```mermaid
+graph LR
+    q{"what are you<br>cutting?"} -->|"a minor"| a["merge the candidate PR as-is"]
+    q -->|"a major, and an rc<br>you validated exists"| b["retitle its record to v2.0, then merge<br>re-tag, no rebuild"]
+    q -->|"a major, at a commit<br>no rc was built at"| c["cut a v2.0 GitHub release by hand<br>fresh build, then a records-only PR"]
+```
 
 ### From a validated rc
 
