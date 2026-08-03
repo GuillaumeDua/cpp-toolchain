@@ -1,0 +1,16 @@
+name: Question
+description: Usage or support question about the images
+labels: [question]
+body:
+  - type: input
+    id: image
+    attributes:
+      label: Image / tag concerned
+      description: Optional - if the question is about a specific image (add link)
+      placeholder: "dev-latest, build-cross-v1.1, ..."
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true

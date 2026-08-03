@@ -1,0 +1,73 @@
+name: Bug report
+description: Broken tool, missing library or wrong behavior in a published image
+title: "[bug] "
+labels: [bug]
+body:
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Stage
+      description: Which image stage is affected?
+      options:
+        - runtime
+        - build
+        - static-analysis
+        - documentation
+        - dev
+        - other / unknown
+    validations:
+      required: true
+  - type: dropdown
+    id: variant
+    attributes:
+      label: Variant
+      options:
+        - normal (lean)
+        - cross
+    validations:
+      required: true
+  - type: input
+    id: tag
+    attributes:
+      label: Image tag
+      description: The exact tag you pulled or built
+      placeholder: "build-latest, dev-v1.1, static-analysis-cross-v1.1-rc.1, ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Image source
+      options:
+        - GHCR (ghcr.io/guillaumedua/cpp-toolchain)
+        - Docker Hub (guillaumedua/cpp-toolchain)
+        - local build
+  - type: input
+    id: platform
+    attributes:
+      label: Host platform
+      description: OS, architecture, Docker/runtime version
+      placeholder: "Ubuntu 24.04 x86_64, Docker 27.3, WSL2, ..."
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Command(s) and steps to reproduce, starting from a fresh pull
+      render: bash
+      placeholder: |
+        docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version
+    validations:
+      required: true
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: Expected vs actual
+      description: What you expected to happen, and what happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant output, compiler/linker errors, docker build logs
+      render: text

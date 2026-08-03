@@ -1,0 +1,45 @@
+name: Package / tool request
+description: Request a new tool or package in one of the image stages
+title: "[packages] "
+labels: [enhancement, dependencies]
+body:
+  - type: input
+    id: package
+    attributes:
+      label: Package / tool name
+      placeholder: "sonarlint, mold, cmake-format, ..."
+    validations:
+      required: true
+  - type: checkboxes
+    id: stages
+    attributes:
+      label: Target stage(s)
+      description: Where should it land? Tools propagate to dependent stages (see the package matrix in the README).
+      options:
+        - label: build
+        - label: static-analysis
+        - label: documentation
+        - label: dev
+  - type: dropdown
+    id: upstream
+    attributes:
+      label: Upstream source
+      description: How is it distributed?
+      options:
+        - apt (Ubuntu archive)
+        - GitHub release (pre-built)
+        - build from source
+        - other / unknown
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Rationale
+      description: What does it bring, and why in these stages?
+    validations:
+      required: true
+  - type: textarea
+    id: size-impact
+    attributes:
+      label: Size impact
+      description: Installed size, if known - stages aim to stay lean
+      placeholder: "apt show <pkg> reports ~12 MB installed"
