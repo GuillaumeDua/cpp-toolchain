@@ -31,9 +31,9 @@ jobs:
           fetch-depth: 0 # tags for the candidate/supersession checks, history for the bumps recompute
 
       # The checkout is the PR merge commit, so its first parent is current main and this diff is
-      # exactly what the PR changes. releases/*.yaml are immutable promotion records: only an added
-      # one is a promotion, a modified or deleted one is refused, and a PR touching only docs under
-      # releases/ passes with nothing to validate.
+      # exactly what the PR changes. releases/*.yaml are immutable promotion records:
+      #   only an added one is a promotion, a modified or deleted one is refused,
+      #   and a PR touching only docs under releases/ passes with nothing to validate.
       - name: Identify the promotion record
         id: record
         run: |
@@ -62,9 +62,8 @@ jobs:
             echo "file=${added[0]}"
           } >> "$GITHUB_OUTPUT"
 
-      # Schema, candidate tag -> commit, containment in main, newest-rc supersession, and the
-      # bumps recompute (bumps is generated, never hand-edited - so it must equal what
-      # render-manifest.py derives at the recorded commit).
+      # Schema, candidate tag -> commit, containment in main, newest-rc supersession,
+      # and the bumps recompute (bumps is generated, never hand-edited - so it must equal what render-manifest.py derives at the recorded commit).
       - name: Validate the record
         if: steps.record.outputs.skip != 'true'
         env:
@@ -74,8 +73,42 @@ jobs:
           python3 scripts/details/check-release-file.py "${FILE}" --check-git --check-bumps
           git tag -l | python3 scripts/details/check-release-file.py "${FILE}" --check-supersession
 
-      # The artifact under test is the digest, not the tag: this exercises the exact bytes a merge
-      # would promote. Anonymous pull - GHCR needs no credentials for public images.
+      # The suite's own tests - no image, no Docker, seconds. Runs unconditionally:
+      #   it guards the assertion engine that every other check here depends on,
+      #   so a PR breaking it should fail even when it touches no promotion record.
+      - name: Self-test the verification suite
+        run: python3 scripts/details/tests/verify-image.py --self-test
+
+      # The artifact under test is the digest, not the tag: this exercises the exact bytes a merge would promote.
+      # Anonymous pull - GHCR needs no credentials for public images.
+      #
+      # Two layers, in cost order.
+      # The verifier asserts the image contains the versions the Dockerfile pinned at the recorded commit,
+      # which is a different claim from the digest simply not having moved.
+      # The smoke test then asserts the toolchain actually works.
+      - name: Verify the candidate image
+        if: steps.record.outputs.skip != 'true'
+        env:
+          FILE: ${{ steps.record.outputs.file }}
+        run: |
+          set -euo pipefail
+          digest=$(python3 scripts/details/check-release-file.py "${FILE}" --print-digest dev)
+          image="ghcr.io/guillaumedua/cpp-toolchain@${digest}"
+          echo "verifying ${image}"
+
+          # The Dockerfile is read at the recorded commit, not the merge commit:
+          # if main moved between the rc and this PR,
+          # then the merge commit's pins are newer than the image and would be the wrong expectation to hold it to.
+          commit=$(python3 scripts/details/check-release-file.py "${FILE}" --print-commit)
+          git show "${commit}:Dockerfile"    > "${RUNNER_TEMP}/Dockerfile.rc"
+          git show "${commit}:renovate.json" > "${RUNNER_TEMP}/renovate.rc.json"
+
+          python3 scripts/details/tests/verify-image.py \
+            --stage dev \
+            --image "${image}" \
+            --dockerfile "${RUNNER_TEMP}/Dockerfile.rc" \
+            --renovate "${RUNNER_TEMP}/renovate.rc.json"
+
       - name: Smoke test the candidate image
         if: steps.record.outputs.skip != 'true'
         env:
@@ -85,6 +118,6 @@ jobs:
           digest=$(python3 scripts/details/check-release-file.py "${FILE}" --print-digest dev)
           echo "smoke-testing ghcr.io/guillaumedua/cpp-toolchain@${digest}"
           docker run --rm \
-            --volume "${PWD}/scripts/details:/opt/cpp-toolchain-scripts:ro" \
+            --volume "${PWD}/scripts/details/tests:/opt/cpp-toolchain-tests:ro" \
             "ghcr.io/guillaumedua/cpp-toolchain@${digest}" \
-            bash /opt/cpp-toolchain-scripts/smoke-test.sh
+            bash /opt/cpp-toolchain-tests/smoke/run.sh
