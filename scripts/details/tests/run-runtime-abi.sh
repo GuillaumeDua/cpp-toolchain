@@ -2,10 +2,11 @@
 # The one test that needs two images: compile in `build`, execute in `runtime`.
 #
 # This is the sole reason the runtime stage exists - it carries libc6/libgcc-s1/libstdc++6 from the
-# same PPA the toolchain comes from, so a binary produced by `build` can ship in a much smaller
-# image. Whether that actually holds depends on the PPA libstdc++ surviving both the --auto-remove
-# purge and the snapshot dist-upgrade downgrade dance in the Dockerfile, and nothing has ever
-# checked it. The repository's own notes flag it as never verified.
+# same PPA the toolchain comes from, so a binary produced by `build` can ship in a much smaller image.
+#
+# Whether that actually holds depends on the PPA libstdc++ surviving both the --auto-remove
+# purge and the snapshot dist-upgrade downgrade dance in the Dockerfile, and nothing has ever checked it.
+# The repository's own notes flag it as never verified.
 #
 # Because it spans two images it cannot live in the per-stage loop: it runs once, after both are
 # available, with the artifact handed between them through a directory on the host.
@@ -24,8 +25,7 @@ artifacts=$(mktemp -d)
 trap 'rm -rf "${artifacts}"' EXIT
 
 echo "::group::compile in ${build_image}"
-# Dynamically linked on purpose: a static binary would prove nothing about the runtime image, which
-# is the entire subject of this test.
+# Dynamically linked on purpose: a static binary would prove nothing about the runtime image, which is the entire subject of this test.
 docker run --rm \
     --volume "${here}:/opt/cpp-toolchain-tests:ro" \
     --volume "${artifacts}:/opt/cpp-toolchain-out" \
