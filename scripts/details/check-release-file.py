@@ -19,7 +19,9 @@ Usage, from the repository root - the git checks and the bumps recompute both re
     python3 scripts/details/check-release-file.py releases/v1.2.yaml --check-bumps        # bumps == render-manifest recompute
     python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-targets      # promotion plan, one line per prefix
     python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-digest dev   # one recorded digest
+    python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-commit       # the recorded commit
     python3 scripts/details/check-release-file.py --print-stages normal|cross             # canonical stage lists
+    python3 scripts/details/check-release-file.py --print-cross-targets                   # canonical cross triplets
 
 Exits non-zero and reports every violation it found, rather than only the first.
 """
@@ -38,6 +40,14 @@ HERE = pathlib.Path(__file__).resolve().parent
 # the build loop, the digests recorded per rc, and the targets derived per promotion all come from this one definition.
 NORMAL_STAGES = ("runtime", "build", "static-analysis", "documentation", "dev")
 CROSS_STAGES = ("build", "static-analysis", "documentation", "dev")  # runtime has no toolchain -> no cross variant
+
+# The cross-arch target triplets the `-cross` variant is built with, canonical for the same reason:
+# the build loop, the verification suite and the cross smoke test must request the same list,
+# and it was previously restated in both workflows, each labelled a single source of truth.
+#   Spelled the Debian way (`x86-64`, not `x86_64`): this is the `g++-<triplet>` package suffix, and
+#   Debian package names cannot contain underscores. The installed binary uses the GNU spelling
+#   (`/usr/bin/x86_64-linux-gnu-g++`), so anything mapping between the two must normalise.
+CROSS_TARGETS = ("x86-64-linux-gnu", "aarch64-linux-gnu", "arm-linux-gnueabihf", "riscv64-linux-gnu")
 
 VERSION_RE = re.compile(r"^v\d+\.\d+$")
 CANDIDATE_RE = re.compile(r"^(v\d+\.\d+)-rc\.(\d+)$")
@@ -237,12 +247,20 @@ def main():
     parser.add_argument("--print-targets", action="store_true",
                         help="print the promotion plan (digest, source, release and latest tags)")
     parser.add_argument("--print-digest", metavar="KEY", help="print one recorded digest, e.g. dev")
+    parser.add_argument("--print-commit", action="store_true",
+                        help="print the recorded commit - the tree the image was built from")
     parser.add_argument("--print-stages", choices=["normal", "cross"],
                         help="print a canonical stage list (no file needed)")
+    parser.add_argument("--print-cross-targets", action="store_true",
+                        help="print the canonical cross-arch target triplets (no file needed)")
     args = parser.parse_args()
 
     if args.print_stages:
         print(" ".join(NORMAL_STAGES if args.print_stages == "normal" else CROSS_STAGES))
+        return
+
+    if args.print_cross_targets:
+        print(" ".join(CROSS_TARGETS))
         return
 
     if not args.file:
@@ -264,6 +282,8 @@ def main():
 
     if args.print_digest:
         print(data["digests"][args.print_digest])
+    elif args.print_commit:
+        print(data["commit"])
     elif args.print_targets:
         print_targets(data)
     else:
