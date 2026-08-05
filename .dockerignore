@@ -14,9 +14,13 @@ build
 .*
 
 # Repository tooling - pin guard, release-note renderer, promotion-record schema, image verification.
-# Nothing here is COPYed by the Dockerfile:
-#   the verification suite reaches a built image by bind-mount, which is also what keeps the tests out of the images they test.
+# The smoke tests reach a built image by bind-mount, which is what keeps them out of the images they test.
+#
+# check-image.sh is the one exception: it is COPYed into the `check-<stage>` stages, which assert an
+#   image's contents from the inside. Those stages are never published - CI builds them with no
+#   output and pushes the stage itself - so this still reaches no released image.
 scripts/details
+!scripts/details/tests/check-image.sh
 
 # Non-build content living at the repo root
 docs

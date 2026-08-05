@@ -73,43 +73,13 @@ jobs:
           python3 scripts/details/check-release-file.py "${FILE}" --check-git --check-bumps
           git tag -l | python3 scripts/details/check-release-file.py "${FILE}" --check-supersession
 
-      # The suite's own tests - no image, no Docker, seconds. Runs unconditionally:
-      #   it guards the assertion engine that every other check here depends on,
-      #   so a PR breaking it should fail even when it touches no promotion record.
-      - name: Self-test the verification suite
-        run: python3 scripts/details/tests/verify-image.py --self-test
-
       # The artifact under test is the digest, not the tag: this exercises the exact bytes a merge would promote.
       # Anonymous pull - GHCR needs no credentials for public images.
       #
-      # Two layers, in cost order.
-      # - The verifier asserts the image contains the versions the Dockerfile pinned at the recorded commit,
-      #   which is a different claim from the digest simply not having moved.
-      # - The smoke test then asserts the toolchain actually works.
-      - name: Verify the candidate image
-        if: steps.record.outputs.skip != 'true'
-        env:
-          FILE: ${{ steps.record.outputs.file }}
-        run: |
-          set -euo pipefail
-          digest=$(python3 scripts/details/check-release-file.py "${FILE}" --print-digest dev)
-          image="ghcr.io/guillaumedua/cpp-toolchain@${digest}"
-          echo "verifying ${image}"
-
-          # The Dockerfile is read at the recorded commit, not the merge commit:
-          # - if main moved between the rc and this PR,
-          # - then the merge commit's pins are newer than the image and would be the wrong expectation to hold it to.
-
-          commit=$(python3 scripts/details/check-release-file.py "${FILE}" --print-commit)
-          git show "${commit}:Dockerfile"    > "${RUNNER_TEMP}/Dockerfile.rc"
-          git show "${commit}:renovate.json" > "${RUNNER_TEMP}/renovate.rc.json"
-
-          python3 scripts/details/tests/verify-image.py \
-            --stage dev \
-            --image "${image}" \
-            --dockerfile "${RUNNER_TEMP}/Dockerfile.rc" \
-            --renovate "${RUNNER_TEMP}/renovate.rc.json"
-
+      # Only the smoke test lives here. That the image contains the versions the Dockerfile pinned is
+      # asserted at build time, by the `check-<stage>` stages docker-publish.yml builds before pushing:
+      #   a digest is content-addressed, so the bytes being promoted are the bytes that were checked,
+      #   and re-deriving the pins from the recorded commit to re-assert them here would only restate it.
       - name: Smoke test the candidate image
         if: steps.record.outputs.skip != 'true'
         env:

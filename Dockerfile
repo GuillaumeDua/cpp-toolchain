@@ -223,9 +223,12 @@ RUN \
 ARG CONAN_VERSION
 RUN \
     # conan (with work-around for pip "error: externally-managed-environment")
+    #   PIPX_BIN_DIR: pipx links its entry points into ~/.local/bin by default, which is not on
+    #   Docker's default PATH - conan would be installed but unreachable, since a RUN and a
+    #   `docker run` both start a non-login shell that sources no profile.
     apt update -qqy && apt install -qqy --no-install-recommends \
         pipx                                                    \
-    && (pipx install "conan==${CONAN_VERSION}" > /dev/null 2>&1) \
+    && (PIPX_BIN_DIR=/usr/local/bin pipx install "conan==${CONAN_VERSION}" > /dev/null 2>&1) \
     && rm -rf /var/lib/apt/lists/*
 
 # C++ toolchain: GNU/GCC
@@ -434,3 +437,78 @@ RUN apt clean \
     && rm -rf /var/lib/apt/lists/*
 
 CMD ["/bin/bash"]
+
+# ---------------------------------------------------------------------------------------------
+# Stages: check-<stage> - assert that an image contains what it advertises, before it is published.
+#
+#   Each one inherits the stage it checks, so what it inspects is the published filesystem, after
+#   every purge, autoremove and dist-upgrade - and the expected versions are this file's own ARGs,
+#   collected once by `check-expectations` below. There is no second source of truth, and bumping a
+#   pin needs no edit anywhere else.
+#
+#   Never published: CI builds these with no output and pushes the stage itself, so nothing here
+#   reaches a released digest. Keeping the assertions in a separate stage rather than appending them
+#   to the stages themselves is what stops an edit to check-image.sh from invalidating the toolchain
+#   layers of every image below it.
+#
+#   The nine published images are these five targets times the BINUTILS_TARGETS variant.
+# ---------------------------------------------------------------------------------------------
+
+# The expectations, materialised once, so the five check stages below do not each re-declare them.
+#   This is the single list of what gets checked: adding a pin to it is the only edit a new
+#   assertion needs.
+#   Single-quoted because GCC_VERSIONS and BINUTILS_TARGETS are space-separated lists; no pinned
+#   value contains a quote.
+FROM ${BASE_IMAGE} AS check-expectations
+ARG BASE_IMAGE
+ARG UBUNTU_SNAPSHOT
+ARG GCC_VERSIONS
+ARG LLVM_VERSIONS
+ARG CMAKE_VERSION
+ARG VCPKG_VERSION
+ARG CONAN_VERSION
+ARG DOXYGEN_RELEASE
+ARG OHMYZSH_COMMIT
+ARG BINUTILS_TARGETS
+RUN printf "%s\n"                                   \
+        "BASE_IMAGE='${BASE_IMAGE}'"                \
+        "UBUNTU_SNAPSHOT='${UBUNTU_SNAPSHOT}'"      \
+        "GCC_VERSIONS='${GCC_VERSIONS}'"            \
+        "LLVM_VERSIONS='${LLVM_VERSIONS}'"          \
+        "CMAKE_VERSION='${CMAKE_VERSION}'"          \
+        "VCPKG_VERSION='${VCPKG_VERSION}'"          \
+        "CONAN_VERSION='${CONAN_VERSION}'"          \
+        "DOXYGEN_RELEASE='${DOXYGEN_RELEASE}'"      \
+        "OHMYZSH_COMMIT='${OHMYZSH_COMMIT}'"        \
+        "BINUTILS_TARGETS='${BINUTILS_TARGETS}'"    \
+        > /expected.env
+
+FROM runtime AS check-runtime
+COPY --from=check-expectations /expected.env /expected.env
+COPY ./scripts/details/tests/check-image.sh /check-image.sh
+RUN bash /check-image.sh runtime
+
+FROM build AS check-build
+COPY --from=check-expectations /expected.env /expected.env
+COPY ./scripts/details/tests/check-image.sh /check-image.sh
+RUN bash /check-image.sh build
+
+FROM static-analysis AS check-static-analysis
+COPY --from=check-expectations /expected.env /expected.env
+COPY ./scripts/details/tests/check-image.sh /check-image.sh
+RUN bash /check-image.sh static-analysis
+
+FROM documentation AS check-documentation
+COPY --from=check-expectations /expected.env /expected.env
+COPY ./scripts/details/tests/check-image.sh /check-image.sh
+RUN bash /check-image.sh documentation
+
+FROM dev AS check-dev
+COPY --from=check-expectations /expected.env /expected.env
+COPY ./scripts/details/tests/check-image.sh /check-image.sh
+RUN bash /check-image.sh dev
+
+# `dev` is the Dockerfile's default target (README, "Build it yourself"), and Docker builds the last
+# stage when --target is omitted - so restore it below the check stages.
+#   An alias carries no instruction, hence no layer: `docker build .` still produces `dev` exactly.
+FROM dev AS default
