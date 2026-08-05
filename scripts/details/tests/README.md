@@ -88,11 +88,16 @@ that lost a package never reaches a registry.
   at a priority equal to its own major, so the unversioned `g++` and `clang++` both point at the
   newest of their family. `llvm.sh` used to give LLVM's `latest-stable` a flat `100`, which made
   `--versions='21 22'` resolve `clang++` to 21; that is what the assertion would now catch.
-- **The `build` / `static-analysis` boundary is `update-alternatives`, not packages.** `llvm.sh`
-  runs the upstream apt.llvm.org script with the `all` package set regardless of `--minimalistic`,
-  so `clang-tidy-<major>` is physically present in `build`. Asserting the *package* absent there
-  would be wrong; asserting the *unversioned command* absent is the real contract. If `--minimalistic`
-  ever restricts the package set too, this assertion becomes a package-level one.
+- **The `build` / `static-analysis` boundary is asserted on both halves.** `build` runs
+  `llvm.sh --mode=minimalistic`, which neither installs nor registers the analysis tooling, so the
+  check requires `clang-tidy-<major>` to be *absent as a package* **and** `clang-tidy` to be off
+  `PATH`. The package half is the one that matters: a mode that silently fell back to the upstream
+  `all` set would still pass the command-level check on its own.
+- **The compiler runtimes are asserted separately from the compilers.** `libc++-<N>-dev`,
+  `libomp-<N>-dev` and `libclang-rt-<N>-dev` are what make `-stdlib=libc++`, `-fopenmp` and
+  `-fsanitize=...` work; every `llvm.sh --mode` keeps them precisely because they are compiler
+  capabilities rather than tools. Nothing else here would notice them going missing - `clang++`
+  itself would still run, and the failure would surface as a link error in someone's project.
 - **The cross toolchain's version is pinned by nothing.** `binutils.sh` installs unversioned
   `g++-<triplet>` from the snapshot-pinned archive, so it is the distro's GCC. Only presence is
   asserted - and via `dpkg`, because Debian multiarch ships `/usr/bin/x86_64-linux-gnu-g++` in every

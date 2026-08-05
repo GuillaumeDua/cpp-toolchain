@@ -122,6 +122,18 @@ installed() {
     done
 }
 
+# not_installed <package>... - the package-level half of a stage boundary.
+not_installed() {
+    local package state
+    for package in "$@"; do
+        state="$(dpkg-query -W -f='${db:Status-Status}' -- "${package}" 2> /dev/null)"
+        if [ "${state}" = 'installed' ]
+        then bad "${package} is installed and should not be, in ${stage}"
+        else ok "no ${package}"
+        fi
+    done
+}
+
 # resolves <soname>... - present in the dynamic linker's cache.
 resolves() {
     local soname
@@ -263,7 +275,7 @@ if stage_has runtime; then
     resolves libstdc++.so.6 libgcc_s.so.1 libc.so.6
 
     # libstdc++ only is the documented runtime contract (README package matrix), even though `build`
-    # can link against libc++: llvm.sh's `all` package set installs libc++-<N>-dev there.
+    # can link against libc++: every llvm.sh --mode installs libc++-<N>-dev there.
     #   Closing that gap would mean registering apt.llvm.org in the minimal deploy image and
     #   interacting with the snapshot realignment - a design decision. Asserted here so that it stays
     #   a decision rather than drifting in unnoticed.
@@ -288,6 +300,16 @@ if stage_has build static-analysis documentation dev; then
     on_path gcc g++ clang clang++ cmake ctest cpack make ninja ccache git pkg-config gcov python3
     installed libc6-dev
 
+    # The compiler runtimes every llvm.sh --mode keeps: without them `-stdlib=libc++` and
+    # `-fsanitize=...` fail at link time even though clang++ itself works, which no other assertion
+    # here would notice. This is the regression test for the per-mode package set in llvm.sh.
+    for major in $(selector_majors "${LLVM_VERSIONS}"); do
+        installed "libc++-${major}-dev" "libc++abi-${major}-dev" "libomp-${major}-dev"
+        if [ "${major}" -gt 14 ]; then
+            installed "libclang-rt-${major}-dev"
+        fi
+    done
+
     if [ -x /opt/vcpkg/vcpkg ]
     then ok '/opt/vcpkg/vcpkg'
     else bad '/opt/vcpkg/vcpkg is missing'
@@ -305,19 +327,20 @@ if stage_has build static-analysis documentation dev; then
 fi
 
 if stage_has build; then
-    # The build / static-analysis boundary is update-alternatives, not packages: llvm.sh runs the
-    # upstream apt.llvm.org script with the `all` package set regardless of --minimalistic, so
-    # clang-tidy-<major> is physically here. What --minimalistic changes is which alternatives get
-    # registered, and that is what the stage contract actually promises.
+    # `build` runs llvm.sh --mode=minimalistic, which takes the compilers and their runtimes and
+    # neither installs nor registers the analysis tooling. Both halves are asserted: the packages
+    # are absent, and so are the unversioned commands - a mode that silently fell back to the `all`
+    # package set would still pass the second check alone.
     for major in $(selector_majors "${LLVM_VERSIONS}"); do
-        installed "clang-tidy-${major}"
+        not_installed "clang-tidy-${major}" "clang-format-${major}" "clang-tools-${major}"
     done
     not_on_path clang-tidy clang-format clangd scan-build lldb llvm-cov llvm-profdata
 fi
 
 # --- the LLVM tooling, per stage ------------------------------------------------------------------
 
-# documentation re-runs llvm.sh with --coverage, which registers the coverage alternatives only.
+# documentation re-runs llvm.sh with --mode=coverage, which adds llvm-<N> and its two alternatives
+# but none of the analysis tooling.
 if stage_has static-analysis documentation dev; then
     on_path llvm-cov llvm-profdata
 fi
