@@ -4,9 +4,10 @@
 # Runs inside a -cross image (the caller bind-mounts the tests directory and an output directory),
 # and the caller then executes the artifacts under qemu-<arch>-static on the runner.
 #
-# Static linking is not incidental. The target sysroot lives inside this image, so a dynamically
-# linked artifact cannot run anywhere else - and qemu-user-static is not in the image and should not
-# be added just to test it. Linking statically is what lets the artifact leave the container.
+# Static linking is not incidental.
+#   The target sysroot lives inside this image, so a dynamically linked artifact cannot run anywhere else;
+#   and qemu-user-static is not in the image and should not be added just to test it.
+#   Linking statically is what lets the artifact leave the container.
 #
 # The target list is passed in rather than derived here: check-release-file.py owns it
 # (--print-cross-targets), so the build loop, the verifier and this script cannot drift apart.
@@ -26,10 +27,10 @@ targets=("$@")
 
 mkdir -p "${out_dir}"
 
-# Debian package names cannot contain underscores, so `g++-x86-64-linux-gnu` installs
-# `/usr/bin/x86_64-linux-gnu-g++`. Normalising both spellings to hyphens means the lookup never has
-# to know which side of that rename it is on - and only one of the four published triplets is
-# affected, which is exactly how a hand-written mapping would survive review while being wrong.
+# Debian package names cannot contain underscores, so `g++-x86-64-linux-gnu` installs `/usr/bin/x86_64-linux-gnu-g++`.
+# Normalising both spellings to hyphens means the lookup never has to know which side of that rename it is on;
+# and only one of the four published triplets is affected,
+# which is exactly how a hand-written mapping would survive review while being wrong.
 normalise() { echo "${1//_/-}"; }
 
 declare -A driver_of=()

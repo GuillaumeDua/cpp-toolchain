@@ -1,13 +1,6 @@
 // The functional half of image verification: proof the toolchain actually works.
 //
-// std::print rather than <iostream> on purpose: it is a C++23 library feature, so this fails when
-// -std=c++23 is accepted but the standard library behind it is not what the manifest claims.
-// A hello world that only exercises the parser would pass on a badly broken image.
-//
-// Each feature below is chosen to exercise a different part of the toolchain:
-// one library feature, one language feature, and one that needs both at compile time.
-// No version appears anywhere in this file - what is installed is verify-image.py's question,
-// and whether it works is this one's.
+// Use both C++23 language and library features.
 
 #include <expected>
 #include <numeric>
@@ -17,7 +10,7 @@
 
 namespace
 {
-    // Deducing this (P0847): a C++23 language feature, so a standard library backport cannot fake it.
+    // Deducing this (P0847)
     struct counter
     {
         int value = 0;
@@ -29,7 +22,6 @@ namespace
     };
 
     // constexpr std::vector (P0784, P1004): allocation during constant evaluation.
-    // Exercises the library's constexpr allocator support rather than the parser alone.
     consteval auto sum_to(int n) -> int
     {
         auto values = std::vector<int>{};
@@ -61,8 +53,8 @@ auto main() -> int
         return 1;
     }
 
-    // The marker the runner greps for. Asserting on output rather than exit status alone
-    // catches a binary that links, runs and silently does nothing.
+    // The marker the runner greps for.
+    // Asserting on output rather than exit status alone catches a binary that links, runs and silently does nothing.
     std::print("cxx23-ok cplusplus={} sum={} value={}\n", __cplusplus, total, *parsed);
     return 0;
 }
