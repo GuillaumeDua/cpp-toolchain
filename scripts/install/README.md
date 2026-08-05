@@ -84,8 +84,8 @@ Wraps the upstream [`apt.llvm.org/llvm.sh`](https://apt.llvm.org/llvm.sh) instal
 
 - fetches it (and the LLVM apt signing key) into a temporary `impl.sh`
 - resolves the requested version(s)
-- installs them
-- then sets up `update-alternatives` for `clang`/`clang++` and (unless `--minimalistic`) the full toolchain (`clang-format`, `clang-tidy`, `clangd`, `lldb`, `scan-build`, `llvm-cov`, `llvm-profdata`, ...)
+- installs the package set `--mode` selects
+- then sets up `update-alternatives` for `clang`/`clang++` and, in `--mode=full`, the rest of the toolchain (`clang-format`, `clang-tidy`, `clangd`, `lldb`, `scan-build`, `llvm-cov`, `llvm-profdata`, ...)
 - *The temporary `impl.sh` is removed before exit*
 
 | Option                 | Type    | Default         | Description                                                                                              |
@@ -94,21 +94,25 @@ Wraps the upstream [`apt.llvm.org/llvm.sh`](https://apt.llvm.org/llvm.sh) instal
 | `-l`, `--list`         | boolean | `0`             | Only list the versions that `--versions` resolves to, without installing anything                        |
 | `-s`, `--silent`       | boolean | `1`             | Suppress log output                                                                                      |
 | `-a`, `--alias`        | boolean | `0`             | Append the resulting `llvm_versions` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                 |
-| `-m`, `--minimalistic` | boolean | `0`             | Only register `clang`/`clang++` alternatives, skip the extra tools                                       |
-| `--coverage`           | boolean | `0`             | `clang`/`clang++` **+ coverage tools** (`llvm-cov`, `llvm-profdata`), without the analysis tools         |
+| `--mode`               | string  | `full`          | How much of the toolchain to install: `minimalistic` \| `coverage` \| `full` - see below                 |
 | `-c`, `--cleanup`      | boolean | `0`             | Purge any pre-existing `llvm-*`/`lldb-*`/`clang-*`/`python3-lldb-*` packages before installing           |
 | `-h`, `--help`         | -       | -               | Display usage                                                                                            |
 
-The three alternative "mods" are tiered - `--minimalistic` (compilers) ⊂ `--coverage` (compilers + `llvm-cov`/`llvm-profdata`) ⊂ default (everything). `--coverage` is a superset of `--minimalistic`, so when both are passed **`--coverage` wins**.
+The three modes are tiered, and each one selects both the **packages installed** and the **`update-alternatives` registered**:
 
-> [!NOTE]
-> These flags only control which `update-alternatives` symlinks are registered - the underlying *packages* are always installed (the upstream installer is invoked with `all`). So `llvm-cov-<N>` exists even after `--minimalistic`; only the unversioned `llvm-cov` command does not.
+| `--mode`       | Installs                                                                     | Registers unversioned                                        |
+| -------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `minimalistic` | `clang` `lld` `lldb` `clangd` + the compiler runtimes                        | `clang`, `clang++`                                           |
+| `coverage`     | the above + `llvm-<N>`                                                       | + `llvm-cov`, `llvm-profdata`                                |
+| `full`         | the upstream `all` set - analysis tools, `libclang` development headers, ...  | + `clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ... |
+
+The *compiler runtimes* are the libc++ stack (`libc++-<N>-dev`, `libc++abi-<N>-dev`, `libunwind-<N>-dev`), OpenMP (`libomp-<N>-dev`) and, from LLVM 15, the sanitizer and Polly runtimes (`libclang-rt-<N>-dev`, `libpolly-<N>-dev`). Every mode installs them: they are compiler capabilities - `-stdlib=libc++`, `-fopenmp`, `-fsanitize=...` - rather than tools, so a `minimalistic` install still compiles everything a `full` one does.
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
-The latest stable version (per upstream's `CURRENT_LLVM_STABLE`) always gets `update-alternatives` priority `100`; other versions are prioritized by their version number.
+`update-alternatives` priority is the version number, so the **highest installed version** wins the unversioned `clang`/`clang++` - the same rule `gcc.sh` uses.
 
-`--minimalistic` is meant to be **layered**: a first run with it registers only `clang`/`clang++`, and a later non-minimalistic run over the same environment wires up `clang-tidy`/`clang-format`/`clangd`/`lldb`/`scan-build` without touching the compilers. Useful when a compile-only environment and a full analysis one are built from a common base.
+The modes are meant to be **layered**: a first `--mode=minimalistic` run installs and registers only the compilers, and a later `--mode=full` run over the same environment adds `clang-tidy`/`clang-format`/`clangd`/`lldb`/`scan-build` without touching them. Useful when a compile-only environment and a full analysis one are built from a common base - which is exactly how the [Dockerfile](../../Dockerfile)'s `build` and `static-analysis` stages relate.
 
 Example: install the two latest available versions:
 

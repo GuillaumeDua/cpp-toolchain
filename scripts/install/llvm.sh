@@ -6,8 +6,8 @@ set -eu
 # This file is part of https://github.com/GuillaumeDua/CppShelf
 # License: see https://github.com/GuillaumeDua/CppShelf/blob/main/LICENSE
 #
-# libc++ scope: the `all` package set installs the host libc++ (libc++-<N>-dev / libc++abi-<N>-dev / libunwind-<N>-dev),
-#   so native `clang++ -stdlib=libc++` works without GCC.
+# libc++ scope: every --mode installs the host libc++ (libc++-<N>-dev / libc++abi-<N>-dev / libunwind-<N>-dev),
+#   so native `clang++ -stdlib=libc++` works without GCC - see the package set note further down.
 #   Cross-target libc++ (libc++ built for another arch) is NOT bundled: it has no portable apt package and requires an
 #   LLVM `runtimes` source build (future scripts/libcxx.sh). See binutils.sh for the cross scope.
 # =============================================================================================
@@ -18,8 +18,7 @@ arg_versions='latest-stable'
 arg_list=0
 arg_silent=1
 arg_alias=0
-arg_minimalistic=0
-arg_coverage=0
+arg_mode='full'
 arg_cleanup=0
 
 internal_script_path='impl.sh'
@@ -38,8 +37,10 @@ help(){
             - [numbers...]      : only listed versions.                                         Ex: '13 25 42' (space-separated)
         [ -s | --silent ]       : Run in silent mod.                                        Boolean -> default is [1]
         [ -a | --alias]         : Set bash/zsh-rc aliases.                                  Boolean -> default is [0]
-        [ -m | --minimalistic]  : only clang/clang++, not tools.                            Boolean -> default is [0]
-        [ --coverage ]          : clang/clang++ + coverage tools (llvm-cov, llvm-profdata). Boolean -> default is [0]
+        [ --mode ]              : How much of the toolchain to install.                     String: minimalistic|coverage|full -> default is [full]
+            - [minimalistic]    : the compilers and their runtimes, no tools
+            - [coverage]        : minimalistic + the coverage tools (llvm-cov, llvm-profdata)
+            - [full]            : the whole toolchain (clang-tidy, clang-format, clangd, lldb, scan-build, ...)
         [ -c | --cleanup]       : purge any (pre-)existing llvm/clang package installation: Boolean -> default is [0]
         [ -h | --help ]         : Display usage/help
 
@@ -90,8 +91,8 @@ fi
 
 # --- options management ---
 
-options_short=s:,v:,a:,m,c,l,h
-options_long=silent:,versions:,alias:,minimalistic,coverage,cleanup,help,list
+options_short=s:,v:,a:,c,l,h
+options_long=silent:,versions:,alias:,mode:,cleanup,help,list
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -111,13 +112,9 @@ do
         arg_versions=$(echo $2 | tr -d '\n' | tr '\n' ' ')
         shift 2
         ;;
-    -m | --minimalistic )
-        arg_minimalistic=1
-        shift;
-        ;;
-    --coverage )
-        arg_coverage=1
-        shift;
+    --mode )
+        arg_mode="$2"
+        shift 2
         ;;
     -c | --cleanup )
         arg_cleanup=1
@@ -153,21 +150,10 @@ if [ "$arg_list" == '' ] ; then
     exit 1;
 fi
 
-arg_minimalistic=$(to_boolean "${arg_minimalistic}")
-if [ "$arg_minimalistic" == '' ] ; then
-    exit 1;
-fi
-
-arg_coverage=$(to_boolean "${arg_coverage}")
-if [ "$arg_coverage" == '' ] ; then
-    exit 1;
-fi
-
-# --coverage is a superset of --minimalistic (clang/clang++ + coverage tools),
-# so when both are passed then coverage wins.
-if [[ ${arg_coverage} == 1 ]]; then
-    arg_minimalistic=0
-fi
+case "${arg_mode}" in
+    minimalistic | coverage | full ) ;;
+    * ) error "invalid --mode=[${arg_mode}] - expected one of: minimalistic, coverage, full" ;;
+esac
 
 arg_cleanup=$(to_boolean "${arg_cleanup}")
 if [ "$arg_cleanup" == '' ] ; then
@@ -178,8 +164,7 @@ log "arguments - versions:          [${arg_versions}]"
 log "arguments - silent:            [${arg_silent}]"
 log "arguments - alias:             [${arg_alias}]"
 log "arguments - list:              [${arg_list}]"
-log "arguments - minimalistic:      [${arg_minimalistic}]"
-log "arguments - coverage:          [${arg_coverage}]"
+log "arguments - mode:              [${arg_mode}]"
 log "arguments - cleanup:           [${arg_cleanup}]"
 
 # --- fetch llvm.sh ---
@@ -286,6 +271,34 @@ if [[ ${arg_cleanup} == 1 ]]; then
     sudo apt-get remove -y "python3-lldb-*"
 fi
 
+# --- package set, per mode ---
+#
+# The upstream installer takes one optional `all` argument, and it is all-or-nothing:
+#   without it   -> clang-<N> lldb-<N> lld-<N> clangd-<N>
+#   with it      -> the above, plus clang-tidy, clang-format, clang-tools (scan-build), llvm-<N>-dev,
+#                   llvm-<N>-tools, libclang-*-dev, liblldb-<N>-dev, and the runtimes below.
+# So anything between the two has to be named here.
+#
+# What every mode keeps beyond the default set are the compiler's own runtimes - the libc++ stack, the sanitizers, OpenMP and Polly.
+# Those are compiler capabilities rather than tools:
+#   dropping them would silently break `-stdlib=libc++`, `-fsanitize=...`, `-fopenmp` and `-mllvm -polly` for anyone
+#   using a minimalistic install, which is not what "only clang/clang++, not tools" promises.
+upstream_package_set=''
+if [[ "${arg_mode}" == 'full' ]]; then
+    upstream_package_set='all'
+fi
+
+# compiler_runtimes_for <version> - the runtime packages the upstream default set omits.
+compiler_runtimes_for(){
+    local version="$1"
+    local packages="libc++-${version}-dev libc++abi-${version}-dev libunwind-${version}-dev libomp-${version}-dev"
+    # Same guard as upstream: these two are only published from LLVM 15 onwards.
+    if [ "${version}" -gt 14 ]; then
+        packages="${packages} libclang-rt-${version}-dev libpolly-${version}-dev"
+    fi
+    echo "${packages}"
+}
+
 mapfile -t llvm_versions_to_install < <(echo -n "$llvm_versions")
 for version in "${llvm_versions_to_install[@]}"; do
 
@@ -293,8 +306,21 @@ for version in "${llvm_versions_to_install[@]}"; do
     #   sudo apt-get purge --auto-remove llvm python3-lldb-14 llvm-14 -y; \
 
     # yes '' |
-    ./${internal_script_path} ${version} all -n ${codename} > /dev/null 2>&1 \
-    || error "running [${external_script_url} ${version} all] failed"
+    ./${internal_script_path} ${version} ${upstream_package_set} -n ${codename} > /dev/null 2>&1 \
+    || error "running [${external_script_url} ${version} ${upstream_package_set}] failed"
+
+    # `full` already has everything through `all`; the other two have to add what they need.
+    #   llvm-<N> is where llvm-cov and llvm-profdata live - `all` only pulls it in transitively, through llvm-<N>-dev.
+    extra_packages=''
+    case "${arg_mode}" in
+        minimalistic ) extra_packages="$(compiler_runtimes_for ${version})" ;;
+        coverage )     extra_packages="$(compiler_runtimes_for ${version}) llvm-${version}" ;;
+    esac
+    if [ -n "${extra_packages}" ]; then
+        # The upstream installer has just run `apt-get update`, so the lists are populated here.
+        sudo apt-get install -qqy --no-install-recommends ${extra_packages} > /dev/null 2>&1 \
+        || error "installing [${extra_packages}] failed"
+    fi
 
     # Warning: only one installation of `lldb` is allowed by `apt` at a time. Cannot use `--no-remove` here
     # apt install -qq -y --no-install-recommends \
@@ -303,16 +329,15 @@ for version in "${llvm_versions_to_install[@]}"; do
     #     lldb-${version}         \
     # || error "installation of [${version}] (tools) failed"
     # clang and clang-tools
-    
-    # Latest stable always has the highest priority
-    update_alternative_priority=$([[ "${version}" = "${llvm_latest_stable}" ]] && echo "100" || echo "${version}")
 
-    if [[ ${arg_minimalistic} == 1 ]]; then
+    update_alternative_priority="${version}"
+
+    if [[ "${arg_mode}" == 'minimalistic' ]]; then
         update-alternatives --quiet                                                                                             \
             --install /usr/bin/clang clang /usr/bin/clang-${version} ${update_alternative_priority}                             \
             --slave /usr/bin/clang++                  clang++                   /usr/bin/clang++-${version}                     \
         || error "update-alternatives of [${version}] failed"
-    elif [[ ${arg_coverage} == 1 ]]; then
+    elif [[ "${arg_mode}" == 'coverage' ]]; then
         update-alternatives --quiet                                                                                             \
             --install /usr/bin/clang clang /usr/bin/clang-${version} ${update_alternative_priority}                             \
             --slave /usr/bin/clang++                  clang++                   /usr/bin/clang++-${version}                     \
