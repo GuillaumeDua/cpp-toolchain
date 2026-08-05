@@ -55,6 +55,6 @@ auto main() -> int
 
     // The marker the runner greps for.
     // Asserting on output rather than exit status alone catches a binary that links, runs and silently does nothing.
-    std::print("cxx23-ok cplusplus={} sum={} value={}\n", __cplusplus, total, *parsed); // WIP: total is useless here, since it's already checked with a static_assert
+    std::print("cxx23-ok cplusplus={} value={}\n", __cplusplus, *parsed);
     return 0;
 }
