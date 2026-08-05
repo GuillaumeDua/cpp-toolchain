@@ -244,15 +244,16 @@ RUN apt-get update -qqy                                                       \
     && ${script_path} --silent=yes --alias=yes --versions="$GCC_VERSIONS"
 
 # C++ toolchain: LLVM/Clang (https://apt.llvm.org/)
-#   `--minimalistic`: register only the clang/clang++ compilers here.
+#   `--mode=minimalistic`: the compilers and their runtimes (libc++, sanitizers, OpenMP), nothing else.
 #   The rest of the LLVM toolchain (clang-tidy, clang-format, clangd, lldb, scan-build, ...) is a static-analysis / dev concern and is wired up in the `dev` stage below.
+#   It is neither installed nor registered here, so this stage carries only what compiling needs.
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           \
     echo -e "[C++ toolchain] Installing LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ;   \
     chmod +x ${script_path}                                                     \
-    && ${script_path} --silent=yes --alias=yes --minimalistic --versions="$LLVM_VERSIONS"
+    && ${script_path} --silent=yes --alias=yes --mode=minimalistic --versions="$LLVM_VERSIONS"
 
 # Build: Build2 (depends on a compiler)
 #   BUILD2_VERSION is declared once at the top of this file (bumped by Renovate).
@@ -295,23 +296,23 @@ CMD ["/bin/bash"]
 
 # ---------------------------------------------------------------------------------------------
 # Stage: static-analysis - static-analysis tooling for CI / PR evaluation, on top of `build`.
-#   Registers the full LLVM toolchain - clang-tidy, etc. (the `build` stage installed the clang packages minimalistically),
-#   and adds the dedicated static analysers (cppcheck, iwyu).
+#   Installs and registers the full LLVM toolchain - clang-tidy, etc. (the `build` stage took the
+#   compilers only), and adds the dedicated static analysers (cppcheck, iwyu).
 # ---------------------------------------------------------------------------------------------
 FROM build AS static-analysis
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
 # C++ toolchain: LLVM/Clang - full toolchain (clang-tidy, clang-format, clangd, lldb, scan-build).
-#   Re-runs llvm.sh non-minimalistically to register the analysis tools alongside the clang/clang++
-#   compilers already installed by the `build` stage.
+#   Re-runs llvm.sh in `--mode=full` to install the analysis tools and register them alongside the
+#   clang/clang++ compilers the `build` stage already installed.
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                       \
-    echo -e "[C++ analysis] Registering LLVM tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ;    \
+    echo -e "[C++ analysis] Installing LLVM tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ;      \
     chmod +x ${script_path}                                                                 \
-    && ${script_path} --silent=yes --alias=yes --versions="$LLVM_VERSIONS"                  \
+    && ${script_path} --silent=yes --alias=yes --mode=full --versions="$LLVM_VERSIONS"      \
     && rm -rf /var/lib/apt/lists/*
 
 # Dedicated static analysers
@@ -332,17 +333,17 @@ FROM build AS documentation
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
-# Coverage: register the unversioned Clang coverage commands (llvm-cov, llvm-profdata).
-#   The `build` stage installed clang `--minimalistic` (compilers only); re-run llvm.sh in
-#   `--coverage` mode to add the llvm-cov/llvm-profdata alternatives - the GCC side (gcov) already
-#   ships with GCC and lcov (`genhtml`) is installed below.
+# Coverage: install and register the unversioned Clang coverage commands (llvm-cov, llvm-profdata).
+#   The `build` stage took the compilers only; re-run llvm.sh in `--mode=coverage` to add llvm-<N>
+#   and its alternatives - the GCC side (gcov) already ships with GCC and lcov (`genhtml`) is
+#   installed below.
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
 RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                            \
-    echo -e "[C++ coverage] Registering LLVM coverage tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..."; \
+    echo -e "[C++ coverage] Installing LLVM coverage tools LLVM_VERSIONS=[$LLVM_VERSIONS] ...";  \
     chmod +x ${script_path}                                                                      \
-    && ${script_path} --silent=yes --alias=yes --coverage --versions="$LLVM_VERSIONS"            \
+    && ${script_path} --silent=yes --alias=yes --mode=coverage --versions="$LLVM_VERSIONS"       \
     && rm -rf /var/lib/apt/lists/*
 
 # Documentation: Doxygen (pre-built binary - Ubuntu's apt package lags upstream) + graphviz (`dot`).
