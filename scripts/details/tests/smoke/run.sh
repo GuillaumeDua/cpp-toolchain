@@ -3,7 +3,7 @@
 #
 # Runs inside the image under test (the caller bind-mounts the tests directory),
 # so it may only use what the stage ships.
-# It holds no version knowledge: which compilers are installed and at what version is verify-image.py's question,
+# It holds no version knowledge: which compilers are installed and at what version is check-image.sh's question,
 # and this one only asks whether they work.
 #
 # Reports every compiler before failing, rather than stopping at the first.

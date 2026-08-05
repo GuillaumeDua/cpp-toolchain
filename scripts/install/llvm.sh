@@ -303,9 +303,8 @@ for version in "${llvm_versions_to_install[@]}"; do
     #     lldb-${version}         \
     # || error "installation of [${version}] (tools) failed"
     # clang and clang-tools
-    
-    # Latest stable always has the highest priority
-    update_alternative_priority=$([[ "${version}" = "${llvm_latest_stable}" ]] && echo "100" || echo "${version}")
+
+    update_alternative_priority="${version}"
 
     if [[ ${arg_minimalistic} == 1 ]]; then
         update-alternatives --quiet                                                                                             \

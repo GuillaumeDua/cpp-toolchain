@@ -149,7 +149,7 @@ sudo bash llvm.sh --versions='latest-stable'
 
 ## Build it yourself
 
-The stage name is the `docker build --target <stage>` argument - omitting `--target` builds `dev`, the last stage:
+The stage name is the `docker build --target <stage>` argument - omitting `--target` builds `dev`:
 
 ```bash
 # build a specific stage locally (context is the repo root)

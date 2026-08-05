@@ -390,7 +390,8 @@ jobs:
       #   with every version pinned, a cache hit means the inputs really are unchanged, so replaying a layer cannot smuggle in a stale toolchain.
       # Each build writes a metadata file:
       #   the digests in there become the promotion record, so whatever this step pushes is exactly what a later promotion re-tags.
-      - name: Build and push all stages
+      # Every image is checked before it is pushed - see the `check-<stage>` invocation in the loop below.
+      - name: Build, check and push all stages
         if: steps.changed.outputs.skip != 'true'
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
@@ -417,6 +418,23 @@ jobs:
                   fi
                 done
               done
+
+              # Check before publishing. `check-<stage>` inherits the stage it checks and adds one RUN
+              # asserting the image contains what it advertises (scripts/details/tests/check-image.sh),
+              # so a stage that lost a package to an autoremove never reaches a registry.
+              #   This invocation is what materialises the layers; the push below then solves against
+              #   a warm local cache and costs only the upload it already costs today. Nothing is
+              #   exported here, and the push still targets `${target}`, so published digests are
+              #   unaffected - the check layer is not part of what ships.
+              echo "::group::check cpp-toolchain:${target}-${infix}*"
+              docker buildx build \
+                --file Dockerfile \
+                --target "check-${target}" \
+                --build-arg "BINUTILS_TARGETS=${targets}" \
+                --cache-from type=gha,scope=cpp-toolchain \
+                --output type=cacheonly \
+                .
+              echo "::endgroup::"
 
               echo "::group::build+push cpp-toolchain:${target}-${infix}* [${TAGS}]"
               docker buildx build \
