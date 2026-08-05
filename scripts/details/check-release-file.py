@@ -44,9 +44,10 @@ CROSS_STAGES = ("build", "static-analysis", "documentation", "dev")  # runtime h
 # The cross-arch target triplets the `-cross` variant is built with, canonical for the same reason:
 # the build loop, the verification suite and the cross smoke test must request the same list,
 # and it was previously restated in both workflows, each labelled a single source of truth.
-#   Spelled the Debian way (`x86-64`, not `x86_64`): this is the `g++-<triplet>` package suffix, and
-#   Debian package names cannot contain underscores. The installed binary uses the GNU spelling
-#   (`/usr/bin/x86_64-linux-gnu-g++`), so anything mapping between the two must normalise.
+#
+# Spelled the Debian way (`x86-64`, not `x86_64`):
+#   This is the `g++-<triplet>` package suffix, and Debian package names cannot contain underscores. 
+#   The installed binary uses the GNU spelling (`/usr/bin/x86_64-linux-gnu-g++`), so anything mapping between the two must normalise.
 CROSS_TARGETS = ("x86-64-linux-gnu", "aarch64-linux-gnu", "arm-linux-gnueabihf", "riscv64-linux-gnu")
 
 VERSION_RE = re.compile(r"^v\d+\.\d+$")

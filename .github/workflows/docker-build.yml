@@ -35,10 +35,8 @@ jobs:
       # Both image variants are gated: normal/lean (BINUTILS_TARGETS='') and cross-arch (a triplet list), so a break in either is caught.
       # Caching keeps the cross pass to just the tail binutils layer.
       #
-      # The target is `check-<stage>`, not `<stage>`: that stage inherits the one it checks and adds a
-      # single RUN asserting the image contains what it advertises (scripts/details/tests/check-image.sh).
-      # This job was already building those layers and pushing nothing, so the content check costs
-      # only the RUN - seconds - rather than the image load a host-side check would need.
+      # The target is `check-<stage>`, not `<stage>`:
+      # - that stage inherits the one it checks and adds a single RUN asserting the image contains what it advertises (scripts/details/tests/check-image.sh).
       - name: Build and check all stages (no push)
         run: |
           set -euo pipefail
