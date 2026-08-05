@@ -83,9 +83,9 @@ jobs:
       # Anonymous pull - GHCR needs no credentials for public images.
       #
       # Two layers, in cost order.
-      # The verifier asserts the image contains the versions the Dockerfile pinned at the recorded commit,
-      # which is a different claim from the digest simply not having moved.
-      # The smoke test then asserts the toolchain actually works.
+      # - The verifier asserts the image contains the versions the Dockerfile pinned at the recorded commit,
+      #   which is a different claim from the digest simply not having moved.
+      # - The smoke test then asserts the toolchain actually works.
       - name: Verify the candidate image
         if: steps.record.outputs.skip != 'true'
         env:
@@ -97,8 +97,9 @@ jobs:
           echo "verifying ${image}"
 
           # The Dockerfile is read at the recorded commit, not the merge commit:
-          # if main moved between the rc and this PR,
-          # then the merge commit's pins are newer than the image and would be the wrong expectation to hold it to.
+          # - if main moved between the rc and this PR,
+          # - then the merge commit's pins are newer than the image and would be the wrong expectation to hold it to.
+
           commit=$(python3 scripts/details/check-release-file.py "${FILE}" --print-commit)
           git show "${commit}:Dockerfile"    > "${RUNNER_TEMP}/Dockerfile.rc"
           git show "${commit}:renovate.json" > "${RUNNER_TEMP}/renovate.rc.json"

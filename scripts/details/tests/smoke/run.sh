@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Compile and run the C++23 payload with every default compiler in the image.
 #
-# Runs inside the image under test (the caller bind-mounts the tests directory), so it may only use
-# what the stage ships. It holds no version knowledge: which compilers are installed and at what
-# version is verify-image.py's question, and this one only asks whether they work.
+# Runs inside the image under test (the caller bind-mounts the tests directory),
+# so it may only use what the stage ships.
+# It holds no version knowledge: which compilers are installed and at what version is verify-image.py's question,
+# and this one only asks whether they work.
 #
-# Reports every compiler before failing, rather than stopping at the first. The predecessor of this
-# script stopped at g++, so a broken clang++ was invisible whenever both were broken - and "both are
-# broken" is the likely shape of an upstream breakage, not the unlikely one.
+# Reports every compiler before failing, rather than stopping at the first.
+# The predecessor of this script stopped at g++, so a broken clang++ was invisible whenever both were broken;
+# and "both are broken" is the likely shape of an upstream breakage, not the unlikely one.
 #
 # Usage, from inside the image:
 #   bash run.sh [<compiler>...]      # default: g++ clang++
@@ -38,8 +39,8 @@ for cxx in "${compilers[@]}"; do
     echo "${cxx}: $("${cxx}" --version 2>&1 | head -n 1)"
     binary="${tmp}/cxx23-${cxx}"
 
-    # -Werror on purpose: a new warning from a toolchain bump is a change in what the image gives
-    # its users, and the point of this suite is to see those before they are published.
+    # -Werror on purpose: a new warning from a toolchain bump is a change in what the image gives its users,s
+    # and the point of this suite is to see those before they are published.
     if ! "${cxx}" -std=c++23 -Wall -Wextra -Werror "${source}" -o "${binary}"; then
         echo "FAIL ${cxx}: compilation failed"
         failed=1

@@ -35,8 +35,8 @@ docker run --rm \
     "${image}" \
     bash /opt/cpp-toolchain-tests/smoke/cross.sh /opt/cpp-toolchain-out "${targets[@]}" || exit 1
 
-# Triplet -> qemu architecture. Only the x86-64 spelling needs special handling: it is the host
-# architecture, so its artifact runs natively and needs no interpreter at all.
+# Triplet -> qemu architecture. Only the x86-64 spelling needs special handling:
+# it is the host architecture, so its artifact runs natively and needs no interpreter at all.
 qemu_arch_of() {
     case "$1" in
         x86-64-* | x86_64-*) echo native ;;
