@@ -76,8 +76,9 @@ jobs:
       # The artifact under test is the digest, not the tag: this exercises the exact bytes a merge would promote.
       # Anonymous pull - GHCR needs no credentials for public images.
       #
-      # Only the smoke test lives here. That the image contains the versions the Dockerfile pinned is
-      # asserted at build time, by the `check-<stage>` stages docker-publish.yml builds before pushing:
+      # Only the smoke test lives here.
+      # That the image contains the versions the Dockerfile pinned is asserted at build time,
+      # by the `check-<stage>` stages docker-publish.yml builds before pushing:
       #   a digest is content-addressed, so the bytes being promoted are the bytes that were checked,
       #   and re-deriving the pins from the recorded commit to re-assert them here would only restate it.
       - name: Smoke test the candidate image
