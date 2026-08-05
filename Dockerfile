@@ -441,13 +441,13 @@ CMD ["/bin/bash"]
 # ---------------------------------------------------------------------------------------------
 # Stages: check-<stage> - assert that an image contains what it advertises, before it is published.
 #
-#   Each one inherits the stage it checks, so what it inspects is the published filesystem, after
-#   every purge, autoremove and dist-upgrade - and the expected versions are this file's own ARGs,
-#   collected once by `check-expectations` below. There is no second source of truth, and bumping a
-#   pin needs no edit anywhere else.
+#   Each one inherits the stage it checks,
+#   so what it inspects is the published filesystem, after every purge, autoremove and dist-upgrade;
+#   and the expected versions are this file's own ARGs, collected once by `check-expectations` below.
+#   There is no second source of truth, and bumping a pin needs no edit anywhere else.
 #
-#   Never published: CI builds these with no output and pushes the stage itself, so nothing here
-#   reaches a released digest. Keeping the assertions in a separate stage rather than appending them
+#   Never published: CI builds these with no output and pushes the stage itself, so nothing here reaches a released digest.
+#   Keeping the assertions in a separate stage rather than appending them
 #   to the stages themselves is what stops an edit to check-image.sh from invalidating the toolchain
 #   layers of every image below it.
 #
@@ -455,10 +455,8 @@ CMD ["/bin/bash"]
 # ---------------------------------------------------------------------------------------------
 
 # The expectations, materialised once, so the five check stages below do not each re-declare them.
-#   This is the single list of what gets checked: adding a pin to it is the only edit a new
-#   assertion needs.
-#   Single-quoted because GCC_VERSIONS and BINUTILS_TARGETS are space-separated lists; no pinned
-#   value contains a quote.
+#   This is the single list of what gets checked: adding a pin to it is the only edit a new assertion needs.
+#   Single-quoted because GCC_VERSIONS and BINUTILS_TARGETS are space-separated lists; no pinned value contains a quote.
 FROM ${BASE_IMAGE} AS check-expectations
 ARG BASE_IMAGE
 ARG UBUNTU_SNAPSHOT
@@ -508,7 +506,7 @@ COPY --from=check-expectations /expected.env /expected.env
 COPY ./scripts/details/tests/check-image.sh /check-image.sh
 RUN bash /check-image.sh dev
 
-# `dev` is the Dockerfile's default target (README, "Build it yourself"), and Docker builds the last
-# stage when --target is omitted - so restore it below the check stages.
+# `dev` is the Dockerfile's default target (README, "Build it yourself"),
+# and Docker builds the last stage when --target is omitted - so restore it below the check stages.
 #   An alias carries no instruction, hence no layer: `docker build .` still produces `dev` exactly.
 FROM dev AS default
