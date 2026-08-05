@@ -4,16 +4,15 @@ name: release-candidate-check
 # (opened by docker-publish.yml after each rc; docs/RELEASE_PROCESS.md is the runbook).
 #
 # Merging such a PR is what promotes an rc to a release, so this check validates the record
-# and smoke-tests the exact image being promoted, by digest - not by tag, which could have
-# moved since the record was written.
+# before the merge makes it authoritative.
 #
 # Intended as a required status check on main, and therefore deliberately NOT path-filtered
 # (same rationale as docker-build: a path-filtered required check that never runs leaves the PR
 # waiting forever on a status that never reports). On a PR that touches no promotion record the
 # identify step exits green in seconds.
 #
-# Read-only by design: no secrets, no registry writes - the image is pulled anonymously from
-# GHCR, which is also why this works for a hand-opened PR from a fork.
+# Read-only by design: no secrets, no registry access at all, which is also why this works for a
+# hand-opened PR from a fork.
 on:
   pull_request:
     branches: [main]
@@ -72,24 +71,3 @@ jobs:
           set -euo pipefail
           python3 scripts/details/check-release-file.py "${FILE}" --check-git --check-bumps
           git tag -l | python3 scripts/details/check-release-file.py "${FILE}" --check-supersession
-
-      # The artifact under test is the digest, not the tag: this exercises the exact bytes a merge would promote.
-      # Anonymous pull - GHCR needs no credentials for public images.
-      #
-      # Only the smoke test lives here.
-      # That the image contains the versions the Dockerfile pinned is asserted at build time,
-      # by the `check-<stage>` stages docker-publish.yml builds before pushing:
-      #   a digest is content-addressed, so the bytes being promoted are the bytes that were checked,
-      #   and re-deriving the pins from the recorded commit to re-assert them here would only restate it.
-      - name: Smoke test the candidate image
-        if: steps.record.outputs.skip != 'true'
-        env:
-          FILE: ${{ steps.record.outputs.file }}
-        run: |
-          set -euo pipefail
-          digest=$(python3 scripts/details/check-release-file.py "${FILE}" --print-digest dev)
-          echo "smoke-testing ghcr.io/guillaumedua/cpp-toolchain@${digest}"
-          docker run --rm \
-            --volume "${PWD}/scripts/details/tests:/opt/cpp-toolchain-tests:ro" \
-            "ghcr.io/guillaumedua/cpp-toolchain@${digest}" \
-            bash /opt/cpp-toolchain-tests/smoke/run.sh

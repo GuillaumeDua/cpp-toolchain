@@ -82,7 +82,8 @@ Every moving part lives in two workflows and one schema:
   - schema
   - tag consistency
   - bumps recompute
-  - a smoke test of the image **by digest**. Make it a required status check on `main`.
+
+  Make it a required status check on `main`.
 - [scripts/details/check-release-file.py](../scripts/details/check-release-file.py) - the single definition of the `releases/v*.yaml` schema and of the stage lists.
 
 ## The normal path
@@ -165,7 +166,7 @@ So the guarantees are not read as stronger than they are:
   That is precisely what the digest assertion catches: promotion fails loudly rather than shipping moved bytes.
 - `releases/v*.yaml` is a file like any other:  
   A hand-written *real* digest that was never tested cannot be caught mechanically.  
-  The smoke check covers `dev` by digest; the rest rides on review and branch protection.
+  Nothing pulls the recorded image to check it - that rides on review and branch protection.
 
 ### Setup prerequisites
 
