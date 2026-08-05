@@ -279,10 +279,10 @@ fi
 #                   llvm-<N>-tools, libclang-*-dev, liblldb-<N>-dev, and the runtimes below.
 # So anything between the two has to be named here.
 #
-# What every mode keeps beyond the default set are the compiler's own runtimes - the libc++ stack,
-# the sanitizers, OpenMP and Polly. Those are compiler capabilities rather than tools: dropping them
-# would silently break `-stdlib=libc++`, `-fsanitize=...`, `-fopenmp` and `-mllvm -polly` for anyone
-# using a minimalistic install, which is not what "only clang/clang++, not tools" promises.
+# What every mode keeps beyond the default set are the compiler's own runtimes - the libc++ stack, the sanitizers, OpenMP and Polly.
+# Those are compiler capabilities rather than tools:
+#   dropping them would silently break `-stdlib=libc++`, `-fsanitize=...`, `-fopenmp` and `-mllvm -polly` for anyone
+#   using a minimalistic install, which is not what "only clang/clang++, not tools" promises.
 upstream_package_set=''
 if [[ "${arg_mode}" == 'full' ]]; then
     upstream_package_set='all'
@@ -310,8 +310,7 @@ for version in "${llvm_versions_to_install[@]}"; do
     || error "running [${external_script_url} ${version} ${upstream_package_set}] failed"
 
     # `full` already has everything through `all`; the other two have to add what they need.
-    #   llvm-<N> is where llvm-cov and llvm-profdata live - `all` only pulls it in transitively,
-    #   through llvm-<N>-dev.
+    #   llvm-<N> is where llvm-cov and llvm-profdata live - `all` only pulls it in transitively, through llvm-<N>-dev.
     extra_packages=''
     case "${arg_mode}" in
         minimalistic ) extra_packages="$(compiler_runtimes_for ${version})" ;;
