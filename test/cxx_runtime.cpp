@@ -4,9 +4,13 @@
 //   (a) dynamically links the C++ runtime (a NEEDED libstdc++/libc++),
 //   (b) runs on the `runtime` image, resolving those symbols.
 // This is what --auto-remove / --allow-downgrades can break.
+//
+// Deliberately C++98-clean, so the same payload compiles under every standard the compiler
+// exposes. No emplace_back, no range-based for, no %zu.
 
 #include <string>
 #include <vector>
+#include <cstddef>
 #include <cstdio>
 
 #if defined(_LIBCPP_VERSION)
@@ -23,30 +27,18 @@
 // std::string/std::vector suffice: they pull versioned symbols and are stable across every standard, past and future.
 int main() {
     std::vector<std::string> v;
-    v.emplace_back("toolchain");
-    v.emplace_back("check");
+    v.push_back(std::string("toolchain"));
+    v.push_back(std::string("check"));
 
     std::string joined;
-    for (auto& s : v) joined += s;
+    for (std::size_t i = 0; i < v.size(); ++i) joined += v[i];
 
     std::printf(
-        "stdlib=%s ver=%ld cxx=%ldL len=%zu\n",
+        "stdlib=%s ver=%ld cxx=%ldL len=%lu\n",
         STDLIB_NAME,
         (long)STDLIB_VER,
         (long)__cplusplus,
-        joined.size()
+        (unsigned long)joined.size()
     );
     return joined.empty() ? 1 : 0;
 }
-
-/*
-TODO:
-
-# requirement/expectation: the binary MUST declare libstdc++ or libc++ as NEEDED.
-# must prevent static linkage, as it'd defeat the purpose of the check
-if ! readelf -d "$bin" | grep -qE 'NEEDED.*lib(stdc\+\+|c\+\+)\.so'; then
-    echo "FAIL: C++ runtime linked statically — image runtime check is meaningless"
-    exit 1
-fi
-
-*/
