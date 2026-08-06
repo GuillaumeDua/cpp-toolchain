@@ -11,7 +11,7 @@ There is a hard split between **building** (gate, runs on every PR) and **publis
 
 | Workflow | Trigger | What it does | Pushes? |
 | -------- | ------- | ------------ | :-----: |
-| [docker-build](.github/workflows/docker-build.yml) | every PR to `main`, every push to `main` | builds all stages in both variants | ❌ |
+| [docker-build](.github/workflows/docker-build.yml) | every PR to `main`, every push to `main` | builds all stages in both variants, then runs the [images validation gate](docs/IMAGES_VALIDATION.md) | ❌ |
 | [docker-publish](.github/workflows/docker-publish.yml) | GitHub **release** (major), merged **candidate PR** (minor), twice-monthly rc schedule, manual dispatch | builds rcs/majors, promotes minors, pushes tags to Docker Hub + GHCR | ✅ |
 | [release-candidate-check](.github/workflows/release-candidate-check.yml) | every PR to `main` (no-op unless a promotion record is touched) | validates the promotion record and smoke-tests the candidate image by digest | ❌ |
 | [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) | monthly schedule (25th), manual dispatch | opens a PR moving the Ubuntu archive snapshot forward | ❌ |
@@ -22,16 +22,15 @@ There is a hard split between **building** (gate, runs on every PR) and **publis
 ## Opening a pull request
 
 1. Branch off `main` (branch names follow `<issue-number>-<short-description>`, e.g. `19-add-arm64-support`).
-2. Make your change. If you touch the [Dockerfile](Dockerfile) or the
-   [scripts](scripts/), build the affected stages locally first (see below) -
-   a broken layer fails the gate for everyone.
+2. Make your change. If you touch the [Dockerfile](Dockerfile) or the [scripts](scripts/),  
+   build the affected stages locally first (see below) - a broken layer fails the gate for everyone.
 3. Open a PR against `main`. The [docker-build](.github/workflows/docker-build.yml) gate runs automatically.
 4. Keep the PR green: **all** stages must build in **both** variants before it can merge.
 
-The gate is deliberately **not** path-filtered - it is a required status check, so it runs on
-every PR (a path-filtered workflow that never runs would leave the PR waiting forever on a check
-that never reports). When the Dockerfile and scripts are untouched the GitHub Actions cache makes
-it a near-no-op. Nothing is pushed, no registry credentials are needed, and the gate therefore also
+The gate is deliberately **not** path-filtered - it is a required status check,
+so it runs on every PR (a path-filtered workflow that never runs would leave the PR waiting forever on a check that never reports).  
+When the Dockerfile and scripts are untouched the GitHub Actions cache makes it a near-no-op.  
+Nothing is pushed, no registry credentials are needed, and the gate therefore also
 works for PRs coming from forks (which have no access to secrets).
 
 ## What the build gate checks
@@ -43,6 +42,12 @@ builder, every stage in **both** image variants:
 - **cross-arch** (`BINUTILS_TARGETS='x86-64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'`): `build`, `static-analysis`, `documentation`, `dev`
 
 `runtime` carries no toolchain, so it has no cross variant. A break in either variant fails the gate.
+
+It then runs the **images validation gate** - the `validate-build` and `validate-runtime` stages,
+which assert that every toolchain package still comes from the repository that owns it, and that a
+binary compiled in `build` still runs on `runtime`.  
+Both are throwaway stages built on layers the job already has, so they cost a cache hit plus their own `RUN`.
+See [docs/IMAGES_VALIDATION.md](docs/IMAGES_VALIDATION.md).
 
 Reproduce it locally before pushing (context is the repo root):
 

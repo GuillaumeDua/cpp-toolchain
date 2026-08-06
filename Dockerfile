@@ -292,6 +292,45 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 CMD ["/bin/bash"]
 
 # ---------------------------------------------------------------------------------------------
+# Stages: validate-build / validate-runtime - the image validation gate. See docs/IMAGES_VALIDATION.md
+#
+#   Throwaway stages:
+#       Nothing published inherits them, so no image below gains a layer.
+#       They sit here rather than at the end of the file so `dev` remains the last stage,
+#       which keeps a bare `docker build .` building `dev` as before.
+#
+#   `apt-get update` is needed because each stage above ends by wiping /var/lib/apt/lists,
+#   and the origin check reads what apt reports about the repository behind each installed package.
+# ---------------------------------------------------------------------------------------------
+FROM build AS validate-build
+ARG DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+ARG GCC_VERSIONS
+ARG LLVM_VERSIONS
+ARG BINUTILS_TARGETS
+COPY ./scripts/checks/ /opt/cpp-toolchain-checks/
+COPY ./test/cxx_runtime.cpp /opt/cpp-toolchain-checks/
+RUN apt-get update -qqy                                                              \
+    && bash /opt/cpp-toolchain-checks/check-package-origins.sh build                 \
+    && bash /opt/cpp-toolchain-checks/check-cxx-runtime.sh compile /validate         \
+    && bash /opt/cpp-toolchain-checks/check-cxx-runtime.sh inspect /validate         \
+    && bash /opt/cpp-toolchain-checks/check-cxx-runtime.sh run     /validate/libcxx  \
+    && rm -rf /var/lib/apt/lists/*
+
+# The binaries are built by `build` and executed here, which is the whole point:
+#   it is the only way to prove that what `runtime` ships can still run what `build` produces.
+#   Only the libstdc++ set crosses over - `runtime` carries no libc++ yet, so those stay in `build`.
+FROM runtime AS validate-runtime
+ARG DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+COPY --from=validate-build /validate/bin/ /validate/bin/
+COPY ./scripts/checks/ /opt/cpp-toolchain-checks/
+RUN apt-get update -qqy                                                         \
+    && bash /opt/cpp-toolchain-checks/check-package-origins.sh runtime          \
+    && bash /opt/cpp-toolchain-checks/check-cxx-runtime.sh run /validate/bin    \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------------------------------------
 # Stage: static-analysis - static-analysis tooling for CI / PR evaluation, on top of `build`.
 #   Installs and registers the full LLVM toolchain - clang-tidy, etc. (the `build` stage took the
 #   compilers only), and adds the dedicated static analysers (cppcheck, iwyu).
@@ -306,10 +345,10 @@ SHELL ["/bin/bash", "-c"]
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
-RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                       \
-    echo -e "[C++ analysis] Installing LLVM tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ;      \
-    chmod +x ${script_path}                                                                 \
-    && ${script_path} --silent=yes --alias=yes --mode=full --versions="$LLVM_VERSIONS"      \
+RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                   \
+    echo -e "[C++ analysis] Installing LLVM tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ; \
+    chmod +x ${script_path}                                                             \
+    && ${script_path} --silent=yes --alias=yes --mode=full --versions="$LLVM_VERSIONS"  \
     && rm -rf /var/lib/apt/lists/*
 
 # Dedicated static analysers

@@ -1,4 +1,4 @@
-# Build context is the repo root; the build only needs the Dockerfile + scripts/.
+# Build context is the repo root; the build only needs the Dockerfile, scripts/ and test/.
 # Everything below is excluded to keep the context small (does not affect layer
 # caching, which keys the COPY layers on the scripts/*.sh contents).
 

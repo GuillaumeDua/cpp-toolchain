@@ -57,5 +57,8 @@ jobs:
           }
 
           # Normal variant first (populates the shared cache); `runtime` has no cross variant.
-          build_variant ""                 runtime build static-analysis documentation dev
-          build_variant "${CROSS_TARGETS}" build static-analysis documentation dev
+          # validate-build / validate-runtime are the image validation gate (docs/IMAGES_VALIDATION.md):
+          # throwaway stages on top of layers this job already built, so they cost a cache hit plus their own RUN.
+          # The cross variant has no `runtime`, hence no validate-runtime.
+          build_variant ""                 runtime build validate-build validate-runtime static-analysis documentation dev
+          build_variant "${CROSS_TARGETS}" build validate-build static-analysis documentation dev
