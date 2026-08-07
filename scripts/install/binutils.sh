@@ -33,7 +33,7 @@ this_script_name=$(basename "$0")
 
 arg_targets='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu x86-64-linux-gnu'
 arg_with_gcc=1
-arg_list=0
+arg_list_available=0
 arg_silent=1
 
 help(){
@@ -41,7 +41,7 @@ help(){
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
-        [ -l | --list ]     : Only list the cross target triplets available on this host.                           Boolean -> default is [0]
+        [ -l | --list-available ] : Only list the cross target triplets available on this host.                     Boolean -> default is [0]
         [ -t | --targets ]  : Target triplets to install a cross toolchain for (space-separated).                   String -> default is ['${arg_targets}']
                               Ex: 'aarch64-linux-gnu powerpc64le-linux-gnu s390x-linux-gnu'
         [ --with-gcc ]      : Install \`g++-<triplet>\` -> full cross toolchain (binutils+libc+libgcc+libstdc++).   Boolean -> default is [1]
@@ -132,7 +132,7 @@ fi
 # --- options management ---
 
 options_short=s:,t:,l,h
-options_long=silent:,targets:,with-gcc:,help,list
+options_long=silent:,targets:,with-gcc:,help,list-available
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -152,8 +152,8 @@ do
       arg_with_gcc="$2"
       shift 2
       ;;
-    -l | --list )
-      arg_list=1
+    -l | --list-available )
+      arg_list_available=1
       shift;
       ;;
     -h | --help)
@@ -177,8 +177,8 @@ if [ "$arg_silent" == '' ] ; then
     exit 1;
 fi
 
-arg_list=$(to_boolean "${arg_list}")
-if [ "$arg_list" == '' ] ; then
+arg_list_available=$(to_boolean "${arg_list_available}")
+if [ "$arg_list_available" == '' ] ; then
     exit 1;
 fi
 
@@ -187,14 +187,14 @@ if [ "$arg_with_gcc" == '' ] ; then
     exit 1;
 fi
 
-log "arguments - targets:  [${arg_targets}]"
-log "arguments - with-gcc: [${arg_with_gcc}]"
-log "arguments - silent:   [${arg_silent}]"
-log "arguments - list:     [${arg_list}]"
+log "arguments - targets:           [${arg_targets}]"
+log "arguments - with-gcc:          [${arg_with_gcc}]"
+log "arguments - silent:            [${arg_silent}]"
+log "arguments - list-available:    [${arg_list_available}]"
 
 # --- list mod ? ---
 #   lists the target triplets for which a `binutils-<triplet>` cross package exists on this host.
-if [[ ${arg_list} == 1 ]]; then
+if [[ ${arg_list_available} == 1 ]]; then
     apt-get update -qqy >/dev/null 2>&1 || true
     #   `-dbg`/`-dev` are debug-symbol / side packages of a target, not targets themselves.
     apt-cache search --names-only '^binutils-.*-linux-gnu' \

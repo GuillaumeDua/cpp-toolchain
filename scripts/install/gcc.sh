@@ -10,7 +10,8 @@ set -eu
 this_script_name=$(basename "$0")
 
 arg_versions='latest-stable'
-arg_list=0
+arg_list_available=0
+arg_list_installed=0
 arg_silent=1
 arg_alias=0
 arg_multilib=1
@@ -22,7 +23,8 @@ help(){
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
-        [ -l | --list ]         : Only list available versions, expanding [versions].   Boolean -> default is [0]
+        [ -l | --list-available ]: Only list available versions, expanding [versions].  Boolean -> default is [0]
+        [ --list-installed ]    : Only list the major versions already installed.       Boolean -> default is [0]
         [ -v | --versions ]     : Versions to install.                                  String: all|latest|latest-stable|>=(number)|(space-separated-numbers...) -> default is [latest-stable]
             - [all]             : all versions availables                                   Ex: 'all'
             - [latest]          : only the latest        version available                  Ex: 'latest'
@@ -36,7 +38,7 @@ help(){
         [ -h | --help ]         : Display usage/help
 
     For instance, to only install the two latest versions available, use:
-        sudo ./${this_script_name} --versions=\"\$(sudo ./${this_script_name} --list --versions='all' | tail -2)\"
+        sudo ./${this_script_name} --versions=\"\$(sudo ./${this_script_name} --list-available --versions='all' | tail -2)\"
         " 1>&2
     exit 0
 }
@@ -73,17 +75,10 @@ to_boolean(){
     esac
 }
 
-# --- precondition: sudoer ---
-
-if [ "$EUID" -ne 0 ]; then
-  error "Requires root privileges"
-  exit 1
-fi
-
 # --- options management ---
 
 options_short=s:,v:,a:,m,l,h
-options_long=silent:,versions:,alias:,multilib:,minimalistic,help,list
+options_long=silent:,versions:,alias:,multilib:,minimalistic,help,list-available,list-installed
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -112,8 +107,12 @@ do
       arg_minimalistic=1
       shift;
       ;;
-    -l | --list )
-      arg_list=1
+    -l | --list-available )
+      arg_list_available=1
+      shift;
+      ;;
+    --list-installed )
+      arg_list_installed=1
       shift;
       ;;
     -h | --help)
@@ -137,8 +136,13 @@ if [ "$arg_silent" == '' ] ; then
     exit 1;
 fi
 
-arg_list=$(to_boolean "${arg_list}")
-if [ "$arg_list" == '' ] ; then
+arg_list_available=$(to_boolean "${arg_list_available}")
+if [ "$arg_list_available" == '' ] ; then
+    exit 1;
+fi
+
+arg_list_installed=$(to_boolean "${arg_list_installed}")
+if [ "$arg_list_installed" == '' ] ; then
     exit 1;
 fi
 
@@ -160,10 +164,32 @@ if [[ ${arg_minimalistic} == 1 ]]; then
     fi
 fi
 
+# --- list installed versions ---
+#   Answered from dpkg alone, so this stays a query: no root, no repository added, nothing fetched.
+#   The trailing anchor keeps gcc-<major>-base and gcc-<major>-multilib out.
+#   Those are metadata and secondary-ABI packages that libgcc-s1 and libstdc++6 drag in,
+#   so an image can carry them for a major it has no compiler for.
+gcc_version_installed_regex='^gcc-\K[0-9]+(?=(:.*)?$)'
+list_installed_gcc_versions(){
+    dpkg -l | grep ^ii | awk '{print $2}' | grep -oP "${gcc_version_installed_regex}" | sort -n -u
+}
+
+if [[ ${arg_list_installed} == 1 ]]; then
+    list_installed_gcc_versions
+    exit 0
+fi
+
+# --- precondition: sudoer ---
+
+if [ "$EUID" -ne 0 ]; then
+  error "Requires root privileges"
+  exit 1
+fi
+
 log "arguments - versions:     [${arg_versions}]"
 log "arguments - silent:       [${arg_silent}]"
 log "arguments - alias:        [${arg_alias}]"
-log "arguments - list:         [${arg_list}]"
+log "arguments - list-available: [${arg_list_available}]"
 log "arguments - multilib:     [${arg_multilib}]"
 log "arguments - minimalistic: [${arg_minimalistic}]"
 
@@ -178,15 +204,11 @@ fi
 
 # --- list versions ---
 
-gcc_version_regex='^gcc-\K([0-9]{2})'
-list_installed_gcc_versions(){
-    dpkg -l | grep ^ii |  awk '{print $2}' | grep -oP $gcc_version_regex | uniq | sort -n
-    # apt list --installed | grep -oP $gcc_version_regex | uniq | sort -n | xargs
-}
+gcc_version_available_regex='^gcc-\K([0-9]{2})(?=/)'
 
 # --- which versions ---
 
-all_gcc_versions_available=$(apt list --all-versions 2>/dev/null  | grep -oP $gcc_version_regex | sort -n | uniq)
+all_gcc_versions_available=$(apt list --all-versions 2>/dev/null | grep -oP "${gcc_version_available_regex}" | sort -n -u)
 if [ "$arg_versions" = 'all' ]; then
     gcc_versions=$all_gcc_versions_available
 elif [ "$arg_versions" = 'latest' ] || [ "$arg_versions" = 'latest-stable' ]; then
@@ -218,7 +240,7 @@ if [[ ! $(echo -n $gcc_versions) =~  ^[0-9]+( [0-9]+)*$ ]]; then
 fi
 
 ## --- list mod ? ---
-if [[ ${arg_list} == 1 ]]; then
+if [[ ${arg_list_available} == 1 ]]; then
     echo -e "${gcc_versions}"
     exit 0
 fi

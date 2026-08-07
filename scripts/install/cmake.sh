@@ -10,7 +10,7 @@ set -eu
 this_script_name=$(basename "$0")
 
 arg_versions='latest'
-arg_list=0
+arg_list_available=0
 arg_silent=1
 arg_alias=0
 arg_rc=0
@@ -22,7 +22,7 @@ help(){
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
-        [ -l | --list ]     : Only list available versions from the Kitware apt repository. Boolean -> default is [0]
+        [ -l | --list-available ]     : Only list available versions from the Kitware apt repository. Boolean -> default is [0]
         [ -v | --versions ] : Version to install.                                           String: latest|(exact-version) -> default is [latest]
             - [latest]      : the version apt would resolve by default (Candidate)              Ex: 'latest'
             - [x.y.z-...]   : an exact version, pinned via 'apt install cmake=<version>'        Ex: '3.29.3-0kitware1ubuntu24.04.1~jammy'
@@ -32,7 +32,7 @@ help(){
         [ -h | --help ]     : Display usage/help
 
     For instance, to list the versions currently available, then install one of them:
-        sudo ./${this_script_name} --list
+        sudo ./${this_script_name} --list-available
         sudo ./${this_script_name} --versions=\"3.29.3-0kitware1ubuntu24.04.1~jammy\"
         " 1>&2
     exit 0
@@ -85,7 +85,7 @@ fi
 # --- options management ---
 
 options_short=s:,v:,a:,r,l,h
-options_long=silent:,versions:,alias:,rc,help,list
+options_long=silent:,versions:,alias:,rc,help,list-available
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -109,8 +109,8 @@ do
         arg_rc=1
         shift;
         ;;
-    -l | --list )
-        arg_list=1
+    -l | --list-available )
+        arg_list_available=1
         shift;
         ;;
     -h | --help)
@@ -134,8 +134,8 @@ if [ "$arg_silent" == '' ] ; then
     exit 1;
 fi
 
-arg_list=$(to_boolean "${arg_list}")
-if [ "$arg_list" == '' ] ; then
+arg_list_available=$(to_boolean "${arg_list_available}")
+if [ "$arg_list_available" == '' ] ; then
     exit 1;
 fi
 
@@ -147,7 +147,7 @@ fi
 log "arguments - versions: [${arg_versions}]"
 log "arguments - silent:   [${arg_silent}]"
 log "arguments - alias:    [${arg_alias}]"
-log "arguments - list:     [${arg_list}]"
+log "arguments - list-available:     [${arg_list_available}]"
 log "arguments - rc:       [${arg_rc}]"
 
 # --- register the Kitware apt repository (https://apt.kitware.com/) ---
@@ -183,7 +183,7 @@ if [ -z "${all_cmake_versions_available}" ]; then
 fi
 
 ## --- list mod ? ---
-if [[ ${arg_list} == 1 ]]; then
+if [[ ${arg_list_available} == 1 ]]; then
     echo -e "${all_cmake_versions_available}"
     exit 0
 fi
