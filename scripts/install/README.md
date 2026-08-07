@@ -50,16 +50,16 @@ sudo ./gcc.sh [options]
 
 Installs one or more GCC versions from the `ubuntu-toolchain-r/test` PPA (added automatically if missing), sets up `update-alternatives` for `gcc`/`g++`/`gcov`/`gcov-tool`, and (by default) installs the matching `-multilib` packages.
 
-| Option                   | Type    | Default         | Description                                                                                                      |
-| ------------------------ | ------- | --------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `-v`, `--versions`       | string  | `latest-stable` | `all` \| `latest` \| `latest-stable` \| `>=<number>` \| space-separated version numbers (e.g. `'13 14'`)         |
-| `-l`, `--list-available` | boolean | `0`             | Only list the versions that `--versions` resolves to, without installing anything                                |
-| `--list-installed`       | boolean | `0`             | Only list the major versions already installed. A pure query: needs no root, adds no repository, fetches nothing |
-| `-s`, `--silent`         | boolean | `1`             | Suppress log output                                                                                              |
-| `-a`, `--alias`          | boolean | `0`             | Append the resulting `gcc_versions` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                          |
-| `--multilib`             | boolean | `1`             | Install `gcc-<N>-multilib` / `g++-<N>-multilib` (secondary ABIs: `-m32`, `-mx32`)                                |
-| `-m`, `--minimalistic`   | boolean | `0`             | Compilers only - disables `--multilib` *unless* it was set explicitly                                            |
-| `-h`, `--help`           | -       | -               | Display usage                                                                                                    |
+| Option                   | Type    | Default         | Description                                                                                              |
+| ------------------------ | ------- | --------------- | -------------------------------------------------------------------------------------------------------- |
+| `-v`, `--versions`       | string  | `latest-stable` | `all` \| `latest` \| `latest-stable` \| `>=<number>` \| space-separated version numbers (e.g. `'13 14'`) |
+| `-l`, `--list-available` | boolean | `0`             | Only list the versions that `--versions` resolves to, without installing anything                        |
+| `--list-installed`       | boolean | `0`             | Only list the major versions already installed, filtered by `--versions` when that is given explicitly.  |
+| `-s`, `--silent`         | boolean | `1`             | Suppress log output                                                                                      |
+| `-a`, `--alias`          | boolean | `0`             | Append the resulting `gcc_versions` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                  |
+| `--multilib`             | boolean | `1`             | Install `gcc-<N>-multilib` / `g++-<N>-multilib` (secondary ABIs: `-m32`, `-mx32`)                        |
+| `-m`, `--minimalistic`   | boolean | `0`             | Compilers only - disables `--multilib` *unless* it was set explicitly                                    |
+| `-h`, `--help`           | -       | -               | Display usage                                                                                            |
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
@@ -89,16 +89,16 @@ Wraps the upstream [`apt.llvm.org/llvm.sh`](https://apt.llvm.org/llvm.sh) instal
 - then sets up `update-alternatives` for `clang`/`clang++` and, in `--mode=full`, the rest of the toolchain (`clang-format`, `clang-tidy`, `clangd`, `lldb`, `scan-build`, `llvm-cov`, `llvm-profdata`, ...)
 - *The temporary `impl.sh` is removed before exit*
 
-| Option                   | Type    | Default         | Description                                                                                                      |
-| ------------------------ | ------- | --------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `-v`, `--versions`       | string  | `latest-stable` | `all` \| `latest` \| `latest-stable` \| `>=<number>` \| space-separated version numbers (e.g. `'17 18'`)         |
-| `-l`, `--list-available` | boolean | `0`             | Only list the versions that `--versions` resolves to, without installing anything                                |
-| `--list-installed`       | boolean | `0`             | Only list the major versions already installed. A pure query: needs no root, adds no repository, fetches nothing |
-| `-s`, `--silent`         | boolean | `1`             | Suppress log output                                                                                              |
-| `-a`, `--alias`          | boolean | `0`             | Append the resulting `llvm_versions` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                         |
-| `--mode`                 | string  | `full`          | How much of the toolchain to install: `minimalistic` \| `coverage` \| `full` - see below                         |
-| `-c`, `--cleanup`        | boolean | `0`             | Purge any pre-existing `llvm-*`/`lldb-*`/`clang-*`/`python3-lldb-*` packages before installing                   |
-| `-h`, `--help`           | -       | -               | Display usage                                                                                                    |
+| Option                   | Type    | Default         | Description                                                                                              |
+| ------------------------ | ------- | --------------- | -------------------------------------------------------------------------------------------------------- |
+| `-v`, `--versions`       | string  | `latest-stable` | `all` \| `latest` \| `latest-stable` \| `>=<number>` \| space-separated version numbers (e.g. `'17 18'`) |
+| `-l`, `--list-available` | boolean | `0`             | Only list the versions that `--versions` resolves to, without installing anything                        |
+| `--list-installed`       | boolean | `0`             | Only list the major versions already installed, filtered by `--versions` when that is given explicitly   |
+| `-s`, `--silent`         | boolean | `1`             | Suppress log output                                                                                      |
+| `-a`, `--alias`          | boolean | `0`             | Append the resulting `llvm_versions` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                 |
+| `--mode`                 | string  | `full`          | How much of the toolchain to install: `minimalistic` \| `coverage` \| `full` - see below                 |
+| `-c`, `--cleanup`        | boolean | `0`             | Purge any pre-existing `llvm-*`/`lldb-*`/`clang-*`/`python3-lldb-*` packages before installing           |
+| `-h`, `--help`           | -       | -               | Display usage                                                                                            |
 
 The three modes are tiered, and each one selects both the **packages installed** and the **`update-alternatives` registered**:
 
@@ -144,13 +144,13 @@ With `--with-gcc=0`, or for targets that have no cross-`g++`, it falls back to b
 
 This fallback is compiler-agnostic - the bare binutils serve any toolchain emitting that arch, which is why cross tooling lives here rather than in `gcc.sh` (`gcc.sh` owns `--multilib`, a secondary ABI of the *host* arch - a different thing).
 
-| Option            | Type    | Default                                   | Description                                                                        |
-| ----------------- | ------- | ----------------------------------------- | ---------------------------------------------------------------------------------- |
-| `-t`, `--targets` | string  | `'aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'` | Space-separated GNU target triplets to install a cross toolchain for |
-| `--with-gcc`      | boolean | `1`                                       | Install `g++-<triplet>` (full toolchain, links C/C++); `0` = bare binutils + libc  |
-| `-l`, `--list-available` | boolean | `0`                                | Only list the cross target triplets available on this host                         |
-| `-s`, `--silent`  | boolean | `1`                                       | Suppress log output                                                                |
-| `-h`, `--help`    | -       | -                                         | Display usage                                                                      |
+| Option                   | Type    | Default                                                     | Description                                                                       |
+| ------------------------ | ------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `-t`, `--targets`        | string  | `'aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'` | Space-separated GNU target triplets to install a cross toolchain for              |
+| `--with-gcc`             | boolean | `1`                                                         | Install `g++-<triplet>` (full toolchain, links C/C++); `0` = bare binutils + libc |
+| `-l`, `--list-available` | boolean | `0`                                                         | Only list the cross target triplets available on this host                        |
+| `-s`, `--silent`         | boolean | `1`                                                         | Suppress log output                                                               |
+| `-h`, `--help`           | -       | -                                                           | Display usage                                                                     |
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
