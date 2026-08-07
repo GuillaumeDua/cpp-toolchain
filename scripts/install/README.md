@@ -146,7 +146,8 @@ This fallback is compiler-agnostic - the bare binutils serve any toolchain emitt
 
 | Option                   | Type    | Default                                                     | Description                                                                       |
 | ------------------------ | ------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `-t`, `--targets`        | string  | `'aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'` | Space-separated GNU target triplets to install a cross toolchain for, or `all`    |
+| `-t`, `--targets`        | string  | `'common'`                                                  | Space-separated GNU target triplets, or `common`, or `all`                        |
+| `--list-targets`         | boolean | `0`                                                         | Only print the triplets `--targets` resolves to, without consulting apt. A pure query, and how anything downstream resolves `common` |
 | `--with-gcc`             | boolean | `1`                                                         | Install `g++-<triplet>` (full toolchain, links C/C++); `0` = bare binutils + libc |
 | `-l`, `--list-available` | boolean | `0`                                                         | Only list the cross target triplets available on this host, restricted to `--targets`. Use `--targets=all` for every triplet the host offers |
 | `--list-installed`       | boolean | `0`                                                         | Only list the cross target triplets already installed, restricted to `--targets` when that is given explicitly. A pure query: needs no root, refreshes no apt index |
@@ -169,6 +170,11 @@ Each target is installed **best-effort** - availability is host/arch dependent, 
 | Endianness | `powerpc64` vs `powerpc64le`, `mips` vs `mipsel`                           |
 
 In the fallback path, cross-libc packages key off the **Debian architecture alias**, not the GNU triplet (`aarch64-linux-gnu` → `arm64`, `mipsisa64r6el-linux-gnuabin32` → `mipsn32r6el`), so the script carries an internal `triplet_to_deb_arch` lookup table (29 triplets; `alpha`, `hppa64`, `ia64` have no cross-libc and get binutils only).
+
+`common` is the set these images ship - `aarch64-linux-gnu`, `arm-linux-gnueabihf`,
+`riscv64-linux-gnu`, `x86-64-linux-gnu` - and `binutils.sh` is where that list lives. Nothing
+else in the repository repeats it: the workflows pass `common` through as `BINUTILS_TARGETS`,
+and the validation gate expands it with `--list-targets`.
 
 **Example**: discover the available targets, then install a couple:
 

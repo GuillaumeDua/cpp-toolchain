@@ -38,8 +38,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Cross-arch target triplets for the cross-arch variant (single source of truth).
-          CROSS_TARGETS="x86-64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu"
+          # Cross-arch target triplets for the `-cross` image variant.
+          # `common` is an alias resolved by scripts/install/binutils.sh, which is where the
+          # triplets are listed - repeating them here is what let this drift before.
+          CROSS_TARGETS="common"
 
           # Build one variant (no push). $1=BINUTILS_TARGETS build-arg, $2.. = stages.
           build_variant() {

@@ -398,8 +398,10 @@ jobs:
           set -euo pipefail
           mkdir -p build-metadata
 
-          # Cross-arch target triplets for the `-cross` image variant (single source of truth).
-          CROSS_TARGETS="x86-64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu"
+          # Cross-arch target triplets for the `-cross` image variant.
+          # `common` is an alias resolved by scripts/install/binutils.sh, which is where the
+          # triplets are listed - repeating them here is what let this drift before.
+          CROSS_TARGETS="common"
 
           # Run the image validation gate for one variant. $1=BINUTILS_TARGETS build-arg, $2.. = stages.
           #   `cacheonly` because only the exit status matters here - nothing is loaded or pushed,

@@ -31,11 +31,16 @@ set -eu
 
 this_script_name=$(basename "$0")
 
-arg_targets='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu x86-64-linux-gnu'
+# The triplets a cross build targets unless told otherwise, and the only place they are listed.
+# Referred to as `common` so nothing downstream has to repeat them.
+common_targets='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu x86-64-linux-gnu'
+
+arg_targets='common'
 arg_with_gcc=1
 arg_targets_explicit=0
 arg_list_available=0
 arg_list_installed=0
+arg_list_targets=0
 arg_silent=1
 
 help(){
@@ -47,7 +52,10 @@ help(){
                               Boolean -> default is [0]. Use --targets=all to list every triplet this host offers.
         [ --list-installed ]: Only list the cross target triplets already installed, restricted to [targets] when given explicitly.
                               Boolean -> default is [0]
-        [ -t | --targets ]  : Target triplets to install a cross toolchain for (space-separated), or 'all'.          String -> default is ['${arg_targets}']
+        [ --list-targets ]  : Only print the triplets [targets] resolves to, without consulting apt.               Boolean -> default is [0]
+        [ -t | --targets ]  : Target triplets to install a cross toolchain for (space-separated),                    String -> default is ['${arg_targets}']
+                              or 'common' (${common_targets}),
+                              or 'all' (every triplet this host offers).
                               Ex: 'aarch64-linux-gnu powerpc64le-linux-gnu s390x-linux-gnu'
         [ --with-gcc ]      : Install \`g++-<triplet>\` -> full cross toolchain (binutils+libc+libgcc+libstdc++).   Boolean -> default is [1]
                               When [0], or when no cross-g++ exists: \`binutils-<triplet>\` + \`libc6-dev-<debarch>-cross\` only.
@@ -143,6 +151,15 @@ list_installed_targets(){
       | awk '$2 == "install" && $4 == "installed" { print $1 }' | target_triplets
 }
 
+# Resolve the `common` alias. `all` needs the apt index, so it is left to the modes that have one.
+expand_targets(){
+    if [ "$1" = 'common' ]; then
+        echo "${common_targets}"
+    else
+        echo "$1"
+    fi
+}
+
 # Restrict a set of triplets to a --targets selector.
 #   'all' keeps the set as-is, an explicit list is intersected with it.
 select_targets(){
@@ -162,7 +179,7 @@ select_targets(){
 # --- options management ---
 
 options_short=s:,t:,l,h
-options_long=silent:,targets:,with-gcc:,help,list-available,list-installed
+options_long=silent:,targets:,with-gcc:,help,list-available,list-installed,list-targets
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -189,6 +206,10 @@ do
       ;;
     --list-installed )
       arg_list_installed=1
+      shift;
+      ;;
+    --list-targets )
+      arg_list_targets=1
       shift;
       ;;
     -h | --help)
@@ -222,6 +243,11 @@ if [ "$arg_list_installed" == '' ] ; then
     exit 1;
 fi
 
+arg_list_targets=$(to_boolean "${arg_list_targets}")
+if [ "$arg_list_targets" == '' ] ; then
+    exit 1;
+fi
+
 arg_with_gcc=$(to_boolean "${arg_with_gcc}")
 if [ "$arg_with_gcc" == '' ] ; then
     exit 1;
@@ -232,6 +258,23 @@ log "arguments - with-gcc:          [${arg_with_gcc}]"
 log "arguments - silent:            [${arg_silent}]"
 log "arguments - list-available:    [${arg_list_available}]"
 log "arguments - list-installed:    [${arg_list_installed}]"
+log "arguments - list-targets:      [${arg_list_targets}]"
+
+# Resolved once, so every mode below sees a plain triplet list rather than an alias.
+if [ "${arg_targets}" != 'all' ]; then
+    arg_targets=$(expand_targets "${arg_targets}")
+fi
+
+# --- list targets mod ? ---
+#   Pure expansion: no root, no apt, so anything downstream can resolve `common` for itself.
+if [[ ${arg_list_targets} == 1 ]]; then
+    [ "${arg_targets}" != 'all' ] \
+      || error "--list-targets cannot expand [all] without the apt index - use --list-available --targets=all"
+    for target in ${arg_targets}; do
+        echo "${target}"
+    done
+    exit 0
+fi
 
 # --- list installed mod ? ---
 #   Answered from dpkg alone, so this stays a query: no root, no apt index refresh.

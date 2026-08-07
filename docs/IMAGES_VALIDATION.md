@@ -139,6 +139,12 @@ would make the whole runtime check pass while proving nothing.
 | `libcxx/` - native, libc++ | `build` | `build` |
 | `cross/` - foreign architecture | `build` | nowhere yet |
 
+Cross targets are the one thing taken from the build argument rather than from the image.
+`BINUTILS_TARGETS` is expanded by `binutils.sh --list-targets`, so an alias such as `common`
+resolves to the triplets it names. Asking the image what it installed would agree with whatever
+happened - including a target [binutils.sh](../scripts/install/binutils.sh) skipped silently,
+which is the failure this is here to catch.
+
 ## The scripts
 
 All live in [`scripts/checks/`](../scripts/checks/) and run from inside an image.
@@ -207,7 +213,7 @@ docker buildx build --target validate-runtime .
 
 # The cross variant, which is where a silently skipped triplet shows up
 docker buildx build --target validate-build \
-  --build-arg BINUTILS_TARGETS='x86-64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu' .
+  --build-arg BINUTILS_TARGETS=common .
 ```
 
 The scripts also run against a plain checkout, which is the quickest way to iterate on them.

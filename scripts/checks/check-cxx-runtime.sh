@@ -117,8 +117,11 @@ do_compile(){
         compile_for_compiler "clang++-${major}" "${root}/libcxx" '-stdlib=libc++'
     done
 
+    # The build argument may name an alias such as `common`, so binutils.sh resolves it.
+    # Still the build argument rather than what is installed: that is what turns a silently
+    # skipped target into a missing compiler here.
     local targets
-    read -r -a targets <<< "${BINUTILS_TARGETS:-}"
+    mapfile -t targets < <(bash "${install_scripts_dir}/binutils.sh" --list-targets --targets="${BINUTILS_TARGETS:-}")
     local target
     for target in "${targets[@]}"; do
         compile_for_compiler "$(cross_compiler_for "${target}")" "${root}/cross"
