@@ -39,7 +39,7 @@ works for PRs coming from forks (which have no access to secrets).
 builder, every stage in **both** image variants:
 
 - **normal / lean** (`BINUTILS_TARGETS=''`): `runtime`, `build`, `static-analysis`, `documentation`, `dev`
-- **cross-arch** (`BINUTILS_TARGETS='x86-64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'`): `build`, `static-analysis`, `documentation`, `dev`
+- **cross-arch** (`BINUTILS_TARGETS='common'`, the triplets listed in [binutils.sh](scripts/install/binutils.sh)): `build`, `static-analysis`, `documentation`, `dev`
 
 `runtime` carries no toolchain, so it has no cross variant. A break in either variant fails the gate.
 
@@ -58,7 +58,7 @@ for stage in runtime build static-analysis documentation dev; do
 done
 
 # cross-arch variant - the four toolchain stages
-CROSS_TARGETS='x86-64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'
+CROSS_TARGETS='common'   # resolved by scripts/install/binutils.sh
 for stage in build static-analysis documentation dev; do
   docker build --target "$stage" --build-arg "BINUTILS_TARGETS=${CROSS_TARGETS}" .
 done
