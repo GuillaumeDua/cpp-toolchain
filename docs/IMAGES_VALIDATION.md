@@ -35,17 +35,38 @@ $ apt-cache policy libstdc++6
 Letting the archive win here swaps libstdc++ 16 for 14 in `runtime`, silently, while `build`
 still has GCC 15/16.
 
-**2. What is installed is discovered, not declared.** `gcc.sh` and `llvm.sh` run with
-`--alias=yes`, so they append the versions they actually resolved to `/etc/bash.bashrc`:
+**2. What is installed is discovered, not declared.** The compilers to exercise are obtained by
+asking the installers that put them there:
 
 ```sh
-gcc_versions='15 16'      # what >=15 became
-llvm_versions='22'
+scripts/install/gcc.sh  --list-installed
+scripts/install/llvm.sh --list-installed
 ```
 
-The checks read that. A build argument is consulted for one thing only: when it names a bare
-major, that major must appear in what was installed. Selectors such as `>=15` or `latest-stable`
-resolve at build time and are not second-guessed.
+`gcc.sh` and `llvm.sh` own how their packages are named, so they are the ones that can tell a
+compiler apart from the `gcc-<major>-base` and `gcc-<major>-multilib` packages that `libgcc-s1`
+and `libstdc++6` drag in. The gate holds no second opinion about it, and no helper of its own -
+the checks invoke those two scripts directly.
+
+`--list-installed` is a pure query: it is dispatched before the root precondition, before
+`gcc.sh` adds the toolchain PPA, and before `llvm.sh` fetches the apt.llvm.org signing key. A
+check that asks what is installed must not modify what it is asking about.
+
+The gate passes no `--versions`, which is what makes it report *every* installed major. Given
+one explicitly, `--list-installed` narrows to it - `--versions=">=13"` reports only the installed
+majors from 13 up.
+
+So a `GCC_VERSIONS=">=15"` that resolved to two majors is exercised as two majors, and the
+selector is re-implemented nowhere.
+
+**Origin is asserted only for the majors the build argument names.** The distribution's own GCC
+arrives as a `build-essential` dependency, from the Ubuntu archive, and is a legitimate
+inhabitant of the image - demanding that *every* installed compiler come from the PPA would
+fail on it. It still gets compiled and run: it is in the image, so it should work.
+
+When a build argument is a selector (`>=15`, `latest-stable`) rather than bare majors, which
+majors it produced cannot be recomputed, so the check falls back to requiring that at least one
+installed compiler comes from the expected repository.
 
 ## Where it runs
 
@@ -128,6 +149,11 @@ All live in [`scripts/checks/`](../scripts/checks/) and run from inside an image
 | `check-cxx-runtime.sh <compile\|inspect\|run> <directory>` | build the payload, prove it links dynamically, prove it runs |
 | `check-compiler-supported-cxx-standards.sh [--stable] [--greatest] [compiler]` | which C++ standards a compiler accepts |
 
+They reach [`scripts/install/`](../scripts/install/) by relative path, which is why the validate
+stages copy `scripts/` whole rather than `scripts/checks/` alone. A layout that separates the two
+fails with `cannot find scripts/install next to scripts/checks` rather than silently finding no
+compilers.
+
 Each reports **every** failure before exiting, so one run tells you everything that is wrong.
 
 ### Standards detection
@@ -184,14 +210,19 @@ docker buildx build --target validate-build \
   --build-arg BINUTILS_TARGETS='x86-64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu' .
 ```
 
-The scripts also run against a plain checkout, which is the quickest way to iterate on them:
+The scripts also run against a plain checkout, which is the quickest way to iterate on them.
+They discover whatever compilers the host has, so expect a wider matrix than an image produces:
 
 ```sh
-printf "gcc_versions='16'\nllvm_versions='22'\n" > /tmp/versions
-RECORDED_VERSIONS_FILE=/tmp/versions scripts/checks/check-cxx-runtime.sh compile /tmp/validate
-RECORDED_VERSIONS_FILE=/tmp/versions scripts/checks/check-cxx-runtime.sh inspect /tmp/validate
-scripts/checks/check-cxx-runtime.sh run /tmp/validate/bin
+scripts/checks/check-cxx-runtime.sh compile /tmp/validate
+scripts/checks/check-cxx-runtime.sh inspect /tmp/validate
+scripts/checks/check-cxx-runtime.sh run     /tmp/validate/bin
+
+GCC_VERSIONS=15 LLVM_VERSIONS=22 scripts/checks/check-package-origins.sh build
 ```
+
+To narrow the matrix, copy `scripts/` elsewhere and stub `gcc.sh`/`llvm.sh` `--list-installed`
+to return only the majors you care about.
 
 ## Proving the gate can fail
 
