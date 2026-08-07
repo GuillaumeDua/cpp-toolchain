@@ -24,20 +24,20 @@ help(){
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
-        [ -l | --list-available ]: Only list available versions, expanding [versions].  Boolean -> default is [0]
-        [ --list-installed ]    : Only list the major versions already installed.       Boolean -> default is [0]
-                                  Filtered by [versions] when given explicitly, otherwise every installed major is listed.
-        [ -v | --versions ]     : Versions to install.                                  String: all|latest|latest-stable|>=(number)|(space-separated-numbers...) -> default is [latest-stable]
-            - [all]             : all versions availables                                   Ex: 'all'
-            - [latest]          : only the latest        version available                  Ex: 'latest'
-            - [latest-stable]   : only the latest-stable version available                  Ex: 'latest-stable'
-            - [>=(number)]      : all versions greater or equal to <number>.                Ex: '>=42'
-            - [numbers...]      : only listed versions.                                     Ex: '13 25 42' (space-separated)
-        [ -s | --silent ]       : Run in silent mod.                                    Boolean -> default is [1]
-        [ -a | --alias]         : Set bash/zsh-rc aliases.                              Boolean -> default is [0]
-        [ --multilib ]          : install gcc/g++ multilib (32-bit / x32 secondary ABI).           Boolean -> default is [1]
-        [ -m | --minimalistic]  : compilers only - disables multilib unless it is explicitly set.  Boolean -> default is [0]
-        [ -h | --help ]         : Display usage/help
+        [ -l | --list-available ]: Only list available versions, expanding [versions].              Boolean -> default is [0]
+        [ --list-installed ]     : Only list the major versions already installed.                  Boolean -> default is [0]
+                                   Filtered by [versions] when given explicitly, otherwise every installed major is listed.
+        [ -v | --versions ]      : Versions to install.                                             String: all|latest|latest-stable|>=(number)|(space-separated-numbers...) -> default is [latest-stable]
+            - [all]              : all versions availables                                              Ex: 'all'
+            - [latest]           : only the latest        version available                             Ex: 'latest'
+            - [latest-stable]    : only the latest-stable version available                             Ex: 'latest-stable'
+            - [>=(number)]       : all versions greater or equal to <number>.                           Ex: '>=42'
+            - [numbers...]       : only listed versions.                                                Ex: '13 25 42' (space-separated)
+        [ -s | --silent ]        : Run in silent mod.                                               Boolean -> default is [1]
+        [ -a | --alias]          : Set bash/zsh-rc aliases.                                         Boolean -> default is [0]
+        [ --multilib ]           : install gcc/g++ multilib (32-bit / x32 secondary ABI).           Boolean -> default is [1]
+        [ -m | --minimalistic]   : compilers only - disables multilib unless it is explicitly set.  Boolean -> default is [0]
+        [ -h | --help ]          : Display usage/help
 
     For instance, to only install the two latest versions available, use:
         sudo ./${this_script_name} --versions=\"\$(sudo ./${this_script_name} --list-available --versions='all' | tail -2)\"
