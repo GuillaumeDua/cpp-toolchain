@@ -4,12 +4,14 @@ set -uo pipefail
 # See docs/IMAGES_VALIDATION.md
 
 this_script_name=$(basename "$0")
+this_script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+
+# The installers own how their packages are named, so they answer what is installed.
+install_scripts_dir="${this_script_dir}/../install"
 
 origin_toolchain_ppa='ppa.launchpadcontent.net/ubuntu-toolchain-r'
 origin_llvm='apt.llvm.org'
 origin_kitware='apt.kitware.com'
-
-recorded_versions_file="${RECORDED_VERSIONS_FILE:-/etc/bash.bashrc}"
 
 failures=0
 
@@ -51,28 +53,55 @@ check_origin(){
     fi
 }
 
-# The install scripts append the versions they resolved, so `>=15` is recorded as what it became.
-# The last assignment wins, since a stage may re-run an installer.
-recorded_versions(){
-    grep -oP "^$1='\K[^']*" "${recorded_versions_file}" 2>/dev/null | tail -n 1
-}
+# Only the majors the build argument names are part of the promise.
+# The distribution's own GCC arrives as a build-essential dependency, from the Ubuntu archive,
+# and is a legitimate inhabitant of the image rather than a regression.
+#
+# A selector such as '>=15' or 'latest-stable' resolves against apt at build time,
+# so which majors it produced cannot be recomputed here.
+# Those builds fall back to requiring that at least one installed compiler comes from the right place.
+# `patterns` are package names in which %s stands for a major, so a toolchain can name more than
+# its compiler - the libc++ runtimes belong to the clang major that llvm.sh was asked to install,
+# and to no other.
+check_toolchain_origin(){
+    local label="$1"
+    local requested="$2"
+    local expected="$3"
+    local installed="$4"
+    local patterns="$5"
 
-check_recorded_versions(){
-    local name="$1"
-    local recorded="$2"
-    local requested="$3"
-
-    if [ -z "${recorded}" ]; then
-        fail "[${name}] nothing recorded in ${recorded_versions_file} - the installer did not run with --alias=yes"
+    if [ -z "${installed}" ]; then
+        fail "[${label}] no compiler is installed"
         return
     fi
-    pass "[${name}] resolved to [${recorded}]"
+    pass "[${label}] compilers installed for major(s) [${installed}]"
 
-    # A build argument naming a bare major must appear in what was actually installed.
-    # Selectors such as '>=15' or 'latest-stable' resolve at build time and cannot be checked here.
-    if [[ "${requested}" =~ ^[0-9]+$ ]] && ! grep -qw -- "${requested}" <<< "${recorded}"; then
-        fail "[${name}] build argument requested [${requested}] but it is absent from [${recorded}]"
+    local major
+    local pattern
+
+    if [[ "${requested}" =~ ^[0-9]+( [0-9]+)*$ ]]; then
+        for major in ${requested}; do
+            if ! grep -qw -- "${major}" <<< "${installed}"; then
+                fail "[${label}] build argument requested [${major}] but no compiler is installed for it"
+                continue
+            fi
+            for pattern in ${patterns}; do
+                check_origin "${pattern//%s/${major}}" "${expected}"
+            done
+        done
+        return
     fi
+
+    # Probe the compiler package alone here: what a selector installed alongside it is not knowable.
+    local compiler_pattern="${patterns%% *}"
+    for major in ${installed}; do
+        local package="${compiler_pattern//%s/${major}}"
+        if is_installed "${package}" && [[ "$(installed_origin "${package}")" == *"${expected}"* ]]; then
+            pass "[${label}] selector [${requested}] resolved to at least ${package}, from ${expected}"
+            return
+        fi
+    done
+    fail "[${label}] selector [${requested}] resolved to [${installed}], none of them from ${expected}"
 }
 
 check_runtime_libraries(){
@@ -81,29 +110,18 @@ check_runtime_libraries(){
 }
 
 check_build_toolchains(){
-    local recorded_gcc
-    local recorded_llvm
-    recorded_gcc=$(recorded_versions 'gcc_versions')
-    recorded_llvm=$(recorded_versions 'llvm_versions')
+    [ -d "${install_scripts_dir}" ] \
+      || die "cannot find scripts/install next to scripts/checks"
 
-    check_recorded_versions 'gcc_versions'  "${recorded_gcc}"  "${GCC_VERSIONS:-}"
-    check_recorded_versions 'llvm_versions' "${recorded_llvm}" "${LLVM_VERSIONS:-}"
+    local gcc_majors
+    local clang_majors
+    gcc_majors=$(bash "${install_scripts_dir}/gcc.sh"  --list-installed | tr '\n' ' ' | sed 's/ $//')
+    clang_majors=$(bash "${install_scripts_dir}/llvm.sh" --list-installed | tr '\n' ' ' | sed 's/ $//')
 
-    local gcc_versions
-    local llvm_versions
-    read -r -a gcc_versions  <<< "${recorded_gcc}"
-    read -r -a llvm_versions <<< "${recorded_llvm}"
-
-    local version
-    for version in "${gcc_versions[@]}"; do
-        check_origin "gcc-${version}" "${origin_toolchain_ppa}"
-        check_origin "g++-${version}" "${origin_toolchain_ppa}"
-    done
-    for version in "${llvm_versions[@]}"; do
-        check_origin "clang-${version}"          "${origin_llvm}"
-        check_origin "libc++-${version}-dev"     "${origin_llvm}"
-        check_origin "libc++abi-${version}-dev"  "${origin_llvm}"
-    done
+    check_toolchain_origin 'gcc'   "${GCC_VERSIONS:-}"  "${origin_toolchain_ppa}" "${gcc_majors}" \
+        'gcc-%s g++-%s'
+    check_toolchain_origin 'clang' "${LLVM_VERSIONS:-}" "${origin_llvm}"          "${clang_majors}" \
+        'clang-%s libc++-%s-dev libc++abi-%s-dev'
 
     check_origin 'cmake' "${origin_kitware}"
 }

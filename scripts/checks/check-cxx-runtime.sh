@@ -8,7 +8,8 @@ this_script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 standards_script="${this_script_dir}/check-compiler-supported-cxx-standards.sh"
 
-recorded_versions_file="${RECORDED_VERSIONS_FILE:-/etc/bash.bashrc}"
+# The installers own how their packages are named, so they answer what is installed.
+install_scripts_dir="${this_script_dir}/../install"
 
 warning_flags=('-Wall' '-Wextra')
 
@@ -37,10 +38,6 @@ resolve_payload_source(){
         fi
     done
     die "cannot find cxx_runtime.cpp next to ${this_script_name} nor under test/"
-}
-
-recorded_versions(){
-    grep -oP "^$1='\K[^']*" "${recorded_versions_file}" 2>/dev/null | tail -n 1
 }
 
 # Draft and final spellings of one standard share a __cplusplus value,
@@ -100,21 +97,24 @@ cross_compiler_for(){
 do_compile(){
     local root="$1"
 
-    local gcc_versions
-    local llvm_versions
-    read -r -a gcc_versions <<< "$(recorded_versions 'gcc_versions')"
-    read -r -a llvm_versions <<< "$(recorded_versions 'llvm_versions')"
+    [ -d "${install_scripts_dir}" ] \
+      || die "cannot find scripts/install next to scripts/checks"
 
-    [ $(( ${#gcc_versions[@]} + ${#llvm_versions[@]} )) -gt 0 ] \
-      || die "no compiler recorded in ${recorded_versions_file}"
+    local gcc_majors
+    local clang_majors
+    mapfile -t gcc_majors   < <(bash "${install_scripts_dir}/gcc.sh"  --list-installed)
+    mapfile -t clang_majors < <(bash "${install_scripts_dir}/llvm.sh" --list-installed)
 
-    local version
-    for version in "${gcc_versions[@]}"; do
-        compile_for_compiler "g++-${version}" "${root}/bin"
+    [ $(( ${#gcc_majors[@]} + ${#clang_majors[@]} )) -gt 0 ] \
+      || die "no C++ compiler is installed in this image"
+
+    local major
+    for major in "${gcc_majors[@]}"; do
+        compile_for_compiler "g++-${major}" "${root}/bin"
     done
-    for version in "${llvm_versions[@]}"; do
-        compile_for_compiler "clang++-${version}" "${root}/bin"
-        compile_for_compiler "clang++-${version}" "${root}/libcxx" '-stdlib=libc++'
+    for major in "${clang_majors[@]}"; do
+        compile_for_compiler "clang++-${major}" "${root}/bin"
+        compile_for_compiler "clang++-${major}" "${root}/libcxx" '-stdlib=libc++'
     done
 
     local targets

@@ -10,6 +10,7 @@ set -eu
 this_script_name=$(basename "$0")
 
 arg_versions='latest-stable'
+arg_versions_explicit=0
 arg_list_available=0
 arg_list_installed=0
 arg_silent=1
@@ -25,6 +26,7 @@ help(){
 
         [ -l | --list-available ]: Only list available versions, expanding [versions].  Boolean -> default is [0]
         [ --list-installed ]    : Only list the major versions already installed.       Boolean -> default is [0]
+                                  Filtered by [versions] when given explicitly, otherwise every installed major is listed.
         [ -v | --versions ]     : Versions to install.                                  String: all|latest|latest-stable|>=(number)|(space-separated-numbers...) -> default is [latest-stable]
             - [all]             : all versions availables                                   Ex: 'all'
             - [latest]          : only the latest        version available                  Ex: 'latest'
@@ -96,6 +98,7 @@ do
       ;;
     -v | --versions )
       arg_versions=$(echo $2 | tr -d '\n' | tr '\n' ' ')
+      arg_versions_explicit=1
       shift 2
       ;;
     --multilib )
@@ -174,8 +177,40 @@ list_installed_gcc_versions(){
     dpkg -l | grep ^ii | awk '{print $2}' | grep -oP "${gcc_version_installed_regex}" | sort -n -u
 }
 
+# Filter a set of majors by a --versions selector.
+#   This reports what is present rather than what could be installed,
+#   so an explicit list is intersected with the set rather than passed through.
+select_versions(){
+    local selector="$1"
+    local versions="$2"
+
+    case "${selector}" in
+        all )
+            echo "${versions}" ;;
+        latest | latest-stable )
+            echo "${versions}" | tail -1 ;;
+        '>='[0-9]* )
+            local from
+            from=$(echo "${selector}" | grep -oP '^>=\K[0-9]+$')
+            [ -n "${from}" ] || error "invalid version='>=[0-9]+' value: [${selector}]"
+            echo "${versions}" | awk -v from="${from}" '$1 >= from' ;;
+        * )
+            [[ "${selector}" =~ ^[0-9]+( [0-9]+)*$ ]] \
+                || error "invalid value for argument version [${selector}]"
+            local requested
+            for requested in ${selector}; do
+                grep -qx -- "${requested}" <<< "${versions}" && echo "${requested}"
+            done ;;
+    esac
+}
+
 if [[ ${arg_list_installed} == 1 ]]; then
-    list_installed_gcc_versions
+    installed_versions=$(list_installed_gcc_versions)
+    if [[ ${arg_versions_explicit} == 1 ]]; then
+        select_versions "${arg_versions}" "${installed_versions}"
+    elif [ -n "${installed_versions}" ]; then
+        echo "${installed_versions}"
+    fi
     exit 0
 fi
 
@@ -186,12 +221,12 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-log "arguments - versions:     [${arg_versions}]"
-log "arguments - silent:       [${arg_silent}]"
-log "arguments - alias:        [${arg_alias}]"
+log "arguments - versions:       [${arg_versions}]"
+log "arguments - silent:         [${arg_silent}]"
+log "arguments - alias:          [${arg_alias}]"
 log "arguments - list-available: [${arg_list_available}]"
-log "arguments - multilib:     [${arg_multilib}]"
-log "arguments - minimalistic: [${arg_minimalistic}]"
+log "arguments - multilib:       [${arg_multilib}]"
+log "arguments - minimalistic:   [${arg_minimalistic}]"
 
 # --- use ppa:ubuntu-toolchain-r/test
 
