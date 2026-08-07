@@ -33,7 +33,9 @@ this_script_name=$(basename "$0")
 
 arg_targets='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu x86-64-linux-gnu'
 arg_with_gcc=1
+arg_targets_explicit=0
 arg_list_available=0
+arg_list_installed=0
 arg_silent=1
 
 help(){
@@ -41,8 +43,11 @@ help(){
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
-        [ -l | --list-available ] : Only list the cross target triplets available on this host.                     Boolean -> default is [0]
-        [ -t | --targets ]  : Target triplets to install a cross toolchain for (space-separated).                   String -> default is ['${arg_targets}']
+        [ -l | --list-available ] : Only list the cross target triplets available on this host, restricted to [targets].
+                              Boolean -> default is [0]. Use --targets=all to list every triplet this host offers.
+        [ --list-installed ]: Only list the cross target triplets already installed, restricted to [targets] when given explicitly.
+                              Boolean -> default is [0]
+        [ -t | --targets ]  : Target triplets to install a cross toolchain for (space-separated), or 'all'.          String -> default is ['${arg_targets}']
                               Ex: 'aarch64-linux-gnu powerpc64le-linux-gnu s390x-linux-gnu'
         [ --with-gcc ]      : Install \`g++-<triplet>\` -> full cross toolchain (binutils+libc+libgcc+libstdc++).   Boolean -> default is [1]
                               When [0], or when no cross-g++ exists: \`binutils-<triplet>\` + \`libc6-dev-<debarch>-cross\` only.
@@ -122,17 +127,42 @@ triplet_to_deb_arch(){
     esac
 }
 
-# --- precondition: sudoer ---
+# --- list targets ---
+#   `-dbg`/`-dev` are debug-symbol / side packages of a target, not targets themselves.
+target_triplets(){
+    grep -oP '^binutils-\K.*-linux-gnu.*$' | grep -vE -- '-(dbg|dev)$' | sort -u
+}
 
-if [ "$EUID" -ne 0 ]; then
-  error "Requires root privileges"
-  exit 1
-fi
+list_available_targets(){
+    apt-get update -qqy >/dev/null 2>&1 || true
+    apt-cache search --names-only '^binutils-.*-linux-gnu' | awk '{print $1}' | target_triplets
+}
+
+list_installed_targets(){
+    dpkg-query --show --showformat='${Package} ${Status}\n' 2>/dev/null \
+      | awk '$2 == "install" && $4 == "installed" { print $1 }' | target_triplets
+}
+
+# Restrict a set of triplets to a --targets selector.
+#   'all' keeps the set as-is, an explicit list is intersected with it.
+select_targets(){
+    local selector="$1"
+    local targets="$2"
+
+    if [ "${selector}" = 'all' ]; then
+        echo "${targets}"
+        return
+    fi
+    local requested
+    for requested in ${selector}; do
+        grep -qx -- "${requested}" <<< "${targets}" && echo "${requested}"
+    done
+}
 
 # --- options management ---
 
 options_short=s:,t:,l,h
-options_long=silent:,targets:,with-gcc:,help,list-available
+options_long=silent:,targets:,with-gcc:,help,list-available,list-installed
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -146,6 +176,7 @@ do
       ;;
     -t | --targets )
       arg_targets=$(echo $2 | tr -d '\n' | tr '\n' ' ')
+      arg_targets_explicit=1
       shift 2
       ;;
     --with-gcc )
@@ -154,6 +185,10 @@ do
       ;;
     -l | --list-available )
       arg_list_available=1
+      shift;
+      ;;
+    --list-installed )
+      arg_list_installed=1
       shift;
       ;;
     -h | --help)
@@ -182,6 +217,11 @@ if [ "$arg_list_available" == '' ] ; then
     exit 1;
 fi
 
+arg_list_installed=$(to_boolean "${arg_list_installed}")
+if [ "$arg_list_installed" == '' ] ; then
+    exit 1;
+fi
+
 arg_with_gcc=$(to_boolean "${arg_with_gcc}")
 if [ "$arg_with_gcc" == '' ] ; then
     exit 1;
@@ -191,19 +231,37 @@ log "arguments - targets:           [${arg_targets}]"
 log "arguments - with-gcc:          [${arg_with_gcc}]"
 log "arguments - silent:            [${arg_silent}]"
 log "arguments - list-available:    [${arg_list_available}]"
+log "arguments - list-installed:    [${arg_list_installed}]"
+
+# --- list installed mod ? ---
+#   Answered from dpkg alone, so this stays a query: no root, no apt index refresh.
+if [[ ${arg_list_installed} == 1 ]]; then
+    installed_targets=$(list_installed_targets)
+    if [[ ${arg_targets_explicit} == 1 ]]; then
+        select_targets "${arg_targets}" "${installed_targets}"
+    elif [ -n "${installed_targets}" ]; then
+        echo "${installed_targets}"
+    fi
+    exit 0
+fi
+
+# --- precondition: sudoer ---
+
+if [ "$EUID" -ne 0 ]; then
+  error "Requires root privileges"
+  exit 1
+fi
 
 # --- list mod ? ---
-#   lists the target triplets for which a `binutils-<triplet>` cross package exists on this host.
 if [[ ${arg_list_available} == 1 ]]; then
-    apt-get update -qqy >/dev/null 2>&1 || true
-    #   `-dbg`/`-dev` are debug-symbol / side packages of a target, not targets themselves.
-    apt-cache search --names-only '^binutils-.*-linux-gnu' \
-        | awk '{print $1}' | grep -oP '^binutils-\K.*-linux-gnu.*$' \
-        | grep -vE -- '-(dbg|dev)$' | sort -u
+    select_targets "${arg_targets}" "$(list_available_targets)"
     exit 0
 fi
 
 # --- installations ---
+if [ "${arg_targets}" = 'all' ]; then
+    arg_targets=$(list_available_targets | tr '\n' ' ')
+fi
 apt-get update -qqy
 
 for target in ${arg_targets}; do
