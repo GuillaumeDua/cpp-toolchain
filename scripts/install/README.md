@@ -146,9 +146,10 @@ This fallback is compiler-agnostic - the bare binutils serve any toolchain emitt
 
 | Option                   | Type    | Default                                                     | Description                                                                       |
 | ------------------------ | ------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `-t`, `--targets`        | string  | `'aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'` | Space-separated GNU target triplets to install a cross toolchain for              |
+| `-t`, `--targets`        | string  | `'aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'` | Space-separated GNU target triplets to install a cross toolchain for, or `all`    |
 | `--with-gcc`             | boolean | `1`                                                         | Install `g++-<triplet>` (full toolchain, links C/C++); `0` = bare binutils + libc |
-| `-l`, `--list-available` | boolean | `0`                                                         | Only list the cross target triplets available on this host                        |
+| `-l`, `--list-available` | boolean | `0`                                                         | Only list the cross target triplets available on this host, restricted to `--targets`. Use `--targets=all` for every triplet the host offers |
+| `--list-installed`       | boolean | `0`                                                         | Only list the cross target triplets already installed, restricted to `--targets` when that is given explicitly. A pure query: needs no root, refreshes no apt index |
 | `-s`, `--silent`         | boolean | `1`                                                         | Suppress log output                                                               |
 | `-h`, `--help`           | -       | -                                                           | Display usage                                                                     |
 
@@ -172,10 +173,17 @@ In the fallback path, cross-libc packages key off the **Debian architecture alia
 **Example**: discover the available targets, then install a couple:
 
 ```bash
-sudo ./binutils.sh --list-available
+sudo ./binutils.sh --list-available --targets=all
 sudo ./binutils.sh --targets='powerpc64le-linux-gnu s390x-linux-gnu'
 sudo ./binutils.sh --targets='aarch64-linux-gnu' --with-gcc=no   # bare binutils + libc only
+
+./binutils.sh --list-installed                                   # what this host already carries
+./binutils.sh --list-installed --targets='aarch64-linux-gnu riscv64-linux-gnu'
 ```
+
+`--list-available` without `--targets` answers "which of the defaults exist here", the same way
+`gcc.sh --list-available` answers for its default `--versions`. `--targets=all` is what lists
+every triplet the host offers.
 
 With a cross-`g++` (the default), C and C++ both compile *and link* for the target, with GNU cross tools or with Clang:
 
