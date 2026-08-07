@@ -399,8 +399,8 @@ jobs:
           mkdir -p build-metadata
 
           # Cross-arch target triplets for the `-cross` image variant.
-          # `common` is an alias resolved by scripts/install/binutils.sh, which is where the
-          # triplets are listed - repeating them here is what let this drift before.
+          # `common` is an alias resolved by scripts/install/binutils.sh,
+          # which is where the triplets are listed - repeating them here is what let this drift before.
           CROSS_TARGETS="common"
 
           # Run the image validation gate for one variant. $1=BINUTILS_TARGETS build-arg, $2.. = stages.
@@ -462,8 +462,7 @@ jobs:
           CROSS_STAGES="$(python3 scripts/details/check-release-file.py --print-stages cross)"
 
           # Validate before publishing, so a stage that lost a package never reaches a registry.
-          #   Deliberately not part of NORMAL_STAGES/CROSS_STAGES: those name what gets published and
-          #   recorded as a digest, and the validate stages are neither.
+          #   Deliberately not part of NORMAL_STAGES/CROSS_STAGES: those name what gets published and recorded as a digest, and the validate stages are neither.
           #   The cross variant has no `runtime`, hence no validate-runtime.
           validate_variant ""                 validate-build validate-runtime
           validate_variant "${CROSS_TARGETS}" validate-build

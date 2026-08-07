@@ -15,10 +15,11 @@ toolchains builds green and says nothing.
 
 ## The two rules
 
-**1. No version number is written down.** Renovate owns every version, through the annotated
-`ARG` block at the top of the [`Dockerfile`](../Dockerfile). A validation suite that repeated
-those versions would be a second source of truth to keep in step, so this one never states a
-version. It asserts **origin** instead: *the installed version of a package must come from the
+### 1 - No version number is written down
+
+Renovate owns every version, through the annotated `ARG` block at the top of the [`Dockerfile`](../Dockerfile).  
+A validation suite that repeated those versions would be a second source of truth to keep in step, so this one never states a version.  
+It asserts **origin** instead: *the installed version of a package must come from the
 repository that is supposed to provide it*.
 
 That is what catches a downgrade, with nothing to maintain:
@@ -35,8 +36,9 @@ $ apt-cache policy libstdc++6
 Letting the archive win here swaps libstdc++ 16 for 14 in `runtime`, silently, while `build`
 still has GCC 15/16.
 
-**2. What is installed is discovered, not declared.** The compilers to exercise are obtained by
-asking the installers that put them there:
+### 2 - What is installed is discovered, not declared
+
+The compilers to exercise are obtained by asking the installers that put them there:
 
 ```sh
 scripts/install/gcc.sh  --list-installed
@@ -80,6 +82,7 @@ graph LR
     build --> sa["static-analysis"]
     build --> doc["documentation"]
     sa --> dev
+    doc --> dev
 
     build --> vb["validate-build"]
     runtime --> vr["validate-runtime"]
@@ -91,8 +94,8 @@ graph LR
 
 The dotted edge is the point of the whole design. Binaries are compiled in `build` and executed
 in `runtime`, which is the only way to prove that what `runtime` ships can still run what
-`build` produces. `COPY --from` is a native BuildKit cross-stage copy, so this costs one compile
-and one exec - no image is loaded onto the host, nothing is pulled from a registry.
+`build` produces.  
+`COPY --from` is a native BuildKit cross-stage copy, so this costs one compile and one exec - no image is loaded onto the host, nothing is pulled from a registry.
 
 ## What is checked
 
@@ -153,7 +156,7 @@ All live in [`scripts/checks/`](../scripts/checks/) and run from inside an image
 | --- | --- |
 | `check-package-origins.sh <build\|runtime>` | every toolchain package comes from the repository that owns it |
 | `check-cxx-runtime.sh <compile\|inspect\|run> <directory>` | build the payload, prove it links dynamically, prove it runs |
-| `check-compiler-supported-cxx-standards.sh [--stable] [--greatest] [compiler]` | which C++ standards a compiler accepts |
+| `check-compiler-supported-cxx-standards.sh [--stable] [--greatest] [--format=<default\|std\|cplusplus>] [compiler]` | which C++ standards a compiler accepts |
 
 They reach [`scripts/install/`](../scripts/install/) by relative path, which is why the validate
 stages copy `scripts/` whole rather than `scripts/checks/` alone. A layout that separates the two
@@ -173,9 +176,6 @@ c++03 -> __cplusplus=199711
 c++11 -> __cplusplus=201103
 ...
 c++26 -> __cplusplus=202400
-
-$ scripts/checks/check-compiler-supported-cxx-standards.sh --greatest --stable g++-16
-c++26
 ```
 
 Order by `__cplusplus`, never by the flag name: sorting `c++98 c++11 c++26` as text or as
@@ -184,6 +184,29 @@ versions puts `c++98` last, because 98 is greater than 26.
 `--stable` keeps only final spellings, dropping drafts such as `c++2c`. A draft and the final
 name it anticipates share a `__cplusplus` value, so the payload is compiled once per distinct
 value rather than once per spelling.
+
+Which standards are reported and how they are reported are two separate choices. `--stable` and
+`--greatest` pick the rows; `--format` narrows each row to one field, which is what makes the
+output usable as a value rather than as a report:
+
+```console
+$ scripts/checks/check-compiler-supported-cxx-standards.sh --greatest --stable --format=std g++-16
+c++26
+
+$ scripts/checks/check-compiler-supported-cxx-standards.sh --greatest --stable --format=cplusplus g++-16
+202400
+```
+
+| `--format` | Reports | Example |
+| --- | --- | --- |
+| `default` | both fields | `c++23 -> __cplusplus=202302` |
+| `std` | the standard spelling alone | `c++23` |
+| `cplusplus` | the `__cplusplus` value alone | `202302` |
+
+`std` is spelled the way the compiler spells it, so it can be fed straight back to it as
+`-std=$(... --greatest --stable --format=std g++-16)`. `cplusplus` reports distinct values only:
+`c++98` and `c++03` both answer `199711`, and a draft repeats the value of the final name it
+anticipates.
 
 ## In CI
 
@@ -244,14 +267,19 @@ corresponding check red:
 
 ## What this deliberately does not check
 
-- **That language features work.** The compiler guarantees those. Testing them would grow a
+- **That language features work.**  
+  The compiler guarantees those. Testing them would grow a
   payload per standard and catch nothing this gate is for.
-- **Cross binaries are linked and inspected, never executed.** `runtime` is x86-64 only; running
+- **Cross binaries are linked and inspected, never executed.**  
+  `runtime` is x86-64 only; running
   foreign binaries needs QEMU and a multi-platform `runtime` (see issue #33). Linking already
   proves the cross libc and libstdc++ survived.
-- **libc++ on `runtime`.** `runtime` carries no libc++ yet, so those binaries are exercised in
+- **libc++ on `runtime`.**  
+  `runtime` carries no libc++ yet, so those binaries are exercised in
   `build`. When libc++ lands in `runtime`, they cross over too.
-- **`static-analysis`, `documentation`, `dev`.** All inherit `build`, and every operation that
+- **`static-analysis`, `documentation`, `dev`.**  
+  All inherit `build`, and every operation that
   can remove or downgrade a package happens at or below `build`.
-- **Published images, by digest.** These are build-time stages: they validate what the build
+- **Published images, by digest.**  
+  These are build-time stages: they validate what the build
   produced, not what a registry currently serves.
