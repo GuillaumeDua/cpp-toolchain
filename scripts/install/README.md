@@ -17,21 +17,21 @@ sudo ./cmake.sh [options]
 
 Registers the [Kitware apt repository](https://apt.kitware.com/) (via its `kitware-archive.sh` bootstrap, handling the Ubuntu-24.04-noble → jammy quick-fix), then installs a single `cmake` version. Unlike `gcc.sh`/`llvm.sh`, CMake has no side-by-side multi-version story (no `update-alternatives`) - the Kitware repo only ever exposes whichever versions are currently published.
 
-| Option             | Type    | Default  | Description                                                                                                |
-| ------------------ | ------- | -------- | ---------------------------------------------------------------------------------------------------------- |
-| `-v`, `--versions` | string  | `latest` | `latest` \| an upstream version (e.g. `'4.4.0'`) \| an exact apt version string as reported by `--list` (e.g. `'3.29.3-0kitware1ubuntu24.04.1~jammy'`) |
-| `-l`, `--list`     | boolean | `0`      | Only list the versions available via `apt-cache madison cmake`, without installing anything                |
-| `-s`, `--silent`   | boolean | `1`      | Suppress log output                                                                                        |
-| `-a`, `--alias`    | boolean | `0`      | Append the resulting `cmake_version` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                   |
-| `-r`, `--rc`       | boolean | `0`      | Also register the Kitware release-candidate apt repository                                                 |
-| `-h`, `--help`     | -       | -        | Display usage                                                                                              |
+| Option                   | Type    | Default  | Description                                                                                                                                                      |
+| ------------------------ | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-v`, `--versions`       | string  | `latest` | `latest` \| an upstream version (e.g. `'4.4.0'`) \| an exact apt version string as reported by `--list-available` (e.g. `'3.29.3-0kitware1ubuntu24.04.1~jammy'`) |
+| `-l`, `--list-available` | boolean | `0`      | Only list the versions available via `apt-cache madison cmake`, without installing anything                                                                      |
+| `-s`, `--silent`         | boolean | `1`      | Suppress log output                                                                                                                                              |
+| `-a`, `--alias`          | boolean | `0`      | Append the resulting `cmake_version` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                                                                         |
+| `-r`, `--rc`             | boolean | `0`      | Also register the Kitware release-candidate apt repository                                                                                                       |
+| `-h`, `--help`           | -       | -        | Display usage                                                                                                                                                    |
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
 **Example**: list available versions, then install a specific one:
 
 ```bash
-sudo ./cmake.sh --list
+sudo ./cmake.sh --list-available
 sudo ./cmake.sh --versions="4.4.0"                                  # upstream version, resolved against apt
 sudo ./cmake.sh --versions="3.29.3-0kitware1ubuntu24.04.1~jammy"    # exact apt version, used verbatim
 ```
@@ -50,15 +50,16 @@ sudo ./gcc.sh [options]
 
 Installs one or more GCC versions from the `ubuntu-toolchain-r/test` PPA (added automatically if missing), sets up `update-alternatives` for `gcc`/`g++`/`gcov`/`gcov-tool`, and (by default) installs the matching `-multilib` packages.
 
-| Option                 | Type    | Default         | Description                                                                                              |
-| ---------------------- | ------- | --------------- | -------------------------------------------------------------------------------------------------------- |
-| `-v`, `--versions`     | string  | `latest-stable` | `all` \| `latest` \| `latest-stable` \| `>=<number>` \| space-separated version numbers (e.g. `'13 14'`) |
-| `-l`, `--list`         | boolean | `0`             | Only list the versions that `--versions` resolves to, without installing anything                        |
-| `-s`, `--silent`       | boolean | `1`             | Suppress log output                                                                                      |
-| `-a`, `--alias`        | boolean | `0`             | Append the resulting `gcc_versions` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                  |
-| `--multilib`           | boolean | `1`             | Install `gcc-<N>-multilib` / `g++-<N>-multilib` (secondary ABIs: `-m32`, `-mx32`)                        |
-| `-m`, `--minimalistic` | boolean | `0`             | Compilers only - disables `--multilib` *unless* it was set explicitly                                    |
-| `-h`, `--help`         | -       | -               | Display usage                                                                                            |
+| Option                   | Type    | Default         | Description                                                                                                      |
+| ------------------------ | ------- | --------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `-v`, `--versions`       | string  | `latest-stable` | `all` \| `latest` \| `latest-stable` \| `>=<number>` \| space-separated version numbers (e.g. `'13 14'`)         |
+| `-l`, `--list-available` | boolean | `0`             | Only list the versions that `--versions` resolves to, without installing anything                                |
+| `--list-installed`       | boolean | `0`             | Only list the major versions already installed. A pure query: needs no root, adds no repository, fetches nothing |
+| `-s`, `--silent`         | boolean | `1`             | Suppress log output                                                                                              |
+| `-a`, `--alias`          | boolean | `0`             | Append the resulting `gcc_versions` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                          |
+| `--multilib`             | boolean | `1`             | Install `gcc-<N>-multilib` / `g++-<N>-multilib` (secondary ABIs: `-m32`, `-mx32`)                                |
+| `-m`, `--minimalistic`   | boolean | `0`             | Compilers only - disables `--multilib` *unless* it was set explicitly                                            |
+| `-h`, `--help`           | -       | -               | Display usage                                                                                                    |
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
@@ -67,7 +68,7 @@ Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 **Example**: install the two latest available versions:
 
 ```bash
-sudo ./gcc.sh --versions="$(sudo ./gcc.sh --list --versions='all' | tail -2)"
+sudo ./gcc.sh --versions="$(sudo ./gcc.sh --list-available --versions='all' | tail -2)"
 sudo ./gcc.sh --minimalistic                 # compilers only, no multilib
 sudo ./gcc.sh --minimalistic --multilib=yes  # explicit multilib still wins
 ```
@@ -88,23 +89,24 @@ Wraps the upstream [`apt.llvm.org/llvm.sh`](https://apt.llvm.org/llvm.sh) instal
 - then sets up `update-alternatives` for `clang`/`clang++` and, in `--mode=full`, the rest of the toolchain (`clang-format`, `clang-tidy`, `clangd`, `lldb`, `scan-build`, `llvm-cov`, `llvm-profdata`, ...)
 - *The temporary `impl.sh` is removed before exit*
 
-| Option                 | Type    | Default         | Description                                                                                              |
-| ---------------------- | ------- | --------------- | -------------------------------------------------------------------------------------------------------- |
-| `-v`, `--versions`     | string  | `latest-stable` | `all` \| `latest` \| `latest-stable` \| `>=<number>` \| space-separated version numbers (e.g. `'17 18'`) |
-| `-l`, `--list`         | boolean | `0`             | Only list the versions that `--versions` resolves to, without installing anything                        |
-| `-s`, `--silent`       | boolean | `1`             | Suppress log output                                                                                      |
-| `-a`, `--alias`        | boolean | `0`             | Append the resulting `llvm_versions` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                 |
-| `--mode`               | string  | `full`          | How much of the toolchain to install: `minimalistic` \| `coverage` \| `full` - see below                 |
-| `-c`, `--cleanup`      | boolean | `0`             | Purge any pre-existing `llvm-*`/`lldb-*`/`clang-*`/`python3-lldb-*` packages before installing           |
-| `-h`, `--help`         | -       | -               | Display usage                                                                                            |
+| Option                   | Type    | Default         | Description                                                                                                      |
+| ------------------------ | ------- | --------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `-v`, `--versions`       | string  | `latest-stable` | `all` \| `latest` \| `latest-stable` \| `>=<number>` \| space-separated version numbers (e.g. `'17 18'`)         |
+| `-l`, `--list-available` | boolean | `0`             | Only list the versions that `--versions` resolves to, without installing anything                                |
+| `--list-installed`       | boolean | `0`             | Only list the major versions already installed. A pure query: needs no root, adds no repository, fetches nothing |
+| `-s`, `--silent`         | boolean | `1`             | Suppress log output                                                                                              |
+| `-a`, `--alias`          | boolean | `0`             | Append the resulting `llvm_versions` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                         |
+| `--mode`                 | string  | `full`          | How much of the toolchain to install: `minimalistic` \| `coverage` \| `full` - see below                         |
+| `-c`, `--cleanup`        | boolean | `0`             | Purge any pre-existing `llvm-*`/`lldb-*`/`clang-*`/`python3-lldb-*` packages before installing                   |
+| `-h`, `--help`           | -       | -               | Display usage                                                                                                    |
 
 The three modes are tiered, and each one selects both the **packages installed** and the **`update-alternatives` registered**:
 
-| `--mode`       | Installs                                                                     | Registers unversioned                                        |
-| -------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `minimalistic` | `clang` `lld` `lldb` `clangd` + the compiler runtimes                        | `clang`, `clang++`                                           |
-| `coverage`     | the above + `llvm-<N>`                                                       | + `llvm-cov`, `llvm-profdata`                                |
-| `full`         | the upstream `all` set - analysis tools, `libclang` development headers, ...  | + `clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ... |
+| `--mode`       | Installs                                                                     | Registers unversioned                                               |
+| -------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `minimalistic` | `clang` `lld` `lldb` `clangd` + the compiler runtimes                        | `clang`, `clang++`                                                  |
+| `coverage`     | the above + `llvm-<N>`                                                       | + `llvm-cov`, `llvm-profdata`                                       |
+| `full`         | the upstream `all` set - analysis tools, `libclang` development headers, ... | + `clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ... |
 
 The *compiler runtimes* are the libc++ stack (`libc++-<N>-dev`, `libc++abi-<N>-dev`, `libunwind-<N>-dev`), OpenMP (`libomp-<N>-dev`) and, from LLVM 15, the sanitizer and Polly runtimes (`libclang-rt-<N>-dev`, `libpolly-<N>-dev`). Every mode installs them: they are compiler capabilities - `-stdlib=libc++`, `-fopenmp`, `-fsanitize=...` - rather than tools, so a `minimalistic` install still compiles everything a `full` one does.
 
@@ -117,7 +119,7 @@ The modes are meant to be **layered**: a first `--mode=minimalistic` run install
 Example: install the two latest available versions:
 
 ```bash
-sudo ./llvm.sh --versions="$(sudo ./llvm.sh --list --versions='all' | tail -2)"
+sudo ./llvm.sh --versions="$(sudo ./llvm.sh --list-available --versions='all' | tail -2)"
 ```
 
 ---
@@ -146,7 +148,7 @@ This fallback is compiler-agnostic - the bare binutils serve any toolchain emitt
 | ----------------- | ------- | ----------------------------------------- | ---------------------------------------------------------------------------------- |
 | `-t`, `--targets` | string  | `'aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'` | Space-separated GNU target triplets to install a cross toolchain for |
 | `--with-gcc`      | boolean | `1`                                       | Install `g++-<triplet>` (full toolchain, links C/C++); `0` = bare binutils + libc  |
-| `-l`, `--list`    | boolean | `0`                                       | Only list the cross target triplets available on this host                         |
+| `-l`, `--list-available` | boolean | `0`                                | Only list the cross target triplets available on this host                         |
 | `-s`, `--silent`  | boolean | `1`                                       | Suppress log output                                                                |
 | `-h`, `--help`    | -       | -                                         | Display usage                                                                      |
 
@@ -170,7 +172,7 @@ In the fallback path, cross-libc packages key off the **Debian architecture alia
 **Example**: discover the available targets, then install a couple:
 
 ```bash
-sudo ./binutils.sh --list
+sudo ./binutils.sh --list-available
 sudo ./binutils.sh --targets='powerpc64le-linux-gnu s390x-linux-gnu'
 sudo ./binutils.sh --targets='aarch64-linux-gnu' --with-gcc=no   # bare binutils + libc only
 ```

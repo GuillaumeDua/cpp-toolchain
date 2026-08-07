@@ -15,7 +15,8 @@ set -eu
 this_script_name=$(basename "$0")
 
 arg_versions='latest-stable'
-arg_list=0
+arg_list_available=0
+arg_list_installed=0
 arg_silent=1
 arg_alias=0
 arg_mode='full'
@@ -28,7 +29,8 @@ help(){
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
-        [ -l | --list ]         : Only list available versions, expanding [versions].       Boolean -> default is [0]
+        [ -l | --list-available ]: Only list available versions, expanding [versions].      Boolean -> default is [0]
+        [ --list-installed ]    : Only list the major versions already installed.           Boolean -> default is [0]
         [ -v | --versions ]     : Versions to install.                                      String: all|latest|latest-stable|>=(number)|(space-separated-numbers...) -> default is [latest-stable]
             - [all]             : all versions availables                                       Ex: 'all'
             - [latest]          : only the latest        version available                      Ex: 'latest'
@@ -45,7 +47,7 @@ help(){
         [ -h | --help ]         : Display usage/help
 
     For instance, to only install the two latest versions available, use:
-        sudo ./${this_script_name} --versions=\"\$(sudo ./${this_script_name} --list --versions='all' | tail -2)\"
+        sudo ./${this_script_name} --versions=\"\$(sudo ./${this_script_name} --list-available --versions='all' | tail -2)\"
         " 1>&2
     exit 0
 }
@@ -83,16 +85,10 @@ to_boolean(){
     esac
 }
 
-# --- precondition: sudoer ---
-
-if [ "$EUID" -ne 0 ]; then
-    error "Requires root privileges"
-fi
-
 # --- options management ---
 
 options_short=s:,v:,a:,c,l,h
-options_long=silent:,versions:,alias:,mode:,cleanup,help,list
+options_long=silent:,versions:,alias:,mode:,cleanup,help,list-available,list-installed
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -120,8 +116,12 @@ do
         arg_cleanup=1
         shift;
         ;;
-    -l | --list )
-        arg_list=1
+    -l | --list-available )
+        arg_list_available=1
+        shift;
+        ;;
+    --list-installed )
+        arg_list_installed=1
         shift;
         ;;
     -h | --help)
@@ -145,8 +145,13 @@ if [ "$arg_silent" == '' ] ; then
     exit 1;
 fi
 
-arg_list=$(to_boolean "${arg_list}")
-if [ "$arg_list" == '' ] ; then
+arg_list_available=$(to_boolean "${arg_list_available}")
+if [ "$arg_list_available" == '' ] ; then
+    exit 1;
+fi
+
+arg_list_installed=$(to_boolean "${arg_list_installed}")
+if [ "$arg_list_installed" == '' ] ; then
     exit 1;
 fi
 
@@ -163,9 +168,29 @@ fi
 log "arguments - versions:          [${arg_versions}]"
 log "arguments - silent:            [${arg_silent}]"
 log "arguments - alias:             [${arg_alias}]"
-log "arguments - list:              [${arg_list}]"
+log "arguments - list-available:    [${arg_list_available}]"
 log "arguments - mode:              [${arg_mode}]"
 log "arguments - cleanup:           [${arg_cleanup}]"
+
+# --- list installed versions ---
+#   Answered from dpkg alone, ahead of everything below:
+#   the fetch writes a GPG key into /etc/apt/trusted.gpg.d, and a query must not touch
+#   what it is asked about.
+llvm_version_installed_regex='^clang-\K[0-9]+(?=(:.*)?$)'
+list_installed_llvm_versions(){
+    dpkg -l | grep ^ii | awk '{print $2}' | grep -oP "${llvm_version_installed_regex}" | sort -n -u
+}
+
+if [[ ${arg_list_installed} == 1 ]]; then
+    list_installed_llvm_versions
+    exit 0
+fi
+
+# --- precondition: sudoer ---
+
+if [ "$EUID" -ne 0 ]; then
+    error "Requires root privileges"
+fi
 
 # --- fetch llvm.sh ---
 # or use:
@@ -196,10 +221,6 @@ fi
 llvm_version_to_install_regex='^LLVM_VERSION_PATTERNS\[(\d+)\]=\"\-\K(\d+)'
 list_to_install_llvm_versions(){
     grep -oP $llvm_version_to_install_regex ${internal_script_path} | uniq | sort -n
-}
-llvm_version_installed_regex='^clang-\K([0-9]{2})'
-list_installed_llvm_versions(){
-    dpkg -l | grep ^ii |  awk '{print $2}' | grep -oP $llvm_version_installed_regex | uniq | sort -n
 }
 
 # --- which versions ---
@@ -236,7 +257,7 @@ if [[ ! $(echo -n $llvm_versions) =~  ^[0-9]+( [0-9]+)*$ ]]; then
 fi
 
 ## --- list mod ? ---
-if [[ ${arg_list} == 1 ]]; then
+if [[ ${arg_list_available} == 1 ]]; then
     echo -e "${llvm_versions}"
     clean; exit 0
 fi
