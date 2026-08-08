@@ -1,8 +1,6 @@
 #!/bin/bash
 set -uo pipefail
 
-# See docs/IMAGES_VALIDATION.md
-
 this_script_name=$(basename "$0")
 
 arg_stable=0

@@ -143,9 +143,8 @@ wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/i
 sudo bash llvm.sh --versions='latest-stable'
 ```
 
-The standards probe travels the same way, and needs no root - give it a compiler and it reports
-which C++ standards that compiler accepts, which is enough to drive a CI matrix without pulling
-an image:
+The standards probe travels the same way, and needs no root - give it a compiler and it reports which C++ standards that compiler accepts,
+which is enough to drive a CI matrix without pulling an image:
 
 ```bash
 wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/checks/compiler-supported-cxx-standards.sh

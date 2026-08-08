@@ -185,10 +185,8 @@ list_installed_llvm_versions(){
 }
 
 # Filter a set of majors by a --versions selector.
-#   This reports what is present rather than what could be installed,
-#   so an explicit list is intersected with the set rather than passed through.
-#   latest-stable is refused here: only the upstream index defines it, and fetching that
-#   is exactly what this query must not do.
+#   This reports what is present rather than what could be installed, so an explicit list is intersected with the set rather than passed through.
+#   latest-stable is refused here: only the upstream index defines it, and fetching that is exactly what this query must not do.
 select_versions(){
     local selector="$1"
     local versions="$2"
@@ -401,8 +399,8 @@ for version in "${llvm_versions_to_install[@]}"; do
         update-alternatives --quiet                                                                                             \
             --install /usr/bin/clang clang /usr/bin/clang-${version} ${update_alternative_priority}                             \
             --slave /usr/bin/clang++                  clang++                   /usr/bin/clang++-${version}                     \
-            --slave /usr/bin/llvm-cov                 llvm-cov                  /usr/bin/llvm-cov-${version}                     \
-            --slave /usr/bin/llvm-profdata            llvm-profdata             /usr/bin/llvm-profdata-${version}                \
+            --slave /usr/bin/llvm-cov                 llvm-cov                  /usr/bin/llvm-cov-${version}                    \
+            --slave /usr/bin/llvm-profdata            llvm-profdata             /usr/bin/llvm-profdata-${version}               \
         || error "update-alternatives of [${version}] failed"
     else
         update-alternatives --quiet                                                                                             \
@@ -414,8 +412,8 @@ for version in "${llvm_versions_to_install[@]}"; do
             --slave /usr/bin/clang-check              clang-check               /usr/bin/clang-check-${version}                 \
             --slave /usr/bin/clang-query              clang-query               /usr/bin/clang-query-${version}                 \
             --slave /usr/bin/clang-apply-replacements clang-apply-replacements  /usr/bin/clang-apply-replacements-${version}    \
-            --slave /usr/bin/llvm-cov                 llvm-cov                  /usr/bin/llvm-cov-${version}                     \
-            --slave /usr/bin/llvm-profdata            llvm-profdata             /usr/bin/llvm-profdata-${version}                \
+            --slave /usr/bin/llvm-cov                 llvm-cov                  /usr/bin/llvm-cov-${version}                    \
+            --slave /usr/bin/llvm-profdata            llvm-profdata             /usr/bin/llvm-profdata-${version}               \
             --slave /usr/bin/sancov                   sancov                    /usr/bin/sancov-${version}                      \
             --slave /usr/bin/scan-build               scan-build                /usr/bin/scan-build-${version}                  \
             --slave /usr/bin/scan-view                scan-view                 /usr/bin/scan-view-${version}                   \

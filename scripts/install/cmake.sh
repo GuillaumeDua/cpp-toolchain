@@ -22,14 +22,14 @@ help(){
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
-        [ -l | --list-available ]     : Only list available versions from the Kitware apt repository. Boolean -> default is [0]
-        [ -v | --versions ] : Version to install.                                           String: latest|(exact-version) -> default is [latest]
-            - [latest]      : the version apt would resolve by default (Candidate)              Ex: 'latest'
-            - [x.y.z-...]   : an exact version, pinned via 'apt install cmake=<version>'        Ex: '3.29.3-0kitware1ubuntu24.04.1~jammy'
-        [ -s | --silent ]   : Run in silent mod.                                            Boolean -> default is [1]
-        [ -a | --alias]     : Set bash/zsh-rc 'cmake_version' alias.                        Boolean -> default is [0]
-        [ -r | --rc ]       : Also register the Kitware release-candidate apt repository.   Boolean -> default is [0]
-        [ -h | --help ]     : Display usage/help
+        [ -l | --list-available ]   : Only list available versions from the Kitware apt repository. Boolean -> default is [0]
+        [ -v | --versions ]         : Version to install.                                           String: latest|(exact-version) -> default is [latest]
+            - [latest]              : the version apt would resolve by default (Candidate)              Ex: 'latest'
+            - [x.y.z-...]           : an exact version, pinned via 'apt install cmake=<version>'        Ex: '3.29.3-0kitware1ubuntu24.04.1~jammy'
+        [ -s | --silent ]           : Run in silent mod.                                            Boolean -> default is [1]
+        [ -a | --alias]             : Set bash/zsh-rc 'cmake_version' alias.                        Boolean -> default is [0]
+        [ -r | --rc ]               : Also register the Kitware release-candidate apt repository.   Boolean -> default is [0]
+        [ -h | --help ]             : Display usage/help
 
     For instance, to list the versions currently available, then install one of them:
         sudo ./${this_script_name} --list-available
@@ -144,11 +144,11 @@ if [ "$arg_rc" == '' ] ; then
     exit 1;
 fi
 
-log "arguments - versions: [${arg_versions}]"
-log "arguments - silent:   [${arg_silent}]"
-log "arguments - alias:    [${arg_alias}]"
-log "arguments - list-available:     [${arg_list_available}]"
-log "arguments - rc:       [${arg_rc}]"
+log "arguments - versions:          [${arg_versions}]"
+log "arguments - silent:            [${arg_silent}]"
+log "arguments - alias:             [${arg_alias}]"
+log "arguments - list-available:    [${arg_list_available}]"
+log "arguments - rc:                [${arg_rc}]"
 
 # --- register the Kitware apt repository (https://apt.kitware.com/) ---
 
