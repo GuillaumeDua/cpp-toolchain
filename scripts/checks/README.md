@@ -1,15 +1,16 @@
-# Image validation checks
+# Check scripts
 
-The gate that every image passes before it is published. What each check proves, which stage runs
-it and how to reproduce a failure locally: [docs/IMAGES_VALIDATION.md](../../docs/IMAGES_VALIDATION.md).
+Scripts that ask a question about a compiler, or about a built image, and report the answer.
 
-Unlike the [repository tooling](../details/README.md) next door, these run **inside** a built
-image - the validate stages copy `scripts/` in and execute them there.
+The two under [`details/`](details/) are also the image validation gate:
+
+- the `validate-build` and `validate-runtime` stages run them, and a non-zero exit fails the build.  
+- What each one proves, which stage runs it and how to reproduce a failure is [docs/IMAGES_VALIDATION.md](../../docs/IMAGES_VALIDATION.md).
 
 ## Standalone
 
-| Script | Purpose |
-| ------ | ------- |
+| Script                                | Purpose                                                          |
+| ------------------------------------- | ---------------------------------------------------------------- |
 | `compiler-supported-cxx-standards.sh` | Which C++ standards a compiler accepts, ordered by `__cplusplus` |
 
 This one depends on nothing in this repository - point it at any compiler on any machine. Fetch
@@ -40,9 +41,9 @@ g++-16 -std="$(scripts/checks/compiler-supported-cxx-standards.sh --greatest --s
 
 ## [details/](details/)
 
-| Script | Purpose |
-| ------ | ------- |
-| `package-origins.sh <build\|runtime>` | Every toolchain package comes from the repository that owns it, not from the Ubuntu archive |
+| Script                                               | Purpose                                                                                                  |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `package-origins.sh <build\|runtime>`                | Every toolchain package comes from the repository that owns it, not from the Ubuntu archive              |
 | `cxx-runtime.sh <compile\|inspect\|run> <directory>` | Compiles the payload for every standard, proves it links against a C++ runtime dynamically, then runs it |
 
 Implementation details of this gate, in the C++ sense of a nested `detail` namespace: they know
