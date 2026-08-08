@@ -33,6 +33,10 @@ this_script_name=$(basename "$0")
 
 # The triplets a cross build targets unless told otherwise, and the only place they are listed.
 # Referred to as `common` so nothing downstream has to repeat them.
+#
+# Which triplets belong here is a judgement call rather than a fixed set:
+# these are the architectures most cross builds are likely to want today, so expect the value to change as that answer does.
+# No code repeats it - callers pass `common` through and let this script resolve it.
 common_targets='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu x86-64-linux-gnu'
 
 arg_targets='common'
@@ -49,18 +53,18 @@ help(){
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
         [ -l | --list-available ] : Only list the cross target triplets available on this host, restricted to [targets].
-                              Boolean -> default is [0]. Use --targets=all to list every triplet this host offers.
-        [ --list-installed ]: Only list the cross target triplets already installed, restricted to [targets] when given explicitly.
-                              Boolean -> default is [0]
-        [ --list-targets ]  : Only print the triplets [targets] resolves to, without consulting apt.               Boolean -> default is [0]
-        [ -t | --targets ]  : Target triplets to install a cross toolchain for (space-separated),                    String -> default is ['${arg_targets}']
-                              or 'common' (${common_targets}),
-                              or 'all' (every triplet this host offers).
-                              Ex: 'aarch64-linux-gnu powerpc64le-linux-gnu s390x-linux-gnu'
-        [ --with-gcc ]      : Install \`g++-<triplet>\` -> full cross toolchain (binutils+libc+libgcc+libstdc++).   Boolean -> default is [1]
-                              When [0], or when no cross-g++ exists: \`binutils-<triplet>\` + \`libc6-dev-<debarch>-cross\` only.
-        [ -s | --silent ]   : Run in silent mod.                                                                    Boolean -> default is [1]
-        [ -h | --help ]     : Display usage/help
+                                    Use --targets=all to list every triplet this host offers.                               Boolean -> default is [0]
+        [ --list-installed ]      : Only list the cross target triplets already installed, restricted to [targets] when given explicitly.
+                                                                                                                            Boolean -> default is [0]
+        [ --list-targets ]        : Only print the triplets [targets] resolves to, without consulting apt.                  Boolean -> default is [0]
+        [ -t | --targets ]        : Target triplets to install a cross toolchain for (space-separated),                     String -> default is ['${arg_targets}']
+                                    or 'common' (${common_targets}),
+                                    or 'all' (every triplet this host offers).
+                                    Ex: 'aarch64-linux-gnu powerpc64le-linux-gnu s390x-linux-gnu'
+        [ --with-gcc ]            : Install \`g++-<triplet>\` -> full cross toolchain (binutils+libc+libgcc+libstdc++).     Boolean -> default is [1]
+                                    When [0], or when no cross-g++ exists: \`binutils-<triplet>\` + \`libc6-dev-<debarch>-cross\` only.
+        [ -s | --silent ]         : Run in silent mod.                                                                      Boolean -> default is [1]
+        [ -h | --help ]           : Display usage/help
 
     For instance, to install only the aarch64 cross-binutils, use:
         sudo ./${this_script_name} --targets='aarch64-linux-gnu'

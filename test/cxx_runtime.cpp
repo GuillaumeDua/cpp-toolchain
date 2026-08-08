@@ -5,8 +5,8 @@
 //   (b) runs on the `runtime` image, resolving those symbols.
 // This is what --auto-remove / --allow-downgrades can break.
 //
-// Deliberately C++98-clean, so the same payload compiles under every standard the compiler
-// exposes. No emplace_back, no range-based for, no %zu.
+// Deliberately C++98-clean, so the same payload compiles under every standard the compiler exposes.
+// (No emplace_back, no range-based for, no %zu).
 
 #include <string>
 #include <vector>
