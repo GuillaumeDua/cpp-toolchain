@@ -131,8 +131,9 @@ if [ "${arg_greatest}" -eq 1 ]; then
     standards=$(tail -n 1 <<< "${standards}")
 fi
 
-# Spellings are all distinct, __cplusplus values are not: c++98 and c++03 both report 199711,
-# and a draft repeats the value of the final name it anticipates.
+# Spellings are all distinct, __cplusplus values are not:
+# - c++98 and c++03 both report 199711,
+# - a draft repeats the value of the final name it anticipates.
 case "${arg_format}" in
     default )   awk '{ printf "%s -> __cplusplus=%s\n", $3, $1 }' <<< "${standards}" ;;
     std )       awk '{ print $3 }'                                <<< "${standards}" ;;

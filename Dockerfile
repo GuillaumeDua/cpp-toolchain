@@ -302,10 +302,11 @@ CMD ["/bin/bash"]
 #   `apt-get update` is needed because each stage above ends by wiping /var/lib/apt/lists,
 #   and the origin check reads what apt reports about the repository behind each installed package.
 # ---------------------------------------------------------------------------------------------
-#   scripts/ is copied whole rather than scripts/checks alone:
+#   scripts/ is copied whole rather than scripts/checks/details alone:
 #       the checks ask gcc.sh and llvm.sh which compilers are installed (--list-installed),
 #       and that only resolves if both directories keep their relative positions.
-#   .dockerignore still keeps scripts/details out.
+#   .dockerignore keeps the top-level scripts/details out; it does not match
+#   scripts/checks/details, which is why the checks below are still in the build context.
 FROM build AS validate-build
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
@@ -313,12 +314,12 @@ ARG GCC_VERSIONS
 ARG LLVM_VERSIONS
 ARG BINUTILS_TARGETS
 COPY ./scripts/ /opt/cpp-toolchain-scripts/
-COPY ./test/cxx_runtime.cpp /opt/cpp-toolchain-scripts/checks/
-RUN apt-get update -qqy                                                                     \
-    && bash /opt/cpp-toolchain-scripts/checks/check-package-origins.sh build                \
-    && bash /opt/cpp-toolchain-scripts/checks/check-cxx-runtime.sh compile /validate        \
-    && bash /opt/cpp-toolchain-scripts/checks/check-cxx-runtime.sh inspect /validate        \
-    && bash /opt/cpp-toolchain-scripts/checks/check-cxx-runtime.sh run     /validate/libcxx \
+COPY ./test/cxx_runtime.cpp /opt/cpp-toolchain-scripts/checks/details/
+RUN apt-get update -qqy                                                                             \
+    && bash /opt/cpp-toolchain-scripts/checks/details/check-package-origins.sh build                \
+    && bash /opt/cpp-toolchain-scripts/checks/details/check-cxx-runtime.sh compile /validate        \
+    && bash /opt/cpp-toolchain-scripts/checks/details/check-cxx-runtime.sh inspect /validate        \
+    && bash /opt/cpp-toolchain-scripts/checks/details/check-cxx-runtime.sh run     /validate/libcxx \
     && rm -rf /var/lib/apt/lists/*
 
 # The binaries are built by `build` and executed here, which is the whole point:
@@ -329,9 +330,9 @@ ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 COPY --from=validate-build /validate/bin/ /validate/bin/
 COPY ./scripts/ /opt/cpp-toolchain-scripts/
-RUN apt-get update -qqy                                                                 \
-    && bash /opt/cpp-toolchain-scripts/checks/check-package-origins.sh runtime          \
-    && bash /opt/cpp-toolchain-scripts/checks/check-cxx-runtime.sh run /validate/bin    \
+RUN apt-get update -qqy                                                                         \
+    && bash /opt/cpp-toolchain-scripts/checks/details/check-package-origins.sh runtime          \
+    && bash /opt/cpp-toolchain-scripts/checks/details/check-cxx-runtime.sh run /validate/bin    \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------------------------

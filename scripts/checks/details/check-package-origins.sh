@@ -7,7 +7,7 @@ this_script_name=$(basename "$0")
 this_script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 # The installers own how their packages are named, so they answer what is installed.
-install_scripts_dir="${this_script_dir}/../install"
+install_scripts_dir="${this_script_dir}/../../install"
 
 origin_toolchain_ppa='ppa.launchpadcontent.net/ubuntu-toolchain-r'
 origin_llvm='apt.llvm.org'
@@ -111,7 +111,7 @@ check_runtime_libraries(){
 
 check_build_toolchains(){
     [ -d "${install_scripts_dir}" ] \
-      || die "cannot find scripts/install next to scripts/checks"
+      || die "cannot find scripts/install two levels above scripts/checks/details"
 
     local gcc_majors
     local clang_majors
