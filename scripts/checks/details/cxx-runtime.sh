@@ -7,7 +7,7 @@ this_script_name=$(basename "$0")
 this_script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 # One level up: the standards probe is standalone, it is not a detail of this gate.
-standards_script="${this_script_dir}/../check-compiler-supported-cxx-standards.sh"
+standards_script="${this_script_dir}/../compiler-supported-cxx-standards.sh"
 
 # The installers own how their packages are named, so they answer what is installed.
 install_scripts_dir="${this_script_dir}/../../install"
