@@ -143,9 +143,25 @@ wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/i
 sudo bash llvm.sh --versions='latest-stable'
 ```
 
+The standards probe travels the same way, and needs no root - give it a compiler and it reports
+which C++ standards that compiler accepts, which is enough to drive a CI matrix without pulling
+an image:
+
+```bash
+wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/checks/check-compiler-supported-cxx-standards.sh
+bash check-compiler-supported-cxx-standards.sh --stable g++-16
+# c++03 -> __cplusplus=199711
+# ...
+# c++26 -> __cplusplus=202400
+
+# One field at a time, to feed straight back into a build
+bash check-compiler-supported-cxx-standards.sh --greatest --stable --format=std g++-16   # c++26
+```
+
 > [!TIP] On scripts documentation
 > `cmake.sh` and `binutils.sh` work the same way.  
-> See [scripts/install/README.md](scripts/install/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference.
+> See [scripts/install/README.md](scripts/install/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference,
+> [scripts/checks/README.md](scripts/checks/README.md) for the standards probe, and [scripts/README.md](scripts/README.md) for which scripts are public.
 
 ## Build it yourself
 

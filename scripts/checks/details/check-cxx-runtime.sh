@@ -6,10 +6,11 @@ set -uo pipefail
 this_script_name=$(basename "$0")
 this_script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
-standards_script="${this_script_dir}/check-compiler-supported-cxx-standards.sh"
+# One level up: the standards probe is standalone, it is not a detail of this gate.
+standards_script="${this_script_dir}/../check-compiler-supported-cxx-standards.sh"
 
 # The installers own how their packages are named, so they answer what is installed.
-install_scripts_dir="${this_script_dir}/../install"
+install_scripts_dir="${this_script_dir}/../../install"
 
 warning_flags=('-Wall' '-Wextra')
 
@@ -30,7 +31,7 @@ resolve_payload_source(){
     local candidate
     for candidate in \
         "${this_script_dir}/cxx_runtime.cpp" \
-        "${this_script_dir}/../../test/cxx_runtime.cpp"
+        "${this_script_dir}/../../../test/cxx_runtime.cpp"
     do
         if [ -f "${candidate}" ]; then
             echo "${candidate}"
@@ -98,7 +99,7 @@ do_compile(){
     local root="$1"
 
     [ -d "${install_scripts_dir}" ] \
-      || die "cannot find scripts/install next to scripts/checks"
+      || die "cannot find scripts/install two levels above scripts/checks/details"
 
     local gcc_majors
     local clang_majors

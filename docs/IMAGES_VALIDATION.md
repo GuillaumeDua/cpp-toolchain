@@ -33,8 +33,7 @@ $ apt-cache policy libstdc++6
         500 http://archive.ubuntu.com/ubuntu noble-updates/main amd64
 ```
 
-Letting the archive win here swaps libstdc++ 16 for 14 in `runtime`, silently, while `build`
-still has GCC 15/16.
+Letting the archive win here swaps libstdc++ 16 for 14 in `runtime`, silently, while `build` still has GCC 15/16.
 
 ### 2 - What is installed is discovered, not declared
 
@@ -150,18 +149,34 @@ which is the failure this is here to catch.
 
 ## The scripts
 
-All live in [`scripts/checks/`](../scripts/checks/) and run from inside an image.
+All live under [`scripts/checks/`](../scripts/checks/), and the gate runs them from inside a
+built image.
 
-| Script | Purpose |
+Two of them are implementation details of this repository - they know its package origins and
+ask its installers what is present - so they sit in
+[`scripts/checks/details/`](../scripts/checks/details/):
+
+| Script in [`details/`](../scripts/checks/details/) | Purpose |
 | --- | --- |
 | `check-package-origins.sh <build\|runtime>` | every toolchain package comes from the repository that owns it |
 | `check-cxx-runtime.sh <compile\|inspect\|run> <directory>` | build the payload, prove it links dynamically, prove it runs |
+
+One level up sits the only one that depends on nothing here. The gate uses it, but give it a
+compiler and it answers on any machine, checkout or not:
+
+| Script in [`checks/`](../scripts/checks/) | Purpose |
+| --- | --- |
 | `check-compiler-supported-cxx-standards.sh [--stable] [--greatest] [--format=<default\|std\|cplusplus>] [compiler]` | which C++ standards a compiler accepts |
 
-They reach [`scripts/install/`](../scripts/install/) by relative path, which is why the validate
-stages copy `scripts/` whole rather than `scripts/checks/` alone. A layout that separates the two
-fails with `cannot find scripts/install next to scripts/checks` rather than silently finding no
-compilers.
+The `details/` pair reaches [`scripts/install/`](../scripts/install/) by relative path, which is
+why the validate stages copy `scripts/` whole rather than `scripts/checks/details/` alone. A
+layout that separates the two fails with `cannot find scripts/install two levels above
+scripts/checks/details` rather than silently finding no compilers.
+
+This is not the top-level [`scripts/details/`](../scripts/details/). Both names mean the same
+thing - implementation details of the directory that encloses them - but the top-level one is
+host-side tooling that `.dockerignore` keeps out of the build context entirely, whereas these
+checks have to ship *into* the image in order to validate it.
 
 Each reports **every** failure before exiting, so one run tells you everything that is wrong.
 
@@ -223,10 +238,11 @@ flowchart LR
     class g1,g2 gate
 ```
 
-On a pull request the validate stages are appended to the stage list the job already builds, so
-they cost a cache hit plus their own `RUN`. Before publishing they run as `cacheonly` solves -
-only the exit status matters, and the layers they build are the ones the pushes then reuse from
-the local cache. A stage that lost a package never reaches a registry.
+On a pull request the validate stages are appended to the stage list the job already builds,
+so they cost a cache hit plus their own `RUN`.
+Before publishing they run as `cacheonly` solves - only the exit status matters,
+and the layers they build are the ones the pushes then reuse from the local cache.  
+A stage that lost a package never reaches a registry.
 
 ## Running it locally
 
@@ -243,11 +259,11 @@ The scripts also run against a plain checkout, which is the quickest way to iter
 They discover whatever compilers the host has, so expect a wider matrix than an image produces:
 
 ```sh
-scripts/checks/check-cxx-runtime.sh compile /tmp/validate
-scripts/checks/check-cxx-runtime.sh inspect /tmp/validate
-scripts/checks/check-cxx-runtime.sh run     /tmp/validate/bin
+scripts/checks/details/check-cxx-runtime.sh compile /tmp/validate
+scripts/checks/details/check-cxx-runtime.sh inspect /tmp/validate
+scripts/checks/details/check-cxx-runtime.sh run     /tmp/validate/bin
 
-GCC_VERSIONS=15 LLVM_VERSIONS=22 scripts/checks/check-package-origins.sh build
+GCC_VERSIONS=15 LLVM_VERSIONS=22 scripts/checks/details/check-package-origins.sh build
 ```
 
 To narrow the matrix, copy `scripts/` elsewhere and stub `gcc.sh`/`llvm.sh` `--list-installed`
