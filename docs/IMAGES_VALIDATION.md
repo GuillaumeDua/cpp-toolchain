@@ -101,12 +101,12 @@ in `runtime`, which is the only way to prove that what `runtime` ships can still
 ```mermaid
 flowchart TD
     subgraph vb["validate-build (from build)"]
-        origins1["check-package-origins.sh build"]
-        compile["check-cxx-runtime.sh compile"]
+        origins1["package-origins.sh build"]
+        compile["cxx-runtime.sh compile"]
         bin["/validate/bin<br/>g++-N, clang++-N"]
         libcxx["/validate/libcxx<br/>clang++-N -stdlib=libc++"]
         cross["/validate/cross<br/>&lt;triplet&gt;-g++"]
-        inspect["check-cxx-runtime.sh inspect<br/>readelf -d: a C++ runtime is NEEDED"]
+        inspect["cxx-runtime.sh inspect<br/>readelf -d: a C++ runtime is NEEDED"]
         runb["run here: runtime carries no libc++ yet"]
 
         compile --> bin
@@ -119,8 +119,8 @@ flowchart TD
     end
 
     subgraph vr["validate-runtime (from runtime)"]
-        origins2["check-package-origins.sh runtime"]
-        runr["check-cxx-runtime.sh run<br/>ldd resolves, binary exits 0"]
+        origins2["package-origins.sh runtime"]
+        runr["cxx-runtime.sh run<br/>ldd resolves, binary exits 0"]
     end
 
     src["test/cxx_runtime.cpp<br/>one payload, C++98-clean"] --> compile
@@ -158,15 +158,15 @@ ask its installers what is present - so they sit in
 
 | Script in [`details/`](../scripts/checks/details/) | Purpose |
 | --- | --- |
-| `check-package-origins.sh <build\|runtime>` | every toolchain package comes from the repository that owns it |
-| `check-cxx-runtime.sh <compile\|inspect\|run> <directory>` | build the payload, prove it links dynamically, prove it runs |
+| `package-origins.sh <build\|runtime>` | every toolchain package comes from the repository that owns it |
+| `cxx-runtime.sh <compile\|inspect\|run> <directory>` | build the payload, prove it links dynamically, prove it runs |
 
 One level up sits the only one that depends on nothing here. The gate uses it, but give it a
 compiler and it answers on any machine, checkout or not:
 
 | Script in [`checks/`](../scripts/checks/) | Purpose |
 | --- | --- |
-| `check-compiler-supported-cxx-standards.sh [--stable] [--greatest] [--format=<default\|std\|cplusplus>] [compiler]` | which C++ standards a compiler accepts |
+| `compiler-supported-cxx-standards.sh [--stable] [--greatest] [--format=<default\|std\|cplusplus>] [compiler]` | which C++ standards a compiler accepts |
 
 The `details/` pair reaches [`scripts/install/`](../scripts/install/) by relative path, which is
 why the validate stages copy `scripts/` whole rather than `scripts/checks/details/` alone. A
@@ -182,11 +182,11 @@ Each reports **every** failure before exiting, so one run tells you everything t
 
 ### Standards detection
 
-`check-compiler-supported-cxx-standards.sh` probes the compiler and reports what it accepts,
+`compiler-supported-cxx-standards.sh` probes the compiler and reports what it accepts,
 ordered by `__cplusplus`:
 
 ```console
-$ scripts/checks/check-compiler-supported-cxx-standards.sh --stable g++-16
+$ scripts/checks/compiler-supported-cxx-standards.sh --stable g++-16
 c++03 -> __cplusplus=199711
 c++11 -> __cplusplus=201103
 ...
@@ -205,10 +205,10 @@ Which standards are reported and how they are reported are two separate choices.
 output usable as a value rather than as a report:
 
 ```console
-$ scripts/checks/check-compiler-supported-cxx-standards.sh --greatest --stable --format=std g++-16
+$ scripts/checks/compiler-supported-cxx-standards.sh --greatest --stable --format=std g++-16
 c++26
 
-$ scripts/checks/check-compiler-supported-cxx-standards.sh --greatest --stable --format=cplusplus g++-16
+$ scripts/checks/compiler-supported-cxx-standards.sh --greatest --stable --format=cplusplus g++-16
 202400
 ```
 
@@ -259,11 +259,11 @@ The scripts also run against a plain checkout, which is the quickest way to iter
 They discover whatever compilers the host has, so expect a wider matrix than an image produces:
 
 ```sh
-scripts/checks/details/check-cxx-runtime.sh compile /tmp/validate
-scripts/checks/details/check-cxx-runtime.sh inspect /tmp/validate
-scripts/checks/details/check-cxx-runtime.sh run     /tmp/validate/bin
+scripts/checks/details/cxx-runtime.sh compile /tmp/validate
+scripts/checks/details/cxx-runtime.sh inspect /tmp/validate
+scripts/checks/details/cxx-runtime.sh run     /tmp/validate/bin
 
-GCC_VERSIONS=15 LLVM_VERSIONS=22 scripts/checks/details/check-package-origins.sh build
+GCC_VERSIONS=15 LLVM_VERSIONS=22 scripts/checks/details/package-origins.sh build
 ```
 
 To narrow the matrix, copy `scripts/` elsewhere and stub `gcc.sh`/`llvm.sh` `--list-installed`

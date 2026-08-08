@@ -10,19 +10,19 @@ image - the validate stages copy `scripts/` in and execute them there.
 
 | Script | Purpose |
 | ------ | ------- |
-| `check-compiler-supported-cxx-standards.sh` | Which C++ standards a compiler accepts, ordered by `__cplusplus` |
+| `compiler-supported-cxx-standards.sh` | Which C++ standards a compiler accepts, ordered by `__cplusplus` |
 
 This one depends on nothing in this repository - point it at any compiler on any machine. Fetch
 it on its own when you want the answer without an image or a checkout:
 
 ```bash
-wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/checks/check-compiler-supported-cxx-standards.sh
+wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/checks/compiler-supported-cxx-standards.sh
 ```
 
 From a checkout it is the same script:
 
 ```bash
-scripts/checks/check-compiler-supported-cxx-standards.sh --stable g++-16
+scripts/checks/compiler-supported-cxx-standards.sh --stable g++-16
 c++03 -> __cplusplus=199711
 ...
 c++26 -> __cplusplus=202400
@@ -33,7 +33,7 @@ and `--format` narrows each line to one field - `std` for `c++26`, `cplusplus` f
 `--format=std` is spelled the way the compiler spells it, so it feeds straight back in:
 
 ```bash
-g++-16 -std="$(scripts/checks/check-compiler-supported-cxx-standards.sh --greatest --stable --format=std g++-16)" main.cpp
+g++-16 -std="$(scripts/checks/compiler-supported-cxx-standards.sh --greatest --stable --format=std g++-16)" main.cpp
 ```
 
 `--help` is the full reference.
@@ -42,8 +42,8 @@ g++-16 -std="$(scripts/checks/check-compiler-supported-cxx-standards.sh --greate
 
 | Script | Purpose |
 | ------ | ------- |
-| `check-package-origins.sh <build\|runtime>` | Every toolchain package comes from the repository that owns it, not from the Ubuntu archive |
-| `check-cxx-runtime.sh <compile\|inspect\|run> <directory>` | Compiles the payload for every standard, proves it links against a C++ runtime dynamically, then runs it |
+| `package-origins.sh <build\|runtime>` | Every toolchain package comes from the repository that owns it, not from the Ubuntu archive |
+| `cxx-runtime.sh <compile\|inspect\|run> <directory>` | Compiles the payload for every standard, proves it links against a C++ runtime dynamically, then runs it |
 
 Implementation details of this gate, in the C++ sense of a nested `detail` namespace: they know
 this repo's expected package origins, and they ask [`scripts/install/`](../install/) which

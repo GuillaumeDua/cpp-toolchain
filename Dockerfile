@@ -315,11 +315,11 @@ ARG LLVM_VERSIONS
 ARG BINUTILS_TARGETS
 COPY ./scripts/ /opt/cpp-toolchain-scripts/
 COPY ./test/cxx_runtime.cpp /opt/cpp-toolchain-scripts/checks/details/
-RUN apt-get update -qqy                                                                             \
-    && bash /opt/cpp-toolchain-scripts/checks/details/check-package-origins.sh build                \
-    && bash /opt/cpp-toolchain-scripts/checks/details/check-cxx-runtime.sh compile /validate        \
-    && bash /opt/cpp-toolchain-scripts/checks/details/check-cxx-runtime.sh inspect /validate        \
-    && bash /opt/cpp-toolchain-scripts/checks/details/check-cxx-runtime.sh run     /validate/libcxx \
+RUN apt-get update -qqy                                                                       \
+    && bash /opt/cpp-toolchain-scripts/checks/details/package-origins.sh build                \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh compile /validate        \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh inspect /validate        \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh run     /validate/libcxx \
     && rm -rf /var/lib/apt/lists/*
 
 # The binaries are built by `build` and executed here, which is the whole point:
@@ -330,9 +330,9 @@ ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 COPY --from=validate-build /validate/bin/ /validate/bin/
 COPY ./scripts/ /opt/cpp-toolchain-scripts/
-RUN apt-get update -qqy                                                                         \
-    && bash /opt/cpp-toolchain-scripts/checks/details/check-package-origins.sh runtime          \
-    && bash /opt/cpp-toolchain-scripts/checks/details/check-cxx-runtime.sh run /validate/bin    \
+RUN apt-get update -qqy                                                                   \
+    && bash /opt/cpp-toolchain-scripts/checks/details/package-origins.sh runtime          \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh run /validate/bin    \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------------------------
