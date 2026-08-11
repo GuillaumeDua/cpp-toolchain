@@ -166,7 +166,7 @@ compiler and it answers on any machine, checkout or not:
 
 | Script in [`checks/`](../scripts/checks/) | Purpose |
 | --- | --- |
-| `compiler-supported-cxx-standards.sh [--stable] [--greatest] [--format=<default\|std\|cplusplus>] [compiler]` | which C++ standards a compiler accepts |
+| `cxx-standards.sh [--stable] [--greatest] [--format=<default\|std\|cplusplus>] [compiler]` | which C++ standards a compiler accepts |
 
 The `details/` pair reaches [`scripts/install/`](../scripts/install/) by relative path, which is
 why the validate stages copy `scripts/` whole rather than `scripts/checks/details/` alone. A
@@ -182,11 +182,11 @@ Each reports **every** failure before exiting, so one run tells you everything t
 
 ### Standards detection
 
-`compiler-supported-cxx-standards.sh` probes the compiler and reports what it accepts,
+`cxx-standards.sh` probes the compiler and reports what it accepts,
 ordered by `__cplusplus`:
 
 ```console
-$ scripts/checks/compiler-supported-cxx-standards.sh --stable g++-16
+$ scripts/checks/cxx-standards.sh --stable g++-16
 c++03 -> __cplusplus=199711
 c++11 -> __cplusplus=201103
 ...
@@ -205,10 +205,10 @@ Which standards are reported and how they are reported are two separate choices.
 output usable as a value rather than as a report:
 
 ```console
-$ scripts/checks/compiler-supported-cxx-standards.sh --greatest --stable --format=std g++-16
+$ scripts/checks/cxx-standards.sh --greatest --stable --format=std g++-16
 c++26
 
-$ scripts/checks/compiler-supported-cxx-standards.sh --greatest --stable --format=cplusplus g++-16
+$ scripts/checks/cxx-standards.sh --greatest --stable --format=cplusplus g++-16
 202400
 ```
 

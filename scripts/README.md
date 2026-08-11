@@ -7,7 +7,7 @@ system, with no dependency on this repository - copy the file out and it works.
 | Directory | Scope | What lives there |
 | --------- | ----- | ---------------- |
 | [install/](install/) | **Public** - standalone | Toolchain installers - `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh`, `doxygen.sh`. Reusable on any Debian/Ubuntu-based system, with no dependency on this repository. See [install/README.md](install/README.md) for the full option reference. |
-| [checks/](checks/) | **Public** - standalone | `compiler-supported-cxx-standards.sh` - which C++ standards a compiler accepts. `cxx-stdlibs.sh` - which C++ standard libraries are installed, with the `SONAME` and ABI version a binary will need to find. Point either at any machine, checkout or not. See [checks/README.md](checks/README.md). |
+| [checks/](checks/) | **Public** - standalone | `cxx-standards.sh` - which C++ standards a compiler accepts. `cxx-stdlibs.sh` - which C++ standard libraries are installed, with the `SONAME` and ABI version a binary will need to find. Point either at any machine, checkout or not. See [checks/README.md](checks/README.md). |
 | [checks/details/](checks/details/) | Internal | The image validation gate, which runs *inside* a built image: it knows this repo's expected package origins and asks its installers what is present. See [docs/IMAGES_VALIDATION.md](../docs/IMAGES_VALIDATION.md). |
 | [details/](details/) | Internal | This repository's own tooling - the version-pin guard, the release-note renderer, the promotion-record schema and the image smoke test. Not reusable: they parse this repo's `Dockerfile`, `renovate.json` and `releases/` records. See [details/README.md](details/README.md). |
 
@@ -34,8 +34,8 @@ wget "${base}/install/gcc.sh"
 sudo bash gcc.sh --versions='>=13'
 
 # Ask a compiler which C++ standards it accepts - useful to drive a CI matrix
-wget "${base}/checks/compiler-supported-cxx-standards.sh"
-bash compiler-supported-cxx-standards.sh --greatest --stable --format=std g++
+wget "${base}/checks/cxx-standards.sh"
+bash cxx-standards.sh --greatest --stable --format=std g++
 # -> c++26
 
 # Ask which ABI the installed libstdc++ exposes - the marker a 'GLIBCXX_... not found' names
