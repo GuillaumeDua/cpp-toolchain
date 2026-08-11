@@ -147,14 +147,14 @@ The standards probe travels the same way, and needs no root - give it a compiler
 which is enough to drive a CI matrix without pulling an image:
 
 ```bash
-wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/checks/compiler-supported-cxx-standards.sh
-bash compiler-supported-cxx-standards.sh --stable g++-16
+wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/checks/cxx-standards.sh
+bash cxx-standards.sh --stable g++-16
 # c++03 -> __cplusplus=199711
 # ...
 # c++26 -> __cplusplus=202400
 
 # One field at a time, to feed straight back into a build
-bash compiler-supported-cxx-standards.sh --greatest --stable --format=std g++-16   # c++26
+bash cxx-standards.sh --greatest --stable --format=std g++-16   # c++26
 ```
 
 > [!TIP] On scripts documentation

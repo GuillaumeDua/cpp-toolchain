@@ -9,26 +9,26 @@ The two under [`details/`](details/) are also the image validation gate:
 
 ## Standalone
 
-| Script                                | Purpose                                                              |
-| ------------------------------------- | -------------------------------------------------------------------- |
-| `compiler-supported-cxx-standards.sh` | Which C++ standards a compiler accepts, ordered by `__cplusplus`     |
-| `cxx-stdlibs.sh`                      | Which C++ standard libraries are installed, and what ABI they expose |
+| Script             | Purpose                                                              |
+| ------------------ | -------------------------------------------------------------------- |
+| `cxx-standards.sh` | Which C++ standards a compiler accepts, ordered by `__cplusplus`     |
+| `cxx-stdlibs.sh`   | Which C++ standard libraries are installed, and what ABI they expose |
 
 These depend on nothing in this repository - point them at any compiler on any machine.  
 Fetch either on its own when you want the answer without an image or a checkout:
 
 ```bash
 base=https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/checks
-wget "${base}/compiler-supported-cxx-standards.sh"
+wget "${base}/cxx-standards.sh"
 wget "${base}/cxx-stdlibs.sh"
 ```
 
-### `compiler-supported-cxx-standards.sh`
+### `cxx-standards.sh`
 
 From a checkout it is the same script:
 
 ```bash
-scripts/checks/compiler-supported-cxx-standards.sh --stable g++-16
+scripts/checks/cxx-standards.sh --stable g++-16
 c++03 -> __cplusplus=199711
 ...
 c++26 -> __cplusplus=202400
@@ -39,7 +39,7 @@ and `--format` narrows each line to one field - `std` for `c++26`, `cplusplus` f
 `--format=std` is spelled the way the compiler spells it, so it feeds straight back in:
 
 ```bash
-g++-16 -std="$(scripts/checks/compiler-supported-cxx-standards.sh --greatest --stable --format=std g++-16)" main.cpp
+g++-16 -std="$(scripts/checks/cxx-standards.sh --greatest --stable --format=std g++-16)" main.cpp
 ```
 
 `--help` is the full reference.
@@ -57,7 +57,16 @@ Which standard libraries are installed, and the two things that actually break a
 libc++ 20.1.7 -> soname=libc++.so.1.0.20 abi=- cxxabi=libc++abi.so.1.0.20 package=libc++1-20
 libc++ 22.1.8 -> soname=libc++.so.1 abi=LIBCPP_ABI_1 cxxabi=libc++abi.so.1 package=libc++1
 libstdc++ 16 -> soname=libstdc++.so.6 abi=GLIBCXX_3.4.35 cxxabi=CXXABI_1.3.17 package=libstdc++6
+libstdc++ 16 -> soname=libstdc++.so.6 abi=GLIBCXX_3.4.35 cxxabi=CXXABI_1.3.17 package=lib32stdc++6
+libstdc++ 16 -> soname=libstdc++.so.6 abi=GLIBCXX_3.4.35 cxxabi=CXXABI_1.3.17 package=libx32stdc++6
 ```
+
+One row is one installed runtime, not one implementation.  
+`libstdc++` appears three times because [`gcc.sh`](../install/gcc.sh) installs multilib by default,
+which adds a 32-bit and an x32 build beside the 64-bit one:
+same release and same ABI, a different secondary ABI,
+and `package` is the field that tells them apart.
+These images carry them, so expect these rows.
 
 > [!IMPORTANT]
 > `abi=-` for `libc++ 20.1.7` above is not a missing answer.  
@@ -155,7 +164,27 @@ view=library impl=libstdc++ version=16 soname=libstdc++.so.6 path=/usr/lib/x86_6
 ```
 
 A field this host cannot answer reads `-` rather than being dropped,
-so every line of a view keeps its shape.  
+so every line of a view keeps its shape.
+
+The whole surface, of which the examples above use a part:
+
+| Option        | Values                                                  | Default            |
+| ------------- | ------------------------------------------------------- | ------------------ |
+| `--stdlib`    | `all`, `libstdc++`, `libc++`                            | `all`              |
+| `--compilers` | `all`, or a space-separated list of compilers           | off; `all` if bare |
+| `--format`    | `default`, `name`, `version`, `soname`, `abi`, `fields` | `default`          |
+
+The four narrowing formats print one field per line, deduplicated across both views:
+`name` gives `libstdc++`, `version` gives `16`, `soname` gives `libstdc++.so.6`,
+`abi` gives `GLIBCXX_3.4.35`.
+They are what makes the script scriptable - the sample above collapses to a single answer:
+
+```bash
+> bash scripts/checks/cxx-stdlibs.sh --stdlib=libstdc++ --format=soname
+
+libstdc++.so.6
+```
+
 `--help` is the full reference.
 
 ## [details/](details/)
