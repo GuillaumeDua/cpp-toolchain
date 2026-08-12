@@ -3,11 +3,13 @@ set -uo pipefail
 
 this_script_name=$(basename "$0")
 
+arg_view=''
 arg_stdlib='all'
 arg_format='default'
 arg_compilers=0
 arg_compilers_value='all'
 
+default_view='library'
 default_stdlib='all'
 default_format='default'
 default_compilers='all'
@@ -15,15 +17,21 @@ default_compilers='all'
 die() { echo "[${this_script_name}] error: $*" >&2; exit 1; }
 
 help(){
-    echo "Usage: ${this_script_name} [--stdlib=<name>] [--compilers[=<compilers>]] [--format=<format>]" 1>&2
+    echo "Usage: ${this_script_name} [--view=<view>] [--stdlib=<name>] [--compilers[=<compilers>]] [--format=<format>]" 1>&2
     echo "
-    Which rows are reported:
+    Which question is answered:
+        [ --view ]      : library  : Which standard libraries are installed -> default is [${default_view}]
+                          compiler : Which one each compiler compiles against.
+                          all      : Both, the library view first.
+                          Naming [--compilers] selects the compiler view by itself,
+                          so [--view] is only needed to ask for both at once.
+
+    Which rows that view reports:
         [ --stdlib ]    : all       : Both implementations -> default is [${default_stdlib}]
                           libstdc++ : GCC's implementation alone.
                           libc++    : LLVM's implementation alone.
 
-        [ --compilers ] : Also ask compilers which standard library they compile against,
-                          which is not always the newest one installed.
+        [ --compilers ] : Which compilers the compiler view asks.
                           String: all|(space-separated-compilers...) -> default is [${default_compilers}]
                               --compilers                        every g++/clang++ on PATH
                               --compilers='g++-16 clang++-22'    these two and nothing else
@@ -43,6 +51,13 @@ help(){
     A field this host cannot answer is reported as [-] rather than dropped,
     so every line of a given view keeps the same shape.
 
+    The four narrowing formats print one field and nothing naming the view it came from,
+    so they answer for one view alone and [--view=all] is refused rather than answered:
+    an installed runtime's GLIBCXX_3.4.35 and a compiler's cxx11 are two different facts,
+    and one undifferentiated list holding both cannot say which of them is which.
+    [--format=soname] is refused against the compiler view for the same reason it has no
+    arm there: a compiler names the headers it reaches, and headers have no SONAME.
+
     The two implementations spell their ABI differently,
     and each is reported the way its own failures name it:
         libstdc++ has GNU symbol versions -> abi=GLIBCXX_3.4.35 and cxxabi=CXXABI_1.3.17,
@@ -54,9 +69,10 @@ help(){
                   and that is where this reads it. _LIBCPP_ABI_VERSION in the headers is
                   only the fallback, since a -dev package need not be installed at all.
 
-    Compiler rows answer a different question than library rows, so they are listed apart:
-    a compiler picks headers off its own search path,
-    and the newest libc++ installed is not always the one it compiles against.
+    Compiler rows answer a different question than library rows, which is why they are a view
+    of their own rather than extra rows on the end: a compiler picks headers off its own
+    search path, and the newest libc++ installed is not always the one it compiles against.
+    [--view=all] is what puts the two side by side, which is where that gap becomes visible.
 
     Their abi field is the ABI they will produce,
     which for libc++ is the LIBCPP_ABI_<n> the library view reports too.
@@ -82,6 +98,13 @@ help(){
     Both report [-] rather than a guess where nothing can be read.
     " 1>&2
     exit 0
+}
+
+set_view(){
+    case "$1" in
+        library | compiler | all ) arg_view="$1" ;;
+        * ) die "unknown view [$1] - expected one of: library, compiler, all" ;;
+    esac
 }
 
 set_stdlib(){
@@ -110,6 +133,12 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --compilers=* ) arg_compilers=1; set_compilers "${1#*=}" ;;
         --compilers )   arg_compilers=1 ;;
+        --view=* )    set_view "${1#*=}" ;;
+        --view )
+            [ $# -ge 2 ] || die "option [--view] expects a value"
+            set_view "$2"
+            shift
+            ;;
         --stdlib=* )  set_stdlib "${1#*=}" ;;
         --stdlib )
             [ $# -ge 2 ] || die "option [--stdlib] expects a value"
@@ -128,6 +157,30 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+# A view is what the compiler list filters, so naming compilers selects that view rather than
+# adding it to the default one: the two answer different questions, and a caller asking after a
+# compiler is not thereby asking what else is installed. --view=all is how both are asked at once.
+if [ -z "${arg_view}" ]; then
+    [ "${arg_compilers}" -eq 1 ] && arg_view='compiler' || arg_view="${default_view}"
+elif [ "${arg_compilers}" -eq 1 ] && [ "${arg_view}" = 'library' ]; then
+    die "option [--compilers] filters the compiler view, which [--view=library] leaves out"
+fi
+
+# A narrowing format prints one field and nothing that says which view produced it, so it can
+# only speak for one. Asked of both, it would deduplicate the answers to two different questions
+# into a single list - a runtime's GLIBCXX_ beside a compiler's dual-ABI choice - and no caller
+# could tell them apart afterwards.
+case "${arg_format}" in
+    default | fields ) ;;
+    * ) [ "${arg_view}" != 'all' ] \
+          || die "format [${arg_format}] answers for one view - pass --view=library or --view=compiler" ;;
+esac
+
+# A compiler reports the headers it reaches rather than a library, and headers have no SONAME.
+# There is nothing to narrow to, so this is refused rather than answered with empty output.
+[ "${arg_format}" != 'soname' ] || [ "${arg_view}" != 'compiler' ] \
+  || die "format [soname] has no meaning for [--view=compiler] - a compiler names headers, not a library"
 
 # Named compilers are a promise the host has to keep: a typo must fail here rather than quietly
 # report one row fewer than was asked for.
@@ -439,12 +492,13 @@ render_libraries(){
 }
 
 # No soname arm: a compiler reports what it compiles against, which has no SONAME of its own.
+# Nothing falls through to that absence either - --format=soname is refused against this view
+# while the arguments are still being read, so it never reaches here.
 render_compilers(){
     case "${arg_format}" in
         default ) awk '{ printf "%s -> %s %s abi=%s headers=%s\n", $1, $2, $3, $4, $5 }' ;;
         name )    awk '{ print $2 }' ;;
         version ) awk '{ print $3 }' ;;
-        soname )  ;;
         abi )     awk '{ print $4 }' ;;
         fields )  awk '{ printf "view=compiler compiler=%s impl=%s version=%s abi=%s headers=%s\n", $1, $2, $3, $4, $5 }' ;;
     esac
@@ -453,29 +507,38 @@ render_compilers(){
 render(){
     [ -z "${libraries}" ] || render_libraries <<< "${libraries}"
 
-    # The blank line and the label are for the reader only, so they stay out of every format
-    # something else is meant to parse - 'fields' tags each line with its view instead.
+    # The blank line and the label separate two views sharing one stream, so they belong to
+    # --view=all alone, and there only to the format a reader reads: 'fields' tags every line
+    # with its own view instead, and a single view has nothing to be told apart from.
     if [ -n "${compilers}" ]; then
-        [ "${arg_format}" != 'default' ] || printf '\n%s\n' 'compilers:'
+        [ "${arg_format}" != 'default' ] || [ "${arg_view}" != 'all' ] \
+          || printf '\n%s\n' 'compilers:'
         render_compilers <<< "${compilers}"
     fi
 }
 
+# Only the selected views are gathered: asking every compiler on a host costs about a minute,
+# which is not worth spending on rows nothing is going to print.
 # Sorted on the first two columns only, and deliberately without -u: sort would read equal
 # keys as duplicate lines and drop the 32-bit runtimes, which share a name and a version with
 # the 64-bit one and differ only further along the row. Rows are already unique by then.
-libraries=$(library_rows | sort -k1,1 -k2,2V)
+libraries=''
+[ "${arg_view}" = 'compiler' ] || libraries=$(library_rows | sort -k1,1 -k2,2V)
 
 compilers=''
-if [ "${arg_compilers}" -eq 1 ]; then
-    compilers=$(compiler_rows | sort -k1,1V -k2,2)
-fi
+[ "${arg_view}" = 'library' ] || compilers=$(compiler_rows | sort -k1,1V -k2,2)
 
-# A host carrying neither implementation is broken and says so. A --stdlib that selects the one
-# implementation this host does not have is a different thing entirely - an empty answer, not a
-# failure - which is why this is asked before the filter rather than after it.
-[ -n "${libraries}" ] || [ -n "${compilers}" ] \
-  || die "no C++ standard library found - looked at ldconfig, /usr/lib and, where present, dpkg"
+# A host that cannot answer the view it was asked for is broken and says so, in the terms of the
+# view that came up empty. A --stdlib that selects the one implementation this host does not have
+# is a different thing entirely - an empty answer, not a failure - which is why this is asked
+# before the filter rather than after it.
+if [ -z "${libraries}" ] && [ -z "${compilers}" ]; then
+    case "${arg_view}" in
+        library )  die "no C++ standard library found - looked at ldconfig, /usr/lib and, where present, dpkg" ;;
+        compiler ) die "no compiler answered - looked for g++ and clang++ on PATH, with and without a version suffix" ;;
+        all )      die "nothing found - looked at ldconfig, /usr/lib and dpkg for libraries, and at PATH for compilers" ;;
+    esac
+fi
 
 # Guarded, because a here-string feeds an empty variable through as one empty line.
 [ -z "${libraries}" ] || libraries=$(keep_selected 1 <<< "${libraries}")
@@ -484,9 +547,9 @@ fi
 case "${arg_format}" in
     default | fields ) render ;;
     # A narrowed line keeps one field and drops whatever else made two rows distinct, so the
-    # survivors are deduplicated across both views at once: three libstdc++ runtimes built for
-    # three architectures are one answer to --format=version, and an implementation named by
-    # both a library row and a compiler row is one answer to --format=name.
+    # survivors are deduplicated: three libstdc++ runtimes built for three architectures are one
+    # answer to --format=version, and eight clang++ reaching one header tree are one answer to it
+    # too. Within a single view only - which is all these formats are ever asked of.
     * ) render | awk '!seen[$0]++' ;;
 esac
 

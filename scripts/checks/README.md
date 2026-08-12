@@ -103,7 +103,7 @@ These images carry them, so expect these rows.
 > not at load time, and no `abi` value above can see it:
 > it is a compile-time choice, not a property of the installed library.
 > That one *does* need a rebuild, or a matching `-D_GLIBCXX_USE_CXX11_ABI`.  
-> `--compilers` is where it shows up, as `abi=cxx11` or `abi=cxx03`.
+> The compiler view is where it shows up, as `abi=cxx11` or `abi=cxx03`.
 
 The two implementations answer in different currencies,
 because only one of them has GNU symbol versions:
@@ -124,16 +124,19 @@ so the digits after it belong to the next component's length and not to the name
 for a build whose namespace was renamed - the Android NDK's `__ndk1`, say -
 or an ABI numbered past a single digit.
 
-`--compilers` adds what each compiler actually compiles against,
-which is not always the newest one installed -
-a compiler picks headers off its own search path.
+#### The two views
+
+Everything above is the **library** view: what is installed.
+The **compiler** view answers a different question -
+what each compiler actually compiles against,
+which is not always the newest one installed, because a compiler picks headers
+off its own search path. `--compilers` selects it, and says which compilers to ask.
 It takes the same shape as `--versions` and `--targets` do in [`install/`](../install/):
 `all`, or a space-separated list.
 
 ```bash
 > bash scripts/checks/cxx-stdlibs.sh --compilers='clang++-18'
 
-compilers:
 clang++-18 -> libc++ 22.1.8 abi=LIBCPP_ABI_1 headers=/usr/lib/llvm-22/include/c++/v1
 clang++-18 -> libstdc++ 16 abi=cxx11 headers=/usr/include/c++/16
 ```
@@ -142,21 +145,36 @@ clang++-18 -> libstdc++ 16 abi=cxx11 headers=/usr/include/c++/16
 `/usr/include/c++/v1` is a symlink into the newest LLVM's tree,
 so every clang installed shares one libc++.
 
-Bare `--compilers` is `--compilers=all`, every `g++`/`clang++` on `PATH`.
-Naming the ones you care about instead is worth it -
-asking every compiler a host has costs about a minute:
+> [!IMPORTANT]
+> One view answers at a time. `--compilers` **selects** the compiler view rather than
+> appending to the library one, so the command above prints no library rows at all.
+> `--view=all` is how both are asked for at once, and it is worth asking when the
+> question is the *gap* between them:
 
 ```bash
-> bash scripts/checks/cxx-stdlibs.sh --compilers='g++-13 clang++-22' --format=version
+> bash scripts/checks/cxx-stdlibs.sh --view=all --compilers='clang++-18'
 
-20.1.7
-22.1.8
-16
-13
+libc++ 20.1.7 -> soname=libc++.so.1.0.20 abi=LIBCPP_ABI_1 cxxabi=libc++abi.so.1.0.20 package=libc++1-20
+libc++ 22.1.8 -> soname=libc++.so.1 abi=LIBCPP_ABI_1 cxxabi=libc++abi.so.1 package=libc++1
+libstdc++ 16 -> soname=libstdc++.so.6 abi=GLIBCXX_3.4.35 cxxabi=CXXABI_1.3.17 package=libstdc++6
+libstdc++ 16 -> soname=libstdc++.so.6 abi=GLIBCXX_3.4.35 cxxabi=CXXABI_1.3.17 package=lib32stdc++6
+libstdc++ 16 -> soname=libstdc++.so.6 abi=GLIBCXX_3.4.35 cxxabi=CXXABI_1.3.17 package=libx32stdc++6
+
+compilers:
+clang++-18 -> libc++ 22.1.8 abi=LIBCPP_ABI_1 headers=/usr/lib/llvm-22/include/c++/v1
+clang++-18 -> libstdc++ 16 abi=cxx11 headers=/usr/include/c++/16
 ```
 
+`libc++ 20.1.7` is installed and no compiler here reaches it.
+That is the whole reason the two views exist separately.
+
+Bare `--compilers` is `--compilers=all`, every `g++`/`clang++` on `PATH`.
+Naming the ones you care about instead is worth it -
+asking every compiler a host has costs about a minute.
+`--view=compiler` is the same thing spelled out, for when no filter is wanted.
+
 `--format=fields` is the parseable form, one `key=value` set per line,
-tagged with the view it came from, so both can be read off one stream.
+tagged with the view it came from, so `--view=all` can be read off one stream.
 The library view needs neither a compiler nor binutils,
 so it still answers inside a runtime-only image:
 
@@ -171,13 +189,14 @@ so every line of a view keeps its shape.
 
 The whole surface, of which the examples above use a part:
 
-| Option        | Values                                                  | Default            |
-| ------------- | ------------------------------------------------------- | ------------------ |
-| `--stdlib`    | `all`, `libstdc++`, `libc++`                            | `all`              |
-| `--compilers` | `all`, or a space-separated list of compilers           | off; `all` if bare |
-| `--format`    | `default`, `name`, `version`, `soname`, `abi`, `fields` | `default`          |
+| Option        | Values                                                  | Default                    |
+| ------------- | ------------------------------------------------------- | -------------------------- |
+| `--view`      | `library`, `compiler`, `all`                            | `library`; `compiler` if `--compilers` |
+| `--stdlib`    | `all`, `libstdc++`, `libc++`                            | `all`                      |
+| `--compilers` | `all`, or a space-separated list of compilers           | `all` if bare              |
+| `--format`    | `default`, `name`, `version`, `soname`, `abi`, `fields` | `default`                  |
 
-The four narrowing formats print one field per line, deduplicated across both views:
+The four narrowing formats print one field per line, deduplicated:
 `name` gives `libstdc++`, `version` gives `16`, `soname` gives `libstdc++.so.6`,
 `abi` gives `GLIBCXX_3.4.35`.
 They are what makes the script scriptable - the sample above collapses to a single answer:
@@ -187,6 +206,21 @@ They are what makes the script scriptable - the sample above collapses to a sing
 
 libstdc++.so.6
 ```
+
+They print nothing that says which view a line came from, so they answer for one view
+and `--view=all` is **refused** rather than answered - an installed runtime's
+`GLIBCXX_3.4.35` and a compiler's `cxx11` are two different facts,
+and one flat list holding both cannot say which is which.
+Narrow to a view, and `--stdlib` narrows the rest of the way:
+
+```bash
+> bash scripts/checks/cxx-stdlibs.sh --stdlib=libc++ --compilers='clang++-18' --format=version
+
+22.1.8
+```
+
+`--format=soname` is refused against the compiler view for the same reason:
+a compiler names the headers it reaches, and headers have no `SONAME`.
 
 `--help` is the full reference.
 

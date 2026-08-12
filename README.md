@@ -7,7 +7,7 @@
 Up-to-date C++ toolchain images for the complete development cycle - **GNU and LLVM side by side**, from a minimal runtime to a full dev container.  
 Built as a single multi-stage [`Dockerfile`](Dockerfile), published to [Docker Hub](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain) and [GHCR](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain) by [GitHub Actions](.github/workflows/docker-publish.yml).
 
-## Pick your image
+## Pick your image (one per stage)
 
 ```mermaid
 graph LR
@@ -15,7 +15,7 @@ graph LR
     build --> analysis["static-analysis"]
     build --> documentation
     analysis --> dev
-    documentation -. "tools re-added" .-> dev
+    documentation --> dev
 ```
 
 Each stage is published as its own image, so you pull only what you need - prefix any version with the stage name: `ghcr.io/guillaumedua/cpp-toolchain:<stage>-latest`
@@ -50,7 +50,7 @@ docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version
 
 ## 🌟 Key features
 
-- **Five stages**, from a minimal runtime to a full dev environment - so you pull only what you need ([Pick your image](#pick-your-image)).
+- **Five stages**, from a minimal runtime to a full dev environment - so you pull only what you need ([Pick your image/stage](#pick-your-image-one-per-stage)).
 - **Both toolchains side by side**: GNU `g++`/`libstdc++` and LLVM `clang++`/`libc++`, a pinned major of each ([Compilers & standard library](#compilers--standard-library)).
 - **Several compiler versions at once**, wired through `update-alternatives` ([Build it yourself](#build-it-yourself)).
 - **Coverage** for both ecosystems: `gcov`/`lcov` and `llvm-cov`/`llvm-profdata` ([Code coverage](docs/COVERAGE.md)).
@@ -116,9 +116,12 @@ Every version in the image is **pinned** in the [Dockerfile](Dockerfile) and upd
 
 Every release note lists the exact versions that release contains - compilers, build systems, dependency managers, documentation tooling - and what moved since the previous one. Because the versions are pinned rather than resolved at build time, that list is the image's contents rather than a snapshot of them, and **two builds of the same commit produce the same image**.
 
-> [!NOTE] On host architecture:
+> [!NOTE]
+> **On host architecture**:
+>
 > The published images are `linux/amd64` (not yet multi-platform manifests), so on an **arm64** host they run under emulation.  
 > Because the toolchain already **cross-compiles** to **arm64** and beyond, a native **arm64** image is seldom needed - but when you want to build, run or debug *on* the target platform itself, the same [Dockerfile](Dockerfile) rebuilds for other architectures on a **best-effort** basis - natively via `docker build` on an arm64 host, or `docker buildx build --platform linux/arm64 --load` (through QEMU) on **amd64**.  
+>
 > ⚠️ A few pieces degrade on non-amd64: `Doxygen` falls back to the distro apt package, and Bazel and the `-m32` / `-mx32` multilib are **amd64-only** (skipped with a log).
 
 ## As a dev environment
