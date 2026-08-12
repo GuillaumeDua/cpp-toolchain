@@ -17,85 +17,40 @@ default_compilers='all'
 die() { echo "[${this_script_name}] error: $*" >&2; exit 1; }
 
 help(){
-    echo "Usage: ${this_script_name} [--view=<view>] [--stdlib=<name>] [--compilers[=<compilers>]] [--format=<format>]" 1>&2
+    echo "Usage: ${this_script_name} [--view=<view>] [--stdlib=<impl>] [--compilers[=<list>]] [--format=<format>]" 1>&2
     echo "
-    Which question is answered:
-        [ --view ]      : library  : Which standard libraries are installed -> default is [${default_view}]
-                          compiler : Which one each compiler compiles against.
-                          all      : Both, the library view first.
-                          Naming [--compilers] selects the compiler view by itself,
-                          so [--view] is only needed to ask for both at once.
+    [ --view ]      = library|compiler|all     What is installed, what compilers reach, or both.
+                                               Default [${default_view}]; [compiler] when --compilers is named.
+    [ --stdlib ]    = all|libstdc++|libc++     Which implementation -> default is [${default_stdlib}]
+    [ --compilers ] = all|'<cxx> <cxx> ...'    Which compilers to ask -> default is [${default_compilers}]
+                                               Selects the compiler view. The value needs its '=',
+                                               as an optional value always does: written apart it
+                                               would be indistinguishable from the next option.
+    [ --format ]    = default|fields           Every field. 'fields' tags each line with its view.
+                    = name|version|soname|abi  One field per line, deduplicated, and one view only:
+                                               --view=all is refused, 'soname' has no compiler answer.
+    [ -h | --help ]                            Display usage/help
 
-    Which rows that view reports:
-        [ --stdlib ]    : all       : Both implementations -> default is [${default_stdlib}]
-                          libstdc++ : GCC's implementation alone.
-                          libc++    : LLVM's implementation alone.
+    Every field is read out of the binary being described, never out of a -dev package:
+        impl version soname path package   an installed runtime
+        headers                            the tree a compiler compiles against
+        abi    libstdc++  greatest GLIBCXX_ in the ELF - what 'GLIBCXX_3.4.32 not found' names
+               libc++     its std::__N inline namespace, reported as LIBCPP_ABI_1
+               compiler   the ABI it will produce: LIBCPP_ABI_<n>, or cxx11/cxx03 for libstdc++'s
+                          dual ABI - a compile-time choice, so it fails at link time, not at load
+        cxxabi libstdc++  greatest CXXABI_ in that same ELF
+               libc++     the SONAME of libc++abi, the separate library holding its C++ ABI
 
-        [ --compilers ] : Which compilers the compiler view asks.
-                          String: all|(space-separated-compilers...) -> default is [${default_compilers}]
-                              --compilers                        every g++/clang++ on PATH
-                              --compilers='g++-16 clang++-22'    these two and nothing else
-                          The value needs its '=', as an optional value always does:
-                          written apart it would be indistinguishable from the next option.
-
-    How they are reported - one line each:
-        [ --format ]    : default : Every field -> default is [${default_format}]
-                          name    : The implementation alone. Ex: 'libstdc++'
-                          version : The version alone.        Ex: '16'
-                          soname  : The SONAME alone.         Ex: 'libstdc++.so.6'
-                          abi     : The ABI marker alone.     Ex: 'GLIBCXX_3.4.35'
-                          fields  : One 'key=value' set per line, the parseable form.
-
-        [ -h | --help ] : Display usage/help
-
-    A field this host cannot answer is reported as [-] rather than dropped,
-    so every line of a given view keeps the same shape.
-
-    The four narrowing formats print one field and nothing naming the view it came from,
-    so they answer for one view alone and [--view=all] is refused rather than answered:
-    an installed runtime's GLIBCXX_3.4.35 and a compiler's cxx11 are two different facts,
-    and one undifferentiated list holding both cannot say which of them is which.
-    [--format=soname] is refused against the compiler view for the same reason it has no
-    arm there: a compiler names the headers it reaches, and headers have no SONAME.
-
-    The two implementations spell their ABI differently,
-    and each is reported the way its own failures name it:
-        libstdc++ has GNU symbol versions -> abi=GLIBCXX_3.4.35 and cxxabi=CXXABI_1.3.17,
-                  which is what a 'version GLIBCXX_3.4.32 not found' failure is naming.
-        libc++    has none of those       -> abi=LIBCPP_ABI_1,
-                  and cxxabi=libc++abi.so.1, the separate library holding its C++ ABI.
-                  Unversioned is not the same as unstated: libc++ puts its ABI in an inline
-                  namespace, std::__1, that every mangled name in the library repeats,
-                  and that is where this reads it. _LIBCPP_ABI_VERSION in the headers is
-                  only the fallback, since a -dev package need not be installed at all.
-
-    Compiler rows answer a different question than library rows, which is why they are a view
-    of their own rather than extra rows on the end: a compiler picks headers off its own
-    search path, and the newest libc++ installed is not always the one it compiles against.
-    [--view=all] is what puts the two side by side, which is where that gap becomes visible.
-
-    Their abi field is the ABI they will produce,
-    which for libc++ is the LIBCPP_ABI_<n> the library view reports too.
-    For libstdc++ it is a different fact and reads differently: cxx11 or cxx03, the dual ABI.
-    That one is a compile-time choice, invisible to a library's symbol versions,
-    and a mismatch fails at link time naming std::__cxx11:: symbols rather than at load time -
-    so it is fixed by a rebuild, where a missing GLIBCXX_ is not.
-
-    The library view needs no compiler, no binutils and no headers,
-    so it still answers on a runtime-only image carrying nothing but the shared objects.
-    Both implementations state their own ABI inside the binary being described,
-    which is why that is where both are read from:
         ${this_script_name} --stdlib=libstdc++ --format=abi   ->  GLIBCXX_3.4.35
         ${this_script_name} --stdlib=libc++    --format=abi   ->  LIBCPP_ABI_1
 
-    Two fields are read less exactly when the tools that answer them are missing.
-    Without binutils the SONAME is taken from the file name,
-    which cannot tell a versioned libc++ runtime from the host one.
-    Without dpkg there is no version for libstdc++ at all,
-    since only the package records which GCC release built it:
-    the path names the file, not the release.
+    A field this host cannot answer is [-] rather than a guess, so every line of a view keeps its
+    shape: without binutils the SONAME falls back to the file name, and without dpkg libstdc++ has
+    no version at all, since only the package records which GCC release built it.
 
-    Both report [-] rather than a guess where nothing can be read.
+    The library view needs no compiler, no binutils and no headers, so it answers on a runtime-only
+    image. Why each field is read where it is, and what the two views are for:
+    https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/checks/README.md
     " 1>&2
     exit 0
 }
