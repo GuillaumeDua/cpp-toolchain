@@ -48,11 +48,11 @@ help(){
         libstdc++ has GNU symbol versions -> abi=GLIBCXX_3.4.35 and cxxabi=CXXABI_1.3.17,
                   which is what a 'version GLIBCXX_3.4.32 not found' failure is naming.
         libc++    has none of those       -> abi=LIBCPP_ABI_1,
-                  read from _LIBCPP_ABI_VERSION in the headers,
                   and cxxabi=libc++abi.so.1, the separate library holding its C++ ABI.
-                  Its ABI is not absent from the binary, only unversioned there:
-                  the namespace is in every mangled name,
-                  but never separably from the symbol that follows it.
+                  Unversioned is not the same as unstated: libc++ puts its ABI in an inline
+                  namespace, std::__1, that every mangled name in the library repeats,
+                  and that is where this reads it. _LIBCPP_ABI_VERSION in the headers is
+                  only the fallback, since a -dev package need not be installed at all.
 
     Compiler rows answer a different question than library rows, so they are listed apart:
     a compiler picks headers off its own search path,
@@ -65,9 +65,12 @@ help(){
     and a mismatch fails at link time naming std::__cxx11:: symbols rather than at load time -
     so it is fixed by a rebuild, where a missing GLIBCXX_ is not.
 
-    The library view needs no compiler and no binutils,
-    so it still answers on a runtime-only image carrying nothing but the shared objects:
+    The library view needs no compiler, no binutils and no headers,
+    so it still answers on a runtime-only image carrying nothing but the shared objects.
+    Both implementations state their own ABI inside the binary being described,
+    which is why that is where both are read from:
         ${this_script_name} --stdlib=libstdc++ --format=abi   ->  GLIBCXX_3.4.35
+        ${this_script_name} --stdlib=libc++    --format=abi   ->  LIBCPP_ABI_1
 
     Two fields are read less exactly when the tools that answer them are missing.
     Without binutils the SONAME is taken from the file name,
@@ -221,6 +224,25 @@ max_symbol_version(){
     printf '%s' "${found:--}"
 }
 
+# The same question as max_symbol_version, asked of libc++, which answers it differently: it carries
+# no GNU symbol versions, and puts its ABI in an inline namespace instead - std::__1 - that every
+# mangled name in the library repeats. Mangling is length-prefixed, so 'St3__1' is the substitution
+# for std:: followed by a three-character identifier, and the match has to stop after one digit:
+# the digits that follow belong to the next component's own length, not to the namespace.
+# No binutils, so this is one more thing a runtime-only image can still answer.
+libcpp_abi_from_elf(){
+    local found
+    found=$(LC_ALL=C grep -aoE 'St3__[0-9]' "$1" 2>/dev/null | sort -u)
+
+    # Silence is deferral, not an answer. A two-digit ABI (St4__10) or a renamed namespace (__ndk1)
+    # does not match this at all, and a library carrying two of them is genuinely ambiguous -
+    # in both cases the headers get to speak instead of this guessing.
+    [ -n "${found}" ] || return
+    [ "$(printf '%s\n' "${found}" | wc -l)" -eq 1 ] || return
+
+    printf '%s' "${found#St3__}"
+}
+
 package_of(){
     [ "${has_dpkg}" -eq 1 ] || { printf '%s' '-'; return; }
 
@@ -308,23 +330,30 @@ library_rows(){
             abi=$(max_symbol_version "${real}" 'GLIBCXX')
             cxxabi=$(max_symbol_version "${real}" 'CXXABI')
         else
-            # libc++ exposes no symbol versions at all, so its ABI is a macro read off the
-            # headers, and its C++ ABI lives in a library of its own rather than inside
-            # libc++.so - named after it, so it is found by substitution rather than by guess.
-            abi='-'
+            # A row describes an installed runtime, and the runtime states its own ABI in every
+            # symbol it exports, so that is where it is read from. The headers are the fallback
+            # rather than the source: they ship in a -dev package that need not be installed at
+            # all, and need not be the one this .so came from.
+            # Its C++ ABI does live in a library of its own rather than inside libc++.so,
+            # named after it, so that one is found by substitution rather than by guess.
+            abi=$(libcpp_abi_from_elf "${real}")
             headers=$(libcpp_headers_for "${real}" "${version}")
+
             if [ -n "${headers}" ]; then
                 [ "${version}" != '-' ] \
                   || version=$(dotted_libcpp_version "$(defined_value _LIBCPP_VERSION < "${headers}/__config")")
 
-                abi=''
-                [ -r "${headers}/__config_site" ] \
-                  && abi=$(defined_value _LIBCPP_ABI_VERSION < "${headers}/__config_site")
-
-                # libc++ only spells the macro out when it is not the default, so an absent
-                # one is ABI v1 rather than an unknown.
-                abi="LIBCPP_ABI_${abi:-1}"
+                # Only where the binary stayed silent. libc++ spells the macro out just when it is
+                # not the default, so a tree that was read and said nothing means ABI 1.
+                if [ -z "${abi}" ]; then
+                    [ -r "${headers}/__config_site" ] \
+                      && abi=$(defined_value _LIBCPP_ABI_VERSION < "${headers}/__config_site")
+                    abi="${abi:-1}"
+                fi
             fi
+
+            [ -z "${abi}" ] || abi="LIBCPP_ABI_${abi}"
+            abi="${abi:--}"
             cxxabi=$(soname_of "${real/libc++.so/libc++abi.so}")
         fi
 

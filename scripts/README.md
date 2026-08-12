@@ -1,8 +1,10 @@
 # Scripts
 
-**Public**: standalone and reusable as-is on any `Debian`/`Ubuntu`-based
+About encapsulation/scope:
+
+- **Public**: standalone and reusable as-is on any `Debian`/`Ubuntu`-based
 system, with no dependency on this repository - copy the file out and it works.  
-**Internal**: it probes or parses this repo and only makes sense here.
+- **Details/internal**: it probes or parses this repo and only makes sense here.
 
 | Directory | Scope | What lives there |
 | --------- | ----- | ---------------- |
@@ -21,6 +23,12 @@ in the C++ sense of a nested `detail` namespace. Being repo-specific is what the
 unlike the top-level one, these *must* ship into the image they validate.
 
 ## Using a public script on its own
+
+> [!CAUTION]
+> For all scripts in this repo:
+>
+> - Optional value needs `<name>=<value>` semantic
+> - There are no positional arguments.
 
 Everything marked **Public** is a single file that needs nothing around it, so you can pull it
 straight from `raw.githubusercontent.com` and drop it into a project, a CI job or a plain shell -

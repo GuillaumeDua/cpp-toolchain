@@ -54,7 +54,7 @@ Which standard libraries are installed, and the two things that actually break a
 ```bash
 > bash scripts/checks/cxx-stdlibs.sh
 
-libc++ 20.1.7 -> soname=libc++.so.1.0.20 abi=- cxxabi=libc++abi.so.1.0.20 package=libc++1-20
+libc++ 20.1.7 -> soname=libc++.so.1.0.20 abi=LIBCPP_ABI_1 cxxabi=libc++abi.so.1.0.20 package=libc++1-20
 libc++ 22.1.8 -> soname=libc++.so.1 abi=LIBCPP_ABI_1 cxxabi=libc++abi.so.1 package=libc++1
 libstdc++ 16 -> soname=libstdc++.so.6 abi=GLIBCXX_3.4.35 cxxabi=CXXABI_1.3.17 package=libstdc++6
 libstdc++ 16 -> soname=libstdc++.so.6 abi=GLIBCXX_3.4.35 cxxabi=CXXABI_1.3.17 package=lib32stdc++6
@@ -69,9 +69,11 @@ and `package` is the field that tells them apart.
 These images carry them, so expect these rows.
 
 > [!IMPORTANT]
-> `abi=-` for `libc++ 20.1.7` above is not a missing answer.  
-> That runtime is installed without its headers,
-> which is where the number would have to be read from.
+> Every field above comes out of the binaries themselves, not out of a `-dev` package.  
+> `libc++ 20.1.7` here is a runtime installed *without* its headers and still reports its ABI,
+> because both implementations state that inside the library being described.
+> The whole library view therefore works on a runtime-only image:
+> no compiler, no binutils, no headers, nothing but the shared objects.
 
 > [!TIP]
 >
@@ -109,13 +111,18 @@ because only one of them has GNU symbol versions:
 | Implementation | `abi` | `cxxabi` |
 | -------------- | ----- | -------- |
 | `libstdc++` | greatest `GLIBCXX_` in the ELF<br>ex: `GLIBCXX_3.4.35` | greatest `CXXABI_` in that same ELF<br>ex: `CXXABI_1.3.17` - its C++ ABI lives inside `libstdc++.so` |
-| `libc++` | `_LIBCPP_ABI_VERSION` from the headers<br>ex: `LIBCPP_ABI_1` | the `SONAME` of the C++ ABI library it keeps apart<br>ex: `libc++abi.so.1` |
+| `libc++` | the `std::__N` inline namespace in the ELF<br>ex: `LIBCPP_ABI_1` | the `SONAME` of the C++ ABI library it keeps apart<br>ex: `libc++abi.so.1` |
 
-libc++'s ABI is not *absent* from its binary, only unversioned there:
-the `std::__1` namespace is in every mangled name,
-but never separably from the symbol that follows it.
-That is why the headers are the only clean read,
-and why `abi=-` is the honest answer without them.
+*Unversioned* is not the same as *unstated*.
+libc++ has no GNU symbol versions, but it puts its ABI in an inline namespace, `std::__1`,
+that every mangled name in the library repeats - so the binary does say which ABI it is.
+Mangling is length-prefixed, which is what makes it readable:
+`St3__1` is the substitution for `std::` followed by a *three-character* identifier,
+so the digits after it belong to the next component's length and not to the namespace.
+
+`_LIBCPP_ABI_VERSION` in the headers says the same thing and is kept as the fallback,
+for a build whose namespace was renamed - the Android NDK's `__ndk1`, say -
+or an ABI numbered past a single digit.
 
 `--compilers` adds what each compiler actually compiles against,
 which is not always the newest one installed -
@@ -147,10 +154,6 @@ asking every compiler a host has costs about a minute:
 16
 13
 ```
-
-The value needs its `=`, as an optional value always does -
-written apart it could not be told from the next option.
-There are no positional arguments.
 
 `--format=fields` is the parseable form, one `key=value` set per line,
 tagged with the view it came from, so both can be read off one stream.
