@@ -3,8 +3,8 @@
 set -eu
 
 # =============================================================================================
-# This file is part of https://github.com/GuillaumeDua/CppShelf
-# License: see https://github.com/GuillaumeDua/CppShelf/blob/main/LICENSE
+# This file is part of https://github.com/GuillaumeDua/cpp-toolchain
+# License: see https://github.com/GuillaumeDua/cpp-toolchain/blob/main/LICENSE
 #
 # libc++ scope: every compiler --mode installs the host libc++ (libc++-<N>-dev / libc++abi-<N>-dev / libunwind-<N>-dev),
 #   so native `clang++ -stdlib=libc++` works without GCC - see the package set note further down.

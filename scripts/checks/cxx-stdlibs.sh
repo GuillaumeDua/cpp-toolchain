@@ -1,5 +1,11 @@
 #!/bin/bash
+
 set -uo pipefail
+
+# =============================================================================================
+# This file is part of https://github.com/GuillaumeDua/cpp-toolchain
+# License: see https://github.com/GuillaumeDua/cpp-toolchain/blob/main/LICENSE
+# =============================================================================================
 
 this_script_name=$(basename "$0")
 

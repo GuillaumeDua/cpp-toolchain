@@ -3,8 +3,8 @@
 set -eu
 
 # =============================================================================================
-# This file is part of https://github.com/GuillaumeDua/CppShelf
-# License: see https://github.com/GuillaumeDua/CppShelf/blob/main/LICENSE
+# This file is part of https://github.com/GuillaumeDua/cpp-toolchain
+# License: see https://github.com/GuillaumeDua/cpp-toolchain/blob/main/LICENSE
 #
 # Cross-compilation GNU toolchain(s) for one or more target architectures.
 #
