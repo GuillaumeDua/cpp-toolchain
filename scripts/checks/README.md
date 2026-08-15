@@ -64,9 +64,15 @@ libstdc++ 16 -> soname=libstdc++.so.6 abi=GLIBCXX_3.4.35 cxxabi=CXXABI_1.3.17 pa
 One row is one installed runtime, not one implementation.  
 `libstdc++` appears three times because [`gcc.sh`](../install/gcc.sh) installs multilib by default,
 which adds a 32-bit and an x32 build beside the 64-bit one:
-same release and same ABI, a different secondary ABI,
-and `package` is the field that tells them apart.
+same release and same ABI, a different secondary ABI, and `package` is the field that tells them apart.  
 These images carry them, so expect these rows.
+
+Two `libc++` rows are not a conflict either, and `soname` is why:
+apt.llvm.org gives its versioned runtimes a `SONAME` of their own,
+`libc++.so.1.0.20` against `libc++.so.1`, which is exactly what lets both sit on one host.  
+A binary records one of those names and the loader looks up only that one, so the other is inert rather than competing.
+That is what makes `SONAME` the field to compare when the question is whether a binary will load -
+see [`cxx-stdlib-parity.sh`](details/), which does precisely that across two images.
 
 > [!IMPORTANT]
 > Every field above comes out of the binaries themselves, not out of a `-dev` package.  
@@ -189,12 +195,12 @@ so every line of a view keeps its shape.
 
 The whole surface, of which the examples above use a part:
 
-| Option        | Values                                                  | Default                    |
-| ------------- | ------------------------------------------------------- | -------------------------- |
+| Option        | Values                                                  | Default                                |
+| ------------- | ------------------------------------------------------- | -------------------------------------- |
 | `--view`      | `library`, `compiler`, `all`                            | `library`; `compiler` if `--compilers` |
-| `--stdlib`    | `all`, `libstdc++`, `libc++`                            | `all`                      |
-| `--compilers` | `all`, or a space-separated list of compilers           | `all` if bare              |
-| `--format`    | `default`, `name`, `version`, `soname`, `abi`, `fields` | `default`                  |
+| `--stdlib`    | `all`, `libstdc++`, `libc++`                            | `all`                                  |
+| `--compilers` | `all`, or a space-separated list of compilers           | `all` if bare                          |
+| `--format`    | `default`, `name`, `version`, `soname`, `abi`, `fields` | `default`                              |
 
 The four narrowing formats print one field per line, deduplicated:
 `name` gives `libstdc++`, `version` gives `16`, `soname` gives `libstdc++.so.6`,
@@ -229,7 +235,12 @@ a compiler names the headers it reaches, and headers have no `SONAME`.
 | Script                                               | Purpose                                                                                                  |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `package-origins.sh <build\|runtime>`                | Every toolchain package comes from the repository that owns it, not from the Ubuntu archive              |
-| `cxx-runtime.sh <compile\|inspect\|run> <directory>` | Compiles the payload for every standard, proves it links against a C++ runtime dynamically, then runs it |
+| `cxx-runtime.sh <compile\|inspect\|run> <directory>` | Compiles the payload for every standard, proves it links against the expected C++ runtime dynamically, then runs it |
+| `cxx-stdlib-parity.sh <record\|verify> <file>`       | The image that runs the binaries carries the same standard libraries the image that built them used      |
+
+Both `package-origins.sh` and `cxx-stdlib-parity.sh` build on `cxx-stdlibs.sh` above:
+one to discover which package owns the installed libc++ - a name apt.llvm.org has changed
+twice - and the other to compare `SONAME`, version and ABI either side of a `COPY --from`.
 
 Implementation details of this gate, in the C++ sense of a nested `detail` namespace:
 they know this repo's expected package origins,

@@ -85,15 +85,14 @@ graph LR
 
     build --> vb["validate-build"]
     runtime --> vr["validate-runtime"]
-    vb -. "COPY --from<br/>/validate/bin" .-> vr
+    vb -. "COPY --from<br/>/validate" .-> vr
 
     classDef gate fill:#2d6a4f,stroke:#95d5b2,color:#ffffff
     class vb,vr gate
 ```
 
-The dotted edge is the point of the whole design. Binaries are compiled in `build` and executed
-in `runtime`, which is the only way to prove that what `runtime` ships can still run what
-`build` produces.  
+The dotted edge is the point of the whole design.  
+Binaries are compiled in `build` and executed in `runtime`, which is the only way to prove that what `runtime` ships can still run what `build` produces.  
 `COPY --from` is a native BuildKit cross-stage copy, so this costs one compile and one exec - no image is loaded onto the host, nothing is pulled from a registry.
 
 ## What is checked
@@ -103,28 +102,30 @@ flowchart TD
     subgraph vb["validate-build (from build)"]
         origins1["package-origins.sh build"]
         compile["cxx-runtime.sh compile"]
-        bin["/validate/bin<br/>g++-N, clang++-N"]
+        libstdcxx["/validate/libstdcxx<br/>g++-N, clang++-N"]
         libcxx["/validate/libcxx<br/>clang++-N -stdlib=libc++"]
         cross["/validate/cross<br/>&lt;triplet&gt;-g++"]
-        inspect["cxx-runtime.sh inspect<br/>readelf -d: a C++ runtime is NEEDED"]
-        runb["run here: runtime carries no libc++ yet"]
+        inspect["cxx-runtime.sh inspect<br/>readelf -d: the expected runtime is NEEDED"]
+        record["cxx-stdlib-parity.sh record<br/>/validate/stdlib.expected"]
 
-        compile --> bin
+        compile --> libstdcxx
         compile --> libcxx
         compile --> cross
-        bin --> inspect
+        libstdcxx --> inspect
         libcxx --> inspect
         cross --> inspect
-        libcxx --> runb
     end
 
     subgraph vr["validate-runtime (from runtime)"]
         origins2["package-origins.sh runtime"]
-        runr["cxx-runtime.sh run<br/>ldd resolves, binary exits 0"]
+        verify["cxx-stdlib-parity.sh verify<br/>same SONAME, version, ABI"]
+        runr["cxx-runtime.sh run<br/>ldd resolves, binary exits 0,<br/>and reports the expected stdlib"]
     end
 
     src["test/cxx_runtime.cpp<br/>one payload, C++98-clean"] --> compile
-    bin ==>|"COPY --from"| runr
+    libstdcxx ==>|"COPY --from"| runr
+    libcxx ==>|"COPY --from"| runr
+    record ==>|"COPY --from"| verify
 ```
 
 The payload is compiled once per stable standard the compiler reports, for every installed
@@ -135,11 +136,65 @@ dynamically links the C++ runtime and then resolves it.
 `inspect` exists because a statically linked payload would resolve nothing at run time, which
 would make the whole runtime check pass while proving nothing.
 
-| Directory | Inspected in | Executed in |
-| --- | --- | --- |
-| `bin/` - native, libstdc++ | `build` | **`runtime`** |
-| `libcxx/` - native, libc++ | `build` | `build` |
-| `cross/` - foreign architecture | `build` | nowhere yet |
+| Directory | Holds | Inspected in | Executed in |
+| --- | --- | --- | --- |
+| `libstdcxx/` | `g++-N` and `clang++-N`, native | `build` | **`runtime`** |
+| `libcxx/` | `clang++-N -stdlib=libc++`, native | `build` | **`runtime`** |
+| `cross/` | `<triplet>-g++`, foreign architecture | `build` | nowhere yet |
+
+Each tree is named after the **standard library its binaries link**, not after the compiler that
+produced them: what has to be present at run time is the library, and one tree can hold both
+compilers. That is why `clang++` appears twice - left alone it links libstdc++, GCC's being the
+Linux default, which is the whole reason `-stdlib=libc++` has to be asked for explicitly.
+
+The name is then the expectation, checked in the `NEEDED` entry `inspect` reads and in the
+`stdlib=` line the payload prints. Accepting either implementation in either tree is what would
+let a `-stdlib=libc++` that quietly fell back to libstdc++ pass both.
+
+### Parity: the same library on both sides
+
+Running the binaries proves the runtime works. It does not say *why* when it does not, because a
+version skew surfaces as an unresolved symbol and names nothing useful.
+
+So `validate-build` records what it compiled against and `validate-runtime` checks it still has it:
+
+```console
+$ cxx-stdlib-parity.sh record /validate/stdlib.expected
+  libc++ libc++.so.1 22.1.8 LIBCPP_ABI_1
+  libstdc++ libstdc++.so.6 16 GLIBCXX_3.4.35
+```
+
+The `SONAME` is the key, because the `SONAME` is the whole contract: it is what the linker writes
+into a binary and the only name the loader ever looks up. Two libc++ releases coexist exactly when
+their SONAMEs differ - apt.llvm.org gives its versioned runtimes one of their own,
+`libc++.so.1.0.20` against `libc++.so.1` - and a binary needing one is then untouched by the other.
+Counting installed libraries would call that a problem; keying on the `SONAME` asks the only
+question that decides whether a binary loads. It also collapses multilib for free: the 32-bit and
+x32 libstdc++ share a `SONAME` with the 64-bit one, so `build`'s three rows and `runtime`'s one
+are the same single line.
+
+The two implementations are then compared differently, because only one of them is ordered:
+
+| Implementation | `version` | `abi` | Why |
+| --- | --- | --- | --- |
+| `libstdc++` | equal | `runtime` **>=** `build` | GNU symbol versions are backward compatible: a library above the recorded `GLIBCXX_` still defines everything below it |
+| `libc++` | equal | equal | no symbol versions at all, so there is no ordering to be lenient with |
+
+Both sides read their answer from [`cxx-stdlibs.sh`](../scripts/checks/cxx-stdlibs.sh), whose
+library view needs no compiler, no binutils and no headers - which is what lets it answer inside
+`runtime` at all.
+
+Two things it will not pretend to know:
+
+- **The Debian revision is stripped**, so two apt.llvm.org snapshots of one upstream release both
+  read `22.1.8`. Parity is the *precise* signal; `run` remains the ground truth.
+- **One `SONAME` answered by two releases is refused, not collapsed.** Which of them a binary
+  loads is the loader's decision, so neither side of the comparison would mean anything.
+  A binutils-less image is where that can arise: `cxx-stdlibs.sh` then approximates the `SONAME`
+  from the file name, and the name alone cannot tell `libc++.so.1.0.20` from `libc++.so.1`.
+  These images install one libc++ and never meet it - `llvm.sh --mode=runtime` refuses the majors
+  whose packages carried one, and apt refuses two libc++ `-dev` at once - but the check says so
+  rather than picking one.
 
 Cross targets are the one thing taken from the build argument rather than from the image.
 `BINUTILS_TARGETS` is expanded by `binutils.sh --list-targets`, so an alias such as `common`
@@ -160,13 +215,21 @@ ask its installers what is present - so they sit in
 | --- | --- |
 | `package-origins.sh <build\|runtime>` | every toolchain package comes from the repository that owns it |
 | `cxx-runtime.sh <compile\|inspect\|run> <directory>` | build the payload, prove it links dynamically, prove it runs |
+| `cxx-stdlib-parity.sh <record\|verify> <file>` | the stage that runs the binaries has the libraries the stage that built them used |
 
-One level up sits the only one that depends on nothing here. The gate uses it, but give it a
-compiler and it answers on any machine, checkout or not:
+One level up sit the two that depend on nothing here. The gate uses both, but they answer on any
+machine, checkout or not:
 
-| Script in [`checks/`](../scripts/checks/) | Purpose |
-| --- | --- |
-| `cxx-standards.sh [--stable] [--greatest] [--format=<default\|std\|cplusplus>] [compiler]` | which C++ standards a compiler accepts |
+| Script in [`checks/`](../scripts/checks/) | Purpose | Used by |
+| --- | --- | --- |
+| `cxx-standards.sh [--stable] [--greatest] [--format=<default\|std\|cplusplus>] [compiler]` | which C++ standards a compiler accepts | `cxx-runtime.sh compile` |
+| `cxx-stdlibs.sh [--view] [--stdlib] [--compilers] [--format]` | which standard libraries are installed, and what ABI they expose | `cxx-stdlib-parity.sh`, `package-origins.sh` |
+
+`package-origins.sh` uses it for the one thing it cannot write down: apt.llvm.org has spelled the
+libc++ runtime three ways - `libc++1-17t64`, `libc++1-18`, then plain `libc++1` from LLVM 20,
+where the major left the name altogether. A check naming one of those keeps passing on the two it
+cannot see, so the package is discovered from the installed library instead and origin asserted on
+whatever answer comes back.
 
 The `details/` pair reaches [`scripts/install/`](../scripts/install/) by relative path, which is
 why the validate stages copy `scripts/` whole rather than `scripts/checks/details/` alone. A
@@ -261,10 +324,17 @@ They discover whatever compilers the host has, so expect a wider matrix than an 
 ```sh
 scripts/checks/details/cxx-runtime.sh compile /tmp/validate
 scripts/checks/details/cxx-runtime.sh inspect /tmp/validate
-scripts/checks/details/cxx-runtime.sh run     /tmp/validate/bin
+scripts/checks/details/cxx-runtime.sh run     /tmp/validate/libstdcxx
+scripts/checks/details/cxx-runtime.sh run     /tmp/validate/libcxx
+
+scripts/checks/details/cxx-stdlib-parity.sh record /tmp/validate/stdlib.expected
+scripts/checks/details/cxx-stdlib-parity.sh verify /tmp/validate/stdlib.expected
 
 GCC_VERSIONS=15 LLVM_VERSIONS=22 scripts/checks/details/package-origins.sh build
 ```
+
+`record` and `verify` back to back on one host trivially agree - the point is to run them either
+side of the `COPY --from`. To watch one fail, edit a version in the recorded file and verify again.
 
 To narrow the matrix, copy `scripts/` elsewhere and stub `gcc.sh`/`llvm.sh` `--list-installed`
 to return only the majors you care about.
@@ -276,10 +346,13 @@ corresponding check red:
 
 | Inject | Caught by |
 | --- | --- |
-| `apt-get install -y --allow-downgrades libstdc++6=<archive version>` in `runtime` | the origin check, then `run` with a `GLIBCXX` error |
+| `apt-get install -y --allow-downgrades libstdc++6=<archive version>` in `runtime` | the origin check, then parity on `GLIBCXX_`, then `run` |
 | `apt-get purge -y libstdc++-15-dev` in `build` | `compile` |
 | add `-static` to the compile line | `inspect`, with no C++ runtime in `NEEDED` |
 | remove a triplet from `binutils.sh` | `inspect`, on the cross binaries |
+| drop `libc++1` from `llvm.sh`'s `runtime_libraries_for` | the origin check, then parity, then `run /validate/libcxx` |
+| drop `-stdlib=libc++` from the `libcxx/` compile line | `inspect` and `run`, both naming the implementation they expected |
+| edit a version in `/validate/stdlib.expected` | parity alone, before a single binary runs |
 
 ## What this deliberately does not check
 
@@ -290,9 +363,12 @@ corresponding check red:
   `runtime` is x86-64 only; running
   foreign binaries needs QEMU and a multi-platform `runtime` (see issue #33). Linking already
   proves the cross libc and libstdc++ survived.
-- **libc++ on `runtime`.**  
-  `runtime` carries no libc++ yet, so those binaries are exercised in
-  `build`. When libc++ lands in `runtime`, they cross over too.
+- **The secondary ABIs, `-m32` and `-mx32`.**  
+  `build` carries `lib32stdc++6` and `libx32stdc++6`
+  through `gcc.sh --multilib`; `runtime` carries neither, and nothing here compiles a 32-bit
+  payload to notice. Closing that means a `--multilib` runtime and a `-m32` arm in `compile` -
+  a different axis from the one this gate covers, which is the standard library rather than
+  the ABI it was built for.
 - **`static-analysis`, `documentation`, `dev`.**  
   All inherit `build`, and every operation that
   can remove or downgrade a package happens at or below `build`.

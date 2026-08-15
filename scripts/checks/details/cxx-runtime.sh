@@ -26,6 +26,29 @@ label(){
     echo "$(basename -- "$(dirname -- "$1")")/$(basename -- "$1")"
 }
 
+# Which implementation a tree is compiled against, from the tree it is compiled into.
+#   Each tree is named after the standard library it holds, spelled the way the rest of the repository does:
+#   a directory carrying `+` is awkward wherever a path is globbed or handed to COPY.
+#   The directory is also what `label` reports, so a binary landing in the wrong tree fails both passes.
+#   `cross/` answers nothing:
+#       it is linked and inspected, never run, and its libstdc++ is the target's rather than this image's.
+expected_stdlib_for(){
+    case "$(basename -- "$1")" in
+        libstdcxx ) echo 'libstdc++' ;;
+        libcxx )    echo 'libc++' ;;
+        * )         echo '' ;;
+    esac
+}
+
+# The NEEDED entry each implementation leaves behind, keyed by the name the payload prints.
+soname_pattern_for(){
+    case "$1" in
+        libstdc++ ) echo 'libstdc\+\+\.so' ;;
+        libc++ )    echo 'libc\+\+\.so' ;;
+        * )         echo 'lib(stdc\+\+|c\+\+)\.so' ;;
+    esac
+}
+
 # The payload sits next to this script inside an image, and under test/ in a checkout.
 resolve_payload_source(){
     local candidate
@@ -41,8 +64,7 @@ resolve_payload_source(){
     die "cannot find cxx_runtime.cpp next to ${this_script_name} nor under test/"
 }
 
-# Draft and final spellings of one standard share a __cplusplus value,
-# so only the first spelling of each value is kept.
+# Draft and final spellings of one standard share a __cplusplus value, so only the first spelling of each value is kept.
 # Invoked through bash rather than directly: the repository does not carry an executable bit.
 standards_for(){
     bash "${standards_script}" --stable "$1" 2>/dev/null \
@@ -109,18 +131,20 @@ do_compile(){
     [ $(( ${#gcc_majors[@]} + ${#clang_majors[@]} )) -gt 0 ] \
       || die "no C++ compiler is installed in this image"
 
+    # clang++ appears twice: left alone it links libstdc++, GCC's being the Linux default.
+    # That is the whole reason `-stdlib=libc++` has to be asked for explicitly.
     local major
     for major in "${gcc_majors[@]}"; do
-        compile_for_compiler "g++-${major}" "${root}/bin"
+        compile_for_compiler "g++-${major}" "${root}/libstdcxx"
     done
     for major in "${clang_majors[@]}"; do
-        compile_for_compiler "clang++-${major}" "${root}/bin"
+        compile_for_compiler "clang++-${major}" "${root}/libstdcxx"
         compile_for_compiler "clang++-${major}" "${root}/libcxx" '-stdlib=libc++'
     done
 
     # The build argument may name an alias such as `common`, so binutils.sh resolves it.
-    # Still the build argument rather than what is installed: that is what turns a silently
-    # skipped target into a missing compiler here.
+    # Still the build argument rather than what is installed:
+    #   that is what turns a silently skipped target into a missing compiler here.
     local targets
     mapfile -t targets < <(bash "${install_scripts_dir}/binutils.sh" --list-targets --targets="${BINUTILS_TARGETS:-}")
     local target
@@ -135,17 +159,23 @@ list_binaries(){
 
 # A statically linked payload would resolve nothing at run time,
 # which would make the runtime check pass without proving anything.
+#   Inspection walks a whole tree, which may be `/validate` itself,
+#   so the expected implementation is taken per binary from its own parent rather than from the root being walked.
 do_inspect(){
     local binaries
     mapfile -t binaries < <(list_binaries "$1")
     [ "${#binaries[@]}" -gt 0 ] || die "no binary found under [$1]"
 
-    local binary
+    local binary expected pattern described
     for binary in "${binaries[@]}"; do
-        if readelf -d "${binary}" 2>/dev/null | grep -qE 'NEEDED.*lib(stdc\+\+|c\+\+)\.so'; then
-            pass "[$(label "${binary}")] declares a C++ runtime as NEEDED"
+        expected=$(expected_stdlib_for "$(dirname -- "${binary}")")
+        pattern=$(soname_pattern_for "${expected}")
+        described="${expected:-a C++ runtime}"
+
+        if readelf -d "${binary}" 2>/dev/null | grep -qE "NEEDED.*${pattern}"; then
+            pass "[$(label "${binary}")] declares ${described} as NEEDED"
         else
-            fail "[$(label "${binary}")] has no C++ runtime in NEEDED - linked statically?"
+            fail "[$(label "${binary}")] has no ${described} in NEEDED - linked statically, or against the other implementation?"
         fi
     done
 }
@@ -157,8 +187,9 @@ do_run(){
 
     local binary
     for binary in "${binaries[@]}"; do
-        local name
+        local name expected
         name=$(label "${binary}")
+        expected=$(expected_stdlib_for "$(dirname -- "${binary}")")
 
         local unresolved
         unresolved=$(ldd "${binary}" 2>/dev/null | grep 'not found')
@@ -174,6 +205,12 @@ do_run(){
         fi
         if ! grep -q '^stdlib=' <<< "${output}"; then
             fail "[${name}] produced unexpected output: ${output}"
+            continue
+        fi
+        # The payload reports what it was compiled against, so the tree it was compiled into is held to it.
+        # A `-stdlib=libc++` falling back to libstdc++ prints a well-formed line, and only this tells the two apart.
+        if [ -n "${expected}" ] && ! grep -q "^stdlib=${expected} " <<< "${output}"; then
+            fail "[${name}] was built for ${expected} but reports: ${output}"
             continue
         fi
         pass "[${name}] ${output}"

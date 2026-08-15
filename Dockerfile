@@ -123,18 +123,33 @@ RUN apt-get update -qqy                                                         
     && rm -f /etc/apt/preferences.d/99-snapshot-realign                                             \
     && echo "[C++ toolchain] apt frozen at snapshot ${UBUNTU_SNAPSHOT}"
 
-# C++ runtime libraries, pulled from the same PPA the `build` stage installs GCC from,
-# so `--target runtime` can execute binaries linked against the pinned libstdc++.
-RUN apt-get update -qqy \
-    && apt-get install -qqy --no-install-recommends \
-        tzdata \
-        gnupg software-properties-common \
-    && add-apt-repository -y ppa:ubuntu-toolchain-r/test \
-    && apt-get update -qqy \
-    && apt-get install -qqy --no-install-recommends \
-        libc6 libgcc-s1 libstdc++6 \
-    && apt-get purge -y --auto-remove gnupg software-properties-common \
-    && rm -rf /var/lib/apt/lists/*
+# C++ runtime libraries:
+#   both implementations (scripts/install/<compiler>.sh --mode=runtime),
+#   each from the repository the `build` stage installs its compiler from:
+#   - libstdc++ from the toolchain PPA
+#   - libc++ from apt.llvm.org
+#
+#   Both are needed because `build` produces binaries against both:
+#   - g++ and clang++ linking with libstdc++,
+#   - `clang++ -stdlib=libc++` linking with libc++.
+ARG TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
+COPY ./scripts/install/gcc.sh  ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
+COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
+WORKDIR ${TOOLCHAIN_TMP_DIR}
+ARG LLVM_VERSIONS
+RUN scripts_dir=${TOOLCHAIN_TMP_DIR}/scripts;                                               \
+    echo -e "[C++ toolchain] Installing the C++ runtimes, libc++ from LLVM_VERSIONS=[$LLVM_VERSIONS] ..."; \
+    apt-get update -qqy                                                                     \
+    && apt-get install -qqy --no-install-recommends                                         \
+        tzdata libc6                                                                        \
+        gnupg software-properties-common wget lsb-release                                   \
+    && chmod +x ${scripts_dir}/gcc.sh ${scripts_dir}/llvm.sh                                \
+    && ${scripts_dir}/gcc.sh  --silent=yes --mode=runtime                                   \
+    && ${scripts_dir}/llvm.sh --silent=yes --mode=runtime --versions="$LLVM_VERSIONS"       \
+    && apt-get purge -y --auto-remove gnupg software-properties-common wget lsb-release     \
+    && rm -rf ${TOOLCHAIN_TMP_DIR} /var/lib/apt/lists/*
+
+WORKDIR /
 
 CMD ["/bin/bash"]
 
@@ -315,24 +330,37 @@ ARG LLVM_VERSIONS
 ARG BINUTILS_TARGETS
 COPY ./scripts/ /opt/cpp-toolchain-scripts/
 COPY ./test/cxx_runtime.cpp /opt/cpp-toolchain-scripts/checks/details/
-RUN apt-get update -qqy                                                                       \
-    && bash /opt/cpp-toolchain-scripts/checks/details/package-origins.sh build                \
-    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh compile /validate        \
-    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh inspect /validate        \
-    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh run     /validate/libcxx \
+# This stage compiles and inspects; it executes nothing.
+#   Every tree it produces is either run in `runtime`, the only place that proves anything, or not runnable (`cross`).
+#   It leaves the standard libraries it compiled against behind,
+#   so the stage that runs the binaries can name the missing library rather than only an unresolved symbol.
+RUN apt-get update -qqy                                                                                     \
+    && bash /opt/cpp-toolchain-scripts/checks/details/package-origins.sh build                              \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh compile /validate                      \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh inspect /validate                      \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-stdlib-parity.sh record /validate/stdlib.expected \
     && rm -rf /var/lib/apt/lists/*
 
 # The binaries are built by `build` and executed here, which is the whole point:
 #   it is the only way to prove that what `runtime` ships can still run what `build` produces.
-#   Only the libstdc++ set crosses over - `runtime` carries no libc++ yet, so those stay in `build`.
+#
+#   Both stdlib sets cross over, `runtime` carrying libstdc++ and libc++,
+#   so the whole matrix `build` can produce (g++, clang++, clang++ -stdlib=libc++) is exercised where it has to work.
 FROM runtime AS validate-runtime
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
-COPY --from=validate-build /validate/bin/ /validate/bin/
+COPY --from=validate-build /validate/libstdcxx/      /validate/libstdcxx/
+COPY --from=validate-build /validate/libcxx/         /validate/libcxx/
+COPY --from=validate-build /validate/stdlib.expected /validate/stdlib.expected
 COPY ./scripts/ /opt/cpp-toolchain-scripts/
-RUN apt-get update -qqy                                                                   \
-    && bash /opt/cpp-toolchain-scripts/checks/details/package-origins.sh runtime          \
-    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh run /validate/bin    \
+# Parity first:
+#   it names a version or ABI that drifted,
+#   while the runs below would only report the same drift as a symbol that failed to resolve.
+RUN apt-get update -qqy                                                                                     \
+    && bash /opt/cpp-toolchain-scripts/checks/details/package-origins.sh runtime                            \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-stdlib-parity.sh verify /validate/stdlib.expected \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh run /validate/libstdcxx                \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh run /validate/libcxx                   \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------------------------

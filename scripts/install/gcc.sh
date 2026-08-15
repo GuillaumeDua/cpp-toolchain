@@ -18,6 +18,7 @@ arg_alias=0
 arg_multilib=1
 arg_multilib_explicit=0
 arg_minimalistic=0
+arg_mode='full'
 
 help(){
     echo "Usage: ${this_script_name}" 1>&2
@@ -36,7 +37,12 @@ help(){
         [ -s | --silent ]        : Run in silent mod.                                               Boolean -> default is [1]
         [ -a | --alias]          : Set bash/zsh-rc aliases.                                         Boolean -> default is [0]
         [ --multilib ]           : install gcc/g++ multilib (32-bit / x32 secondary ABI).           Boolean -> default is [1]
-        [ -m | --minimalistic]   : compilers only - disables multilib unless it is explicitly set.  Boolean -> default is [0]
+        [ --mode ]               : How much of the toolchain to install.                            String: runtime|minimalistic|full -> default is [full]
+            - [runtime]          : the C++ runtime alone (libstdc++6, libgcc-s1) - no compiler.
+                                   For an image that runs what another one built.
+            - [minimalistic]     : compilers only - disables multilib unless it is explicitly set
+            - [full]             : compilers and multilib
+        [ -m | --minimalistic]   : Alias for --mode=minimalistic, kept for compatibility.           Boolean -> default is [0]
         [ -h | --help ]          : Display usage/help
 
     For instance, to only install the two latest versions available, use:
@@ -80,7 +86,7 @@ to_boolean(){
 # --- options management ---
 
 options_short=s:,v:,a:,m,l,h
-options_long=silent:,versions:,alias:,multilib:,minimalistic,help,list-available,list-installed
+options_long=silent:,versions:,alias:,multilib:,minimalistic,mode:,help,list-available,list-installed
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -109,6 +115,10 @@ do
     -m | --minimalistic )
       arg_minimalistic=1
       shift;
+      ;;
+    --mode )
+      arg_mode="$2"
+      shift 2
       ;;
     -l | --list-available )
       arg_list_available=1
@@ -159,12 +169,22 @@ if [ "$arg_minimalistic" == '' ] ; then
     exit 1;
 fi
 
-# --minimalistic trims the optional payload (multilib). It only overrides multilib when left at
-# its default - an explicit --multilib=yes still wins.
-if [[ ${arg_minimalistic} == 1 ]]; then
-    if [[ ${arg_multilib_explicit} == 0 ]]; then
-        arg_multilib=0
-    fi
+# --minimalistic is an alias for --mode=minimalistic, so it folds into the mode.
+#   It only wins where --mode is defaulted, the same way it treats --multilib below:
+#       naming both is a caller being explicit about the mode, and that is the one that is honored.
+if [[ ${arg_minimalistic} == 1 ]] && [[ "${arg_mode}" == 'full' ]]; then
+    arg_mode='minimalistic'
+fi
+
+case "${arg_mode}" in
+    runtime | minimalistic | full ) ;;
+    * ) error "invalid --mode=[${arg_mode}] - expected one of: runtime, minimalistic, full" ;;
+esac
+
+# Only `minimalistic` trims multilib, and only where --multilib is defaulted: an explicit --multilib=yes still wins.
+#   `runtime` installs no compiler at all, so it has no secondary ABI to install one for.
+if [[ "${arg_mode}" == 'minimalistic' ]] && [[ ${arg_multilib_explicit} == 0 ]]; then
+    arg_multilib=0
 fi
 
 # --- list installed versions ---
@@ -226,7 +246,7 @@ log "arguments - silent:         [${arg_silent}]"
 log "arguments - alias:          [${arg_alias}]"
 log "arguments - list-available: [${arg_list_available}]"
 log "arguments - multilib:       [${arg_multilib}]"
-log "arguments - minimalistic:   [${arg_minimalistic}]"
+log "arguments - mode:           [${arg_mode}]"
 
 # --- use ppa:ubuntu-toolchain-r/test
 
@@ -234,15 +254,27 @@ ubuntu_toolchain_r_ppa="ubuntu-toolchain-r/test"
 is_ubuntu_toolchain_r_ppa_added=$(grep -r "${ubuntu_toolchain_r_ppa}" /etc/apt/sources.list.d/ >/dev/null 2>&1 && echo true || echo false)
 if [ "${is_ubuntu_toolchain_r_ppa_added}" = false ]; then
     log "adding ppa: [${ubuntu_toolchain_r_ppa}] ..."
-    sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test && apt update -qqy
+    add-apt-repository -y ppa:ubuntu-toolchain-r/test && apt update -qqy
+fi
+
+# --- runtime mode ---
+#   Answered here, above the version machinery, because it has no version to resolve:
+#       libstdc++6 and libgcc-s1 are one-per-system packages carrying no major in their name,
+#       so `--versions` selects nothing, and the "empty versions range" error would fire on a well-formed request.
+#   These are the two packages the image validation gate expects from this PPA,
+#   so naming them here keeps that one fact in one place (scripts/checks/details/package-origins.sh).
+if [[ "${arg_mode}" == 'runtime' ]]; then
+    log "installing the C++ runtime libraries ..."
+    apt install -qq -y --no-install-recommends  \
+            libstdc++6 libgcc-s1                \
+        || error "installation of the runtime libraries failed"
+    exit 0
 fi
 
 # --- list versions ---
-
 gcc_version_available_regex='^gcc-\K([0-9]{2})(?=/)'
 
 # --- which versions ---
-
 all_gcc_versions_available=$(apt list --all-versions 2>/dev/null | grep -oP "${gcc_version_available_regex}" | sort -n -u)
 if [ "$arg_versions" = 'all' ]; then
     gcc_versions=$all_gcc_versions_available

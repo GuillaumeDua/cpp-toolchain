@@ -47,8 +47,9 @@ current_rows(){
 # Where this shows up is an image without binutils, which is exactly the kind `verify` runs in:
 #   cxx-stdlibs.sh then approximates the SONAME from the file name,
 #   and the name alone cannot tell apt.llvm.org's libc++.so.1.0.20 from libc++.so.1.
-#   These images install one libc++ and never meet it - `llvm.sh --mode=runtime` refuses the majors whose packages were versioned,
-#   and apt refuses two libc++ -dev at once - but a check that guessed here would be wrong silently rather than loudly.
+#   These images install one libc++ and never meet it -
+#   `llvm.sh --mode=runtime` refuses the majors whose packages carry one, and apt refuses two libc++ -dev at once -
+#   but a check that guessed here would be wrong silently rather than loudly.
 #
 # Multilib does not trip it:
 #   the 32-bit and x32 libstdc++ agree with the 64-bit one on all four fields,
