@@ -263,3 +263,7 @@ That has two consequences worth knowing:
 ## Contributing
 
 Issues and pull requests are welcome - see [HOW_TO_CONTRIBUTE.md](HOW_TO_CONTRIBUTE.md) for the workflow.
+
+## License
+
+MIT - see [LICENSE](LICENSE).

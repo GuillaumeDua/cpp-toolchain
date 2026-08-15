@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+
+set -euo pipefail
+
+# =============================================================================================
+# This file is part of https://github.com/GuillaumeDua/cpp-toolchain
+# License: see https://github.com/GuillaumeDua/cpp-toolchain/blob/main/LICENSE
+#
 # Install Doxygen.
 #
 #   amd64:
@@ -15,8 +22,7 @@
 #       the GitHub release tag, e.g. `Release_1_17_0` (bumped by Renovate, see renovate.json).
 #       Doxygen tags use underscores (`Release_1_17_0`) while the download asset uses dots (`doxygen-1.17.0.linux.bin.tar.gz`), 
 #       so both forms are derived below from the single tag.
-
-set -euo pipefail
+# =============================================================================================
 
 tag="${1:?usage: doxygen.sh <release-tag>, e.g. Release_1_17_0}"
 
