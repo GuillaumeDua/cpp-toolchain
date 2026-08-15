@@ -9,6 +9,9 @@ this_script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 # The installers own how their packages are named, so they answer what is installed.
 install_scripts_dir="${this_script_dir}/../../install"
 
+# One level up: the standard library probe is standalone, it is not a detail of this gate.
+stdlibs_script="${this_script_dir}/../cxx-stdlibs.sh"
+
 origin_toolchain_ppa='ppa.launchpadcontent.net/ubuntu-toolchain-r'
 origin_llvm='apt.llvm.org'
 origin_kitware='apt.kitware.com'
@@ -48,9 +51,19 @@ check_origin(){
 
     if [[ "${origin}" == *"${expected}"* ]]; then
         pass "[${package}] provided by ${expected}"
-    else
-        fail "[${package}] expected from [${expected}], apt reports:${origin}"
+        return
     fi
+
+    # dpkg's own status file as the only source means the installed version is in no index apt can see.
+    # A different fault from "it came from the wrong repository", and one that reads as nonsense unless it is named:
+    #   apt.llvm.org publishes rolling snapshots and drops superseded ones,
+    #   so a long-cached layer can hold a version its own repository does not serve.
+    if [[ "${origin}" == *'/var/lib/dpkg/status'* ]]; then
+        fail "[${package}] is installed at a version [${expected}] does not publish - a stale cached layer, rebuild it without cache"
+        return
+    fi
+
+    fail "[${package}] expected from [${expected}], apt reports:${origin}"
 }
 
 # Only the majors the build argument names are part of the promise.
@@ -104,9 +117,60 @@ check_toolchain_origin(){
     fail "[${label}] selector [${requested}] resolved to [${installed}], none of them from ${expected}"
 }
 
+# The libc++ packages are discovered rather than named, unlike every other check here.
+#
+# apt.llvm.org spells them three ways:
+#   - libc++1-17t64, across the time_t transition
+#   - libc++1-18 and libc++1-19
+#   - plain libc++1 from LLVM 20, where the major leaves the name altogether
+# A check that wrote one of those down would keep passing on the two it cannot see,
+# and `LLVM_VERSIONS` is not always a bare major it could derive the spelling from.
+#
+# What is invariant is the library, not its package:
+#   cxx-stdlibs.sh finds the installed libc++ by reading the shared objects,
+#   and dpkg answers which package put each one there.
+#   Origin is then asserted on that answer, so this stays correct through a rename it has never seen.
+#
+# libc++abi has no row of its own - it is reported as the cxxabi of the libc++ that needs it -
+# so its package is resolved from that SONAME.
+check_libcxx_runtime(){
+    local rows
+    rows=$(bash "${stdlibs_script}" --stdlib=libc++ --view=library --format=fields 2>/dev/null)
+
+    if [ -z "${rows}" ]; then
+        fail "[libc++] no libc++ runtime is installed - this image cannot run what 'clang++ -stdlib=libc++' produces"
+        return
+    fi
+
+    local path package cxxabi_path cxxabi_package
+    while read -r path package; do
+        if [ -z "${package}" ] || [ "${package}" = '-' ]; then
+            fail "[libc++] [${path}] is installed but no package owns it"
+            continue
+        fi
+        check_origin "${package}" "${origin_llvm}"
+
+        # Its ABI library sits beside it under the matching name, which is how cxx-stdlibs.sh finds the SONAME.
+        # The path is asked for rather than the bare name:
+        # the same name exists under every llvm-<major> prefix and in the multiarch directory,
+        # and only the copy beside this libc++ is the one that will be loaded with it.
+        cxxabi_path="${path/libc++.so/libc++abi.so}"
+        cxxabi_package=$(dpkg -S "${cxxabi_path}" 2>/dev/null | head -n 1 | sed 's/:.*//')
+        if [ -z "${cxxabi_package}" ]; then
+            fail "[libc++abi] no package owns [${cxxabi_path}], which [${package}] needs at load time"
+            continue
+        fi
+        check_origin "${cxxabi_package}" "${origin_llvm}"
+    done < <(sed -n 's/.* path=\([^ ]*\).* package=\([^ ]*\).*/\1 \2/p' <<< "${rows}")
+}
+
 check_runtime_libraries(){
+    [ -r "${stdlibs_script}" ] \
+      || die "cannot find cxx-stdlibs.sh one level above scripts/checks/details"
+
     check_origin 'libstdc++6' "${origin_toolchain_ppa}"
     check_origin 'libgcc-s1'  "${origin_toolchain_ppa}"
+    check_libcxx_runtime
 }
 
 check_build_toolchains(){

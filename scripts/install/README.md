@@ -58,8 +58,21 @@ Installs one or more GCC versions from the `ubuntu-toolchain-r/test` PPA (added 
 | `-s`, `--silent`         | boolean | `1`             | Suppress log output                                                                                      |
 | `-a`, `--alias`          | boolean | `0`             | Append the resulting `gcc_versions` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                  |
 | `--multilib`             | boolean | `1`             | Install `gcc-<N>-multilib` / `g++-<N>-multilib` (secondary ABIs: `-m32`, `-mx32`)                        |
-| `-m`, `--minimalistic`   | boolean | `0`             | Compilers only - disables `--multilib` *unless* it was set explicitly                                    |
+| `--mode`                 | string  | `full`          | How much of the toolchain to install: `runtime` \| `minimalistic` \| `full` - see below                  |
+| `-m`, `--minimalistic`   | boolean | `0`             | Alias for `--mode=minimalistic`, kept for compatibility                                                  |
 | `-h`, `--help`           | -       | -               | Display usage                                                                                            |
+
+| `--mode`       | Installs                                                     |
+| -------------- | ------------------------------------------------------------ |
+| `runtime`      | `libstdc++6` `libgcc-s1` - the shared libraries, no compiler |
+| `minimalistic` | `gcc-<N>` `g++-<N>`; disables `--multilib` unless it was set explicitly |
+| `full`         | the above plus `gcc-<N>-multilib` / `g++-<N>-multilib`       |
+
+`runtime` takes no `--versions`: `libstdc++6` and `libgcc-s1` carry no major in their name, one
+install serves every compiler, and there is nothing for a version selector to choose between. It
+is what the [Dockerfile](../../Dockerfile)'s `runtime` stage installs, and it names the two
+packages the [validation gate](../../docs/IMAGES_VALIDATION.md) expects from this PPA - so that
+expectation is written down once rather than in both places.
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
@@ -69,8 +82,9 @@ Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
 ```bash
 sudo ./gcc.sh --versions="$(sudo ./gcc.sh --list-available --versions='all' | tail -2)"
-sudo ./gcc.sh --minimalistic                 # compilers only, no multilib
-sudo ./gcc.sh --minimalistic --multilib=yes  # explicit multilib still wins
+sudo ./gcc.sh --mode=minimalistic                 # compilers only, no multilib
+sudo ./gcc.sh --mode=minimalistic --multilib=yes  # explicit multilib still wins
+sudo ./gcc.sh --mode=runtime                      # libstdc++6 + libgcc-s1, no compiler
 ```
 
 ---
@@ -96,7 +110,7 @@ Wraps the upstream [`apt.llvm.org/llvm.sh`](https://apt.llvm.org/llvm.sh) instal
 | `--list-installed`       | boolean | `0`             | Only list the major versions already installed, filtered by `--versions` when that is given explicitly   |
 | `-s`, `--silent`         | boolean | `1`             | Suppress log output                                                                                      |
 | `-a`, `--alias`          | boolean | `0`             | Append the resulting `llvm_versions` variable to `/etc/bash.bashrc` and `/etc/zsh/zshrc`                 |
-| `--mode`                 | string  | `full`          | How much of the toolchain to install: `minimalistic` \| `coverage` \| `full` - see below                 |
+| `--mode`                 | string  | `full`          | How much of the toolchain to install: `runtime` \| `minimalistic` \| `coverage` \| `full` - see below    |
 | `-c`, `--cleanup`        | boolean | `0`             | Purge any pre-existing `llvm-*`/`lldb-*`/`clang-*`/`python3-lldb-*` packages before installing           |
 | `-h`, `--help`           | -       | -               | Display usage                                                                                            |
 
@@ -104,17 +118,30 @@ The three modes are tiered, and each one selects both the **packages installed**
 
 | `--mode`       | Installs                                                                     | Registers unversioned                                               |
 | -------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `runtime`      | `libc++1` `libc++abi1` - the shared libraries, no compiler and no headers    | nothing                                                             |
 | `minimalistic` | `clang` `lld` `lldb` `clangd` + the compiler runtimes                        | `clang`, `clang++`                                                  |
 | `coverage`     | the above + `llvm-<N>`                                                       | + `llvm-cov`, `llvm-profdata`                                       |
 | `full`         | the upstream `all` set - analysis tools, `libclang` development headers, ... | + `clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ... |
 
-The *compiler runtimes* are the libc++ stack (`libc++-<N>-dev`, `libc++abi-<N>-dev`, `libunwind-<N>-dev`), OpenMP (`libomp-<N>-dev`) and, from LLVM 15, the sanitizer and Polly runtimes (`libclang-rt-<N>-dev`, `libpolly-<N>-dev`). Every mode installs them: they are compiler capabilities - `-stdlib=libc++`, `-fopenmp`, `-fsanitize=...` - rather than tools, so a `minimalistic` install still compiles everything a `full` one does.
+`runtime` is the only mode that does not run the upstream installer at all - its smallest package set still starts with `clang-<N>`.  
+It registers the same apt.llvm.org repository upstream would have, then installs those two packages and stops.  
+`--versions` still selects which suite, because that is what decides the libc++ release,  
+but nothing is registered under an unversioned name: there is no binary to alternate between.
+
+It needs **LLVM 20 or later**, and says so rather than guessing: apt.llvm.org carried the major in
+these package names until then, and spelled it inconsistently - `libc++1-18` and `libc++1-19`, but
+`libc++1-17t64` across the `time_t` transition. `libunwind` is deliberately absent, since
+apt.llvm.org builds `libc++abi` against `libgcc_s`, which every Debian-derived image already has.
+
+The *compiler runtimes* are the libc++ stack (`libc++-<N>-dev`, `libc++abi-<N>-dev`, `libunwind-<N>-dev`), OpenMP (`libomp-<N>-dev`) and, from LLVM 15, the sanitizer and Polly runtimes (`libclang-rt-<N>-dev`, `libpolly-<N>-dev`). Every mode that installs a compiler installs them: they are compiler capabilities - `-stdlib=libc++`, `-fopenmp`, `-fsanitize=...` - rather than tools, so a `minimalistic` install still compiles everything a `full` one does.
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
 `update-alternatives` priority is the version number, so the **highest installed version** wins the unversioned `clang`/`clang++` - the same rule `gcc.sh` uses.
 
 The modes are meant to be **layered**: a first `--mode=minimalistic` run installs and registers only the compilers, and a later `--mode=full` run over the same environment adds `clang-tidy`/`clang-format`/`clangd`/`lldb`/`scan-build` without touching them. Useful when a compile-only environment and a full analysis one are built from a common base - which is exactly how the [Dockerfile](../../Dockerfile)'s `build` and `static-analysis` stages relate.
+
+`runtime` layers the same way, from underneath: it puts `libc++1` in place, and a later `--mode=minimalistic` run over it adds the compiler and headers that match. That is how `build` sits on `runtime` - one library, installed once, at the bottom of the stack where the image that only has to *run* things can stop.
 
 Example: install the two latest available versions:
 
@@ -144,15 +171,15 @@ With `--with-gcc=0`, or for targets that have no cross-`g++`, it falls back to b
 
 This fallback is compiler-agnostic - the bare binutils serve any toolchain emitting that arch, which is why cross tooling lives here rather than in `gcc.sh` (`gcc.sh` owns `--multilib`, a secondary ABI of the *host* arch - a different thing).
 
-| Option                   | Type    | Default                                                     | Description                                                                       |
-| ------------------------ | ------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `-t`, `--targets`        | string  | `'common'`                                                  | Space-separated GNU target triplets, or `common`, or `all`                        |
-| `--list-targets`         | boolean | `0`                                                         | Only print the triplets `--targets` resolves to, without consulting apt. A pure query, and how anything downstream resolves `common` |
-| `--with-gcc`             | boolean | `1`                                                         | Install `g++-<triplet>` (full toolchain, links C/C++); `0` = bare binutils + libc |
-| `-l`, `--list-available` | boolean | `0`                                                         | Only list the cross target triplets available on this host, restricted to `--targets`. Use `--targets=all` for every triplet the host offers |
-| `--list-installed`       | boolean | `0`                                                         | Only list the cross target triplets already installed, restricted to `--targets` when that is given explicitly. A pure query: needs no root, refreshes no apt index |
-| `-s`, `--silent`         | boolean | `1`                                                         | Suppress log output                                                               |
-| `-h`, `--help`           | -       | -                                                           | Display usage                                                                     |
+| Option                   | Type    | Default    | Description                                                                       |
+| ------------------------ | ------- | ---------- | --------------------------------------------------------------------------------- |
+| `-t`, `--targets`        | string  | `'common'` | Space-separated GNU target triplets, or `common`, or `all`                        |
+| `--list-targets`         | boolean | `0`        | Only print the triplets `--targets` resolves to, without consulting apt. A pure query, and how anything downstream resolves `common` |
+| `--with-gcc`             | boolean | `1`        | Install `g++-<triplet>` (full toolchain, links C/C++); `0` = bare binutils + libc |
+| `-l`, `--list-available` | boolean | `0`        | Only list the cross target triplets available on this host, restricted to `--targets`. Use `--targets=all` for every triplet the host offers |
+| `--list-installed`       | boolean | `0`        | Only list the cross target triplets already installed, restricted to `--targets` when that is given explicitly. A pure query: needs no root, refreshes no apt index |
+| `-s`, `--silent`         | boolean | `1`        | Suppress log output                                                               |
+| `-h`, `--help`           | -       | -          | Display usage                                                                     |
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 

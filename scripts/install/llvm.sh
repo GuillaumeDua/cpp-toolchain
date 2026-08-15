@@ -6,10 +6,16 @@ set -eu
 # This file is part of https://github.com/GuillaumeDua/CppShelf
 # License: see https://github.com/GuillaumeDua/CppShelf/blob/main/LICENSE
 #
-# libc++ scope: every --mode installs the host libc++ (libc++-<N>-dev / libc++abi-<N>-dev / libunwind-<N>-dev),
+# libc++ scope: every compiler --mode installs the host libc++ (libc++-<N>-dev / libc++abi-<N>-dev / libunwind-<N>-dev),
 #   so native `clang++ -stdlib=libc++` works without GCC - see the package set note further down.
-#   Cross-target libc++ (libc++ built for another arch) is NOT bundled: it has no portable apt package and requires an
-#   LLVM `runtimes` source build (future scripts/libcxx.sh). See binutils.sh for the cross scope.
+#
+#   `--mode=runtime` is the other half of that:
+#       the shared libraries alone, no compiler and no headers,
+#       for an image whose job is to run what such a toolchain produced.
+#
+#   WARNING: Cross-target libc++ (libc++ built for another arch) is NOT bundled:
+#       it has no portable apt package and requires an LLVM `runtimes` source build (future scripts/libcxx.sh).
+#       See binutils.sh for the cross scope.
 # =============================================================================================
 
 this_script_name=$(basename "$0")
@@ -41,7 +47,9 @@ help(){
             - [numbers...]       : only listed versions.                                    Ex: '13 25 42' (space-separated)
         [ -s | --silent ]        : Run in silent mod.                                    Boolean -> default is [1]
         [ -a | --alias]          : Set bash/zsh-rc aliases.                              Boolean -> default is [0]
-        [ --mode ]               : How much of the toolchain to install.                 String: minimalistic|coverage|full -> default is [full]
+        [ --mode ]               : How much of the toolchain to install.                 String: runtime|minimalistic|coverage|full -> default is [full]
+            - [runtime]          : the libc++ runtime alone (libc++1, libc++abi1) - no compiler, no headers.
+                                   For an image that runs what another one built. LLVM 20 and later.
             - [minimalistic]     : the compilers and their runtimes, no tools
             - [coverage]         : minimalistic + the coverage tools (llvm-cov, llvm-profdata)
             - [full]             : the whole toolchain (clang-tidy, clang-format, clangd, lldb, scan-build, ...)
@@ -159,8 +167,8 @@ if [ "$arg_list_installed" == '' ] ; then
 fi
 
 case "${arg_mode}" in
-    minimalistic | coverage | full ) ;;
-    * ) error "invalid --mode=[${arg_mode}] - expected one of: minimalistic, coverage, full" ;;
+    runtime | minimalistic | coverage | full ) ;;
+    * ) error "invalid --mode=[${arg_mode}] - expected one of: runtime, minimalistic, coverage, full" ;;
 esac
 
 arg_cleanup=$(to_boolean "${arg_cleanup}")
@@ -240,13 +248,14 @@ if [ -f "${internal_script_path}" ]; then
     exit 1
 fi
 
-external_script_url='https://apt.llvm.org/llvm.sh'
+apt_llvm_base_url='https://apt.llvm.org'
+external_script_url="${apt_llvm_base_url}/llvm.sh"
 
 # wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
 # wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
 # NO_PUBKEY 1A127079A92F09ED
 # REFACTO: remove gpg key -> already added by ${external_script_url}
-wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor --batch --yes -o /etc/apt/trusted.gpg.d/llvm-snapshot.gpg \
+wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor --batch --yes -o /etc/apt/trusted.gpg.d/llvm-snapshot.gpg \
     && wget -qO ${internal_script_path} ${external_script_url} \
     && chmod +x "${internal_script_path}"
 if [ $? != 0 ] || [ ! -f "${internal_script_path}" ]; then
@@ -302,8 +311,12 @@ fi
 log "LLVM version(s) to be installed: [${llvm_versions}]"
 
 # --- clean update-alternatives ---
-sudo rm -rf /etc/alternatives/clang* /etc/alternatives/llvm-symbolizer /etc/alternatives/lldb
-sudo rm -rf /var/lib/dpkg/alternatives/clang* /var/lib/dpkg/alternatives/llvm-symbolizer /var/lib/dpkg/alternatives/lldb
+#   Skipped for `runtime`: it registers no alternative, so it has nothing to reset,
+#   and a mode that installs no compiler has no business deleting another one's links.
+if [[ "${arg_mode}" != 'runtime' ]]; then
+    rm -rf /etc/alternatives/clang* /etc/alternatives/llvm-symbolizer /etc/alternatives/lldb
+    rm -rf /var/lib/dpkg/alternatives/clang* /var/lib/dpkg/alternatives/llvm-symbolizer /var/lib/dpkg/alternatives/lldb
+fi
 
 # --- installations ---
 
@@ -323,10 +336,10 @@ codename=$(lsb_release -cs)
 # fi
 
 if [[ ${arg_cleanup} == 1 ]]; then
-    sudo apt-get remove -y "llvm-*"
-    sudo apt-get remove -y "lldb-*"
-    sudo apt-get remove -y "clang-*"
-    sudo apt-get remove -y "python3-lldb-*"
+    apt-get remove -y "llvm-*"
+    apt-get remove -y "lldb-*"
+    apt-get remove -y "clang-*"
+    apt-get remove -y "python3-lldb-*"
 fi
 
 # --- package set, per mode ---
@@ -357,13 +370,70 @@ compiler_runtimes_for(){
     echo "${packages}"
 }
 
+# WIP: to be re-checked
+#
+# require_runtime_capable_version <version> - the majors `--mode=runtime` can name packages for.
+#   From LLVM 20 up, apt.llvm.org publishes these two without a major: libc++1, libc++abi1.
+#   Below it they carry one, and not uniformly:
+#   - libc++1-18 and libc++1-19
+#   - but libc++1-17t64, across the time_t transition.
+#
+#   Guessing which a given major wants is how a silent mis-install happens, so anything below 20 is refused by name.
+#
+#   Separate from the function below rather than a guard inside it:
+#       `error` there would run in the command substitution that reads the function,
+#       exiting that subshell rather than this script, and only `set -e` would then stop the caller.
+require_runtime_capable_version(){
+    [ "$1" -gt 19 ] \
+      || error "--mode=runtime needs LLVM 20 or later: below it apt.llvm.org carries the major in these package names (libc++1-$1), and this script will not guess the spelling"
+}
+
+# runtime_libraries_for - the shared libraries alone, for `--mode=runtime`.
+#   Which release they hold is decided by the repository suite, not by the package name,
+#   which is why this takes no version while compiler_runtimes_for above does.
+#   libunwind is deliberately absent: apt.llvm.org builds libc++abi against libgcc_s,
+#   which every Debian-derived image already carries, so nothing here would ever load it.
+runtime_libraries_for(){
+    echo 'libc++1 libc++abi1'
+}
+
+# The apt.llvm.org repository, registered here rather than by the upstream installer.
+#   `--mode=runtime` must not run that installer at all - it installs clang -
+#   so this is the one place the wrapper stops delegating and has to stay in step with upstream by hand.
+#
+#   Mirrors REPO_NAME in https://apt.llvm.org/llvm.sh:
+#       deb ${BASE_URL}/${CODENAME}/ llvm-toolchain${LINKNAME}${LLVM_VERSION_STRING} main
+#   LLVM_VERSION_STRING is '-<major>' for every published major but one:
+#       the development version is served from the suite with no suffix.
+#   Which major that is, is read out of the installer rather than assumed,
+#   the same way the available versions and CURRENT_LLVM_STABLE already are.
+add_apt_llvm_repository(){
+    local version="$1"
+    local unversioned suffix="-$1"
+
+    unversioned=$(grep -oP '^LLVM_VERSION_PATTERNS\[\K[0-9]+(?=\]="")' "${internal_script_path}")
+    [ "${version}" != "${unversioned}" ] || suffix=''
+
+    add-apt-repository -y "deb ${apt_llvm_base_url}/${codename}/ llvm-toolchain-${codename}${suffix} main" \
+      || error "adding the apt.llvm.org repository for [${version}] failed"
+}
+
 mapfile -t llvm_versions_to_install < <(echo -n "$llvm_versions")
 for version in "${llvm_versions_to_install[@]}"; do
 
-    # fix potential conflicts:
-    #   sudo apt-get purge --auto-remove llvm python3-lldb-14 llvm-14 -y; \
+    # `runtime` stops here: the upstream installer's smallest package set still starts with clang-<N>,
+    # so it is skipped entirely and only the repository it would have registered is kept.
+    if [[ "${arg_mode}" == 'runtime' ]]; then
+        require_runtime_capable_version "${version}"
+        runtime_packages="$(runtime_libraries_for)"
+        log "installing the libc++ runtime for [${version}]: [${runtime_packages}]"
+        add_apt_llvm_repository "${version}"
+        apt-get update -qqy > /dev/null 2>&1
+        apt-get install -qqy --no-install-recommends ${runtime_packages} > /dev/null 2>&1 \
+        || error "installing [${runtime_packages}] failed"
+        continue
+    fi
 
-    # yes '' |
     ./${internal_script_path} ${version} ${upstream_package_set} -n ${codename} > /dev/null 2>&1 \
     || error "running [${external_script_url} ${version} ${upstream_package_set}] failed"
 
@@ -376,11 +446,12 @@ for version in "${llvm_versions_to_install[@]}"; do
     esac
     if [ -n "${extra_packages}" ]; then
         # The upstream installer has just run `apt-get update`, so the lists are populated here.
-        sudo apt-get install -qqy --no-install-recommends ${extra_packages} > /dev/null 2>&1 \
+        apt-get install -qqy --no-install-recommends ${extra_packages} > /dev/null 2>&1 \
         || error "installing [${extra_packages}] failed"
     fi
 
-    # Warning: only one installation of `lldb` is allowed by `apt` at a time. Cannot use `--no-remove` here
+    # WARNING: only one installation of `lldb` is allowed by `apt` at a time.
+    # Cannot use `--no-remove` here.
     # apt install -qq -y --no-install-recommends \
     #     clang-format-${version} \
     #     clang-tidy-${version}   \
