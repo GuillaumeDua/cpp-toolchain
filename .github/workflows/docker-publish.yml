@@ -3,7 +3,6 @@ name: docker-publish
 # Pushes images to Docker Hub and GHCR.
 # docs/RELEASE_PROCESS.md is the runbook: the release model, the cadence, the urgent-fix path and the failure modes are documented there, and stated nowhere else.
 #
-# The short version:
 # - an rc is a fresh build published as a pre-release,
 #   which opens a candidate pull request adding releases/v1.2.yaml - the manifest digest of every stage it pushed.
 # - a minor is that PR being merged: the promote job re-tags the recorded digests,
@@ -15,13 +14,13 @@ name: docker-publish
 # See README.md#tags--versioning has the full scheme.
 #
 # Two rules the steps below rely on and cannot state for themselves:
-#   - releases/ is excluded from the skip-when-unchanged comparison. Every promotion merges a
-#     record onto main, so without the exclusion each release would spawn a pointless rc at the
-#     next cron, from a tree that builds to an identical image.
-#   - events triggered by GITHUB_TOKEN start no workflow runs. That is load-bearing twice over:
-#     the release created here does not re-trigger this workflow (a PAT there would be an
-#     infinite build loop), and the candidate PR must therefore be created with RELEASE_PR_TOKEN
-#     or its checks would never run. Same reason its merge has to be a human, never a token.
+#   - releases/ is excluded from the skip-when-unchanged comparison.
+#     Every promotion merges a record onto main, so without the exclusion each release would spawn a pointless rc at the next cron,
+#     from a tree that builds to an identical image.
+#   - events triggered by GITHUB_TOKEN start no workflow runs.
+#     That is load-bearing twice over: the release created here does not re-trigger this workflow (a PAT there would be an infinite build loop),
+#     and the candidate PR must therefore be created with RELEASE_PR_TOKEN or its checks would never run.
+#     Same reason its merge has to be a human, never a token.
 #
 # The build job holds all of its permissions for all of its steps, including the ~40-minute build.
 # Splitting the PR upkeep into a separate job would cost an artifact hop per output,

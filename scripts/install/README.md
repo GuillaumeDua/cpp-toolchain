@@ -6,6 +6,7 @@ All require root privileges, take no dependency on each other, and describe them
 - `gcc.sh` and `llvm.sh` can install **multiple compiler versions side by side** in the same environment (one `apt install` per requested version, wired together with `update-alternatives`) - see their `--versions` option below.  
   Both default to `latest-stable`, i.e. a single version; pass a range (`>=11`), a list (`'11 12 13'`), or `all` to get more.
 - `cmake.sh` does not have this multi-version story - see its own section below.
+- `--silent` suppresses progress logs only: warnings and failures always reach `stderr`, and steps that touch the network are retried before giving up.
 
 ---
 
@@ -76,7 +77,7 @@ expectation is written down once rather than in both places.
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
-**Multilib is best-effort by default**: the packages lag for brand-new GCC versions and do not exist on non-amd64 hosts, so an unavailable one is skipped with a log. An *explicit* `--multilib=yes` is honored strictly and fails hard instead - the default resolution is resilient, an explicit request is not silently ignored.
+**Multilib is best-effort by default**: the packages lag for brand-new GCC versions and do not exist on non-amd64 hosts, so an unavailable one is skipped with a warning. An *explicit* `--multilib=yes` is honored strictly and fails hard instead - the default resolution is resilient, an explicit request is not silently ignored.
 
 **Example**: install the two latest available versions:
 
@@ -171,19 +172,19 @@ With `--with-gcc=0`, or for targets that have no cross-`g++`, it falls back to b
 
 This fallback is compiler-agnostic - the bare binutils serve any toolchain emitting that arch, which is why cross tooling lives here rather than in `gcc.sh` (`gcc.sh` owns `--multilib`, a secondary ABI of the *host* arch - a different thing).
 
-| Option                   | Type    | Default    | Description                                                                       |
-| ------------------------ | ------- | ---------- | --------------------------------------------------------------------------------- |
-| `-t`, `--targets`        | string  | `'common'` | Space-separated GNU target triplets, or `common`, or `all`                        |
-| `--list-targets`         | boolean | `0`        | Only print the triplets `--targets` resolves to, without consulting apt. A pure query, and how anything downstream resolves `common` |
-| `--with-gcc`             | boolean | `1`        | Install `g++-<triplet>` (full toolchain, links C/C++); `0` = bare binutils + libc |
+| Option                   | Type    | Default    | Description                                                                                                                                  |
+| ------------------------ | ------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-t`, `--targets`        | string  | `'common'` | Space-separated GNU target triplets, or `common`, or `all`                                                                                   |
+| `--list-targets`         | boolean | `0`        | Only print the triplets `--targets` resolves to, without consulting apt. A pure query, and how anything downstream resolves `common`         |
+| `--with-gcc`             | boolean | `1`        | Install `g++-<triplet>` (full toolchain, links C/C++); `0` = bare binutils + libc                                                            |
 | `-l`, `--list-available` | boolean | `0`        | Only list the cross target triplets available on this host, restricted to `--targets`. Use `--targets=all` for every triplet the host offers |
-| `--list-installed`       | boolean | `0`        | Only list the cross target triplets already installed, restricted to `--targets` when that is given explicitly. A pure query: needs no root, refreshes no apt index |
-| `-s`, `--silent`         | boolean | `1`        | Suppress log output                                                               |
-| `-h`, `--help`           | -       | -          | Display usage                                                                     |
+| `--list-installed`       | boolean | `0`        | Only list the cross target triplets already installed, restricted to `--targets` when that is given explicitly.                              |
+| `-s`, `--silent`         | boolean | `1`        | Suppress log output                                                                                                                          |
+| `-h`, `--help`           | -       | -          | Display usage                                                                                                                                |
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
-Each target is installed **best-effort** - availability is host/arch dependent, so an unavailable package is logged and skipped rather than failing the run.  
+Each target is installed **best-effort** - availability is host/arch dependent, so an unavailable package is skipped with a warning rather than failing the run.  
 **25 of 32** targets have a cross-`g++`; the 7 without one (`ia64`, `hppa64`, `loongarch64`, and the four mips-`n32` variants) automatically use the binutils + libc fallback.
 
 **CPU, FPU and ABI variants are encoded in the triplet** - there is no separate switch:
