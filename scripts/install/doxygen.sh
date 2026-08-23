@@ -26,6 +26,9 @@ set -euo pipefail
 
 this_script_name=$(basename "$0")
 
+# How many times a network-facing step is attempted
+max_attempts=3
+
 error(){
     echo -e "[${this_script_name}]: $@" >> /dev/stderr
     echo -e "[${this_script_name}]: diagnosis helper:" >> /dev/stderr
@@ -40,9 +43,9 @@ arch="$(dpkg --print-architecture)"
 if [[ "${arch}" != "amd64" ]]; then
     # No upstream pre-built binary for this architecture - fall back to the distro package.
     echo "[${this_script_name}]: no upstream pre-built binary for ${arch}, installing the apt package"
-    apt-get update -qqy -o Acquire::Retries=3 \
+    apt-get update -qqy -o Acquire::Retries=${max_attempts} \
     || error "refreshing the apt index failed"
-    apt-get install -qqy --no-install-recommends -o Acquire::Retries=3 doxygen \
+    apt-get install -qqy --no-install-recommends -o Acquire::Retries=${max_attempts} doxygen \
     || error "installing the [doxygen] apt package failed"
     doxygen --version
     exit 0
@@ -57,7 +60,7 @@ archive=$(mktemp)
 trap 'rm -f "${archive}"' EXIT
 
 # curl --retry handles transient failures; a 404 is not retried.
-curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused -o "${archive}" "${url}" \
+curl -fsSL --retry ${max_attempts} --retry-delay 2 --retry-connrefused -o "${archive}" "${url}" \
 || error "fetching [${url}] failed - is [${tag}] a published doxygen release?"
 
 tar -xzf "${archive}" -C /usr/local/bin --strip-components=2 "doxygen-${version}/bin/doxygen" \
