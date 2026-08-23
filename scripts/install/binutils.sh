@@ -71,15 +71,63 @@ help(){
         " 1>&2
     exit 0
 }
+
+error_diagnosis(){
+    {
+        echo -e "[${this_script_name}]: diagnosis helper:"
+        if command -v lsb_release >/dev/null 2>&1; then
+            echo -e "\t- distribution:       [$(lsb_release -ds 2>/dev/null)]"
+        fi
+        echo -e "\t- host architecture:  [$(dpkg --print-architecture 2>/dev/null)]"
+        echo -e "\t- targets requested:  [${arg_targets}]"
+        echo -e "\t- with gcc:           [${arg_with_gcc}]"
+    } >> /dev/stderr
+}
 error(){
     echo -e "[${this_script_name}]: $@" >> /dev/stderr
+    error_diagnosis
     exit 1
+}
+warning(){
+    echo -e "[${this_script_name}]: $@" >> /dev/stderr
 }
 log(){
     if [[ "${arg_silent}" == 1 ]]; then
         return 0;
     fi
     echo -e "[${this_script_name}]: $@"
+}
+# Runs a command quietly, replaying its output only if it fails.
+run(){
+    local what="$1"; shift
+    local output streamed=0 status=0
+
+    output=$(mktemp)
+    if [[ "${arg_silent}" == 0 ]]; then
+        # stderr, because stdout carries the result to the caller.
+        streamed=1
+        "$@" 2>&1 | tee "${output}" >&2
+        status=${PIPESTATUS[0]}
+    else
+        "$@" > "${output}" 2>&1 || status=$?
+    fi
+
+    if [ "${status}" -eq 0 ]; then
+        rm -f "${output}"
+        return 0
+    fi
+
+    {
+        echo -e "[${this_script_name}]: ${what} failed - exit status [${status}]"
+        echo -e "[${this_script_name}]: command: [$*]"
+        if [ "${streamed}" -eq 0 ]; then
+            echo -e "[${this_script_name}]: --- output ---"
+            cat "${output}"
+            echo -e "[${this_script_name}]: --- end of output ---"
+        fi
+    } >> /dev/stderr
+    rm -f "${output}"
+    return "${status}"
 }
 to_boolean(){
     if [[ $# != 1 ]]; then
@@ -146,7 +194,8 @@ target_triplets(){
 }
 
 list_available_targets(){
-    apt-get update -qqy >/dev/null 2>&1 || true
+    run "refreshing the apt index" apt-get update -q -y -o Acquire::Retries=3 \
+    || warning "refreshing the apt index failed - the target list below may be incomplete or empty"
     apt-cache search --names-only '^binutils-.*-linux-gnu' | awk '{print $1}' | target_triplets
 }
 
@@ -309,27 +358,28 @@ fi
 if [ "${arg_targets}" = 'all' ]; then
     arg_targets=$(list_available_targets | tr '\n' ' ')
 fi
-apt-get update -qqy
+run "refreshing the apt index" apt-get update -q -y -o Acquire::Retries=3 \
+|| error "refreshing the apt index failed"
 
 for target in ${arg_targets}; do
 
     # Primary: the cross g++ transitively pulls the whole toolchain (binutils + libc + libgcc + libstdc++),
     #   so this single package makes C and C++ cross-compilation actually link,
     #   and Clang auto-detects the cross-GCC install, so `clang --target=${target}` works too.
-    if [[ ${arg_with_gcc} == 1 ]] && apt install -qq -y --no-install-recommends "g++-${target}"; then
+    if [[ ${arg_with_gcc} == 1 ]] && apt install -qq -y --no-install-recommends -o Acquire::Retries=3 "g++-${target}"; then
         log "[g++-${target}] installed - full cross toolchain (binutils + libc + libgcc + libstdc++)"
         continue
     fi
     if [[ ${arg_with_gcc} == 1 ]]; then
-        log "[g++-${target}] unavailable, falling back to binutils + cross-libc only"
+        warning "[g++-${target}] unavailable, falling back to binutils + cross-libc only"
     fi
 
     # Fallback: bare cross binutils (+ cross libc, keyed off the Debian arch).
     #   Enough to compile to objects and inspect/strip; NOT to link a full executable (no target libgcc / libstdc++).
     pkg_binutils="binutils-${target}"
     log "installing [${pkg_binutils}] ..."
-    apt install -qq -y --no-install-recommends "${pkg_binutils}" \
-        || log "[${pkg_binutils}] not available for this host/arch, skipping"
+    apt install -qq -y --no-install-recommends -o Acquire::Retries=3 "${pkg_binutils}" \
+        || warning "[${pkg_binutils}] not available for this host/arch, skipping"
 
     debarch=$(triplet_to_deb_arch "${target}")
     if [ -z "${debarch}" ]; then
@@ -338,8 +388,8 @@ for target in ${arg_targets}; do
     fi
     pkg_libc="libc6-dev-${debarch}-cross"
     log "installing [${pkg_libc}] ..."
-    apt install -qq -y --no-install-recommends "${pkg_libc}" \
-        || log "[${pkg_libc}] not available for this host/arch, skipping"
+    apt install -qq -y --no-install-recommends -o Acquire::Retries=3 "${pkg_libc}" \
+        || warning "[${pkg_libc}] not available for this host/arch, skipping"
 
 done
 

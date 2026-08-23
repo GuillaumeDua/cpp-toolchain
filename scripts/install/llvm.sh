@@ -30,6 +30,7 @@ arg_mode='full'
 arg_cleanup=0
 
 internal_script_path='impl.sh'
+gpg_key_path='llvm-snapshot.gpg.key'
 
 help(){
     echo "Usage: ${this_script_name}" 1>&2
@@ -62,12 +63,25 @@ help(){
     exit 0
 }
 clean(){
-    if [ -f "${internal_script_path}" ]; then
-        rm -rf "${internal_script_path}"
-    fi
+    rm -f "${internal_script_path}" "${gpg_key_path}"
+}
+error_diagnosis(){
+    local sources
+    sources=$(grep -rl 'apt\.llvm\.org' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | paste -sd' ' -)
+    {
+        echo -e "[${this_script_name}]: diagnosis helper:"
+        if command -v lsb_release >/dev/null 2>&1; then
+            echo -e "\t- distribution:        [$(lsb_release -ds 2>/dev/null)]"
+        fi
+        echo -e "\t- apt codename:        [${codename:-<unresolved>}]"
+        echo -e "\t- mode:                [${arg_mode}]"
+        echo -e "\t- versions requested:  [${arg_versions}]"
+        echo -e "\t- apt.llvm.org source: [${sources:-<none registered>}]"
+    } >> /dev/stderr
 }
 error(){
     echo -e "[${this_script_name}]: $@" >> /dev/stderr
+    error_diagnosis
     clean; exit 1
 }
 warning(){
@@ -79,6 +93,52 @@ log(){
     fi
     echo -e "[${this_script_name}]: $@"
     return 0
+}
+# Runs a command quietly, replaying its output only if it fails.
+run(){
+    local what="$1"; shift
+    local output streamed=0 status=0
+
+    output=$(mktemp)
+    if [[ "${arg_silent}" == 0 ]]; then
+        # stderr, because stdout carries the result to the caller.
+        streamed=1
+        "$@" 2>&1 | tee "${output}" >&2
+        status=${PIPESTATUS[0]}
+    else
+        "$@" > "${output}" 2>&1 || status=$?
+    fi
+
+    if [ "${status}" -eq 0 ]; then
+        rm -f "${output}"
+        return 0
+    fi
+
+    {
+        echo -e "[${this_script_name}]: ${what} failed - exit status [${status}]"
+        echo -e "[${this_script_name}]: command: [$*]"
+        if [ "${streamed}" -eq 0 ]; then
+            echo -e "[${this_script_name}]: --- output ---"
+            cat "${output}"
+            echo -e "[${this_script_name}]: --- end of output ---"
+        fi
+    } >> /dev/stderr
+    rm -f "${output}"
+    return "${status}"
+}
+# apt.llvm.org sits behind a CDN that intermittently refuses requests.
+# Every step retried here is idempotent, and only the last attempt reports.
+run_with_retries(){
+    local attempts="$1" what="$2"; shift 2
+    local attempt=1
+
+    while [ "${attempt}" -lt "${attempts}" ]; do
+        "$@" > /dev/null 2>&1 && return 0
+        warning "${what} failed - retrying in $(( attempt * 5 ))s (attempt $(( attempt + 1 ))/${attempts})"
+        sleep $(( attempt * 5 ))
+        attempt=$(( attempt + 1 ))
+    done
+    run "${what}" "$@"
 }
 to_boolean(){
     if [[ $# != 1 ]]; then
@@ -250,17 +310,27 @@ fi
 
 apt_llvm_base_url='https://apt.llvm.org'
 external_script_url="${apt_llvm_base_url}/llvm.sh"
+gpg_key_url="${apt_llvm_base_url}/llvm-snapshot.gpg.key"
 
-# wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-# wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-# NO_PUBKEY 1A127079A92F09ED
 # REFACTO: remove gpg key -> already added by ${external_script_url}
-wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor --batch --yes -o /etc/apt/trusted.gpg.d/llvm-snapshot.gpg \
-    && wget -qO ${internal_script_path} ${external_script_url} \
-    && chmod +x "${internal_script_path}"
-if [ $? != 0 ] || [ ! -f "${internal_script_path}" ]; then
-    error "fetching [${external_script_url}] failed"
-fi
+# Not piped into gpg: without pipefail, a failed download would surface as a malformed key.
+# wget --tries handles transient failures; a 404 is not retried.
+wget_options=(--no-verbose --tries=3 --retry-connrefused --timeout=30)
+
+run "fetching the signing key [${gpg_key_url}]" \
+    wget "${wget_options[@]}" -O "${gpg_key_path}" "${gpg_key_url}" \
+|| error "fetching the signing key [${gpg_key_url}] failed"
+
+run "installing the signing key" \
+    gpg --dearmor --batch --yes -o /etc/apt/trusted.gpg.d/llvm-snapshot.gpg "${gpg_key_path}" \
+|| error "installing the signing key fetched from [${gpg_key_url}] failed"
+
+run "fetching [${external_script_url}]" \
+    wget "${wget_options[@]}" -O "${internal_script_path}" "${external_script_url}" \
+|| error "fetching [${external_script_url}] failed"
+
+[ -f "${internal_script_path}" ] || error "fetching [${external_script_url}] produced no file"
+chmod +x "${internal_script_path}"
 
 # --- list versions ---
 
@@ -320,26 +390,14 @@ fi
 
 # --- installations ---
 
-# for version in "${llvm_versions_to_install[@]}"; do
-#     add-apt-repository -y \
-#         "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-${version}" main   \
-#         > /dev/null                                         \
-#     || error "adding apt-repository for [${version}] failed"
-# done
-# apt update -qqy
-
-# quick-fix: Ubuntu-24.04-noble not fully supported yet, switching to Ubuntu-22.04-jammy
 codename=$(lsb_release -cs)
-# if [ "${codename}" = "noble" ]; then
-#     warning "codename=[${codename}] is not supported yet, switching to [jammy]"
-#     codename="jammy"
-# fi
 
 if [[ ${arg_cleanup} == 1 ]]; then
-    apt-get remove -y "llvm-*"
-    apt-get remove -y "lldb-*"
-    apt-get remove -y "clang-*"
-    apt-get remove -y "python3-lldb-*"
+    # Best-effort: matching nothing is the normal case.
+    for pattern in 'llvm-*' 'lldb-*' 'clang-*' 'python3-lldb-*'; do
+        run "purging [${pattern}]" apt-get remove -y "${pattern}" \
+        || warning "purging [${pattern}] found nothing to remove"
+    done
 fi
 
 # --- package set, per mode ---
@@ -414,8 +472,9 @@ add_apt_llvm_repository(){
     unversioned=$(grep -oP '^LLVM_VERSION_PATTERNS\[\K[0-9]+(?=\]="")' "${internal_script_path}")
     [ "${version}" != "${unversioned}" ] || suffix=''
 
-    add-apt-repository -y "deb ${apt_llvm_base_url}/${codename}/ llvm-toolchain-${codename}${suffix} main" \
-      || error "adding the apt.llvm.org repository for [${version}] failed"
+    run_with_retries 3 "adding the apt.llvm.org repository for [${version}]" \
+        add-apt-repository -y "deb ${apt_llvm_base_url}/${codename}/ llvm-toolchain-${codename}${suffix} main" \
+    || error "adding the apt.llvm.org repository for [${version}] failed"
 }
 
 mapfile -t llvm_versions_to_install < <(echo -n "$llvm_versions")
@@ -428,13 +487,17 @@ for version in "${llvm_versions_to_install[@]}"; do
         runtime_packages="$(runtime_libraries_for)"
         log "installing the libc++ runtime for [${version}]: [${runtime_packages}]"
         add_apt_llvm_repository "${version}"
-        apt-get update -qqy > /dev/null 2>&1
-        apt-get install -qqy --no-install-recommends ${runtime_packages} > /dev/null 2>&1 \
+        run_with_retries 3 "refreshing the apt index" \
+            apt-get update -q -y -o Acquire::Retries=3 \
+        || error "refreshing the apt index failed"
+        run "installing [${runtime_packages}]" \
+            apt-get install -q -y --no-install-recommends -o Acquire::Retries=3 ${runtime_packages} \
         || error "installing [${runtime_packages}] failed"
         continue
     fi
 
-    ./${internal_script_path} ${version} ${upstream_package_set} -n ${codename} > /dev/null 2>&1 \
+    run_with_retries 3 "running [${external_script_url} ${version} ${upstream_package_set}]" \
+        ./${internal_script_path} ${version} ${upstream_package_set} -n ${codename} \
     || error "running [${external_script_url} ${version} ${upstream_package_set}] failed"
 
     # `full` already has everything through `all`; the other two have to add what they need.
@@ -446,7 +509,8 @@ for version in "${llvm_versions_to_install[@]}"; do
     esac
     if [ -n "${extra_packages}" ]; then
         # The upstream installer has just run `apt-get update`, so the lists are populated here.
-        apt-get install -qqy --no-install-recommends ${extra_packages} > /dev/null 2>&1 \
+        run "installing [${extra_packages}]" \
+            apt-get install -q -y --no-install-recommends -o Acquire::Retries=3 ${extra_packages} \
         || error "installing [${extra_packages}] failed"
     fi
 

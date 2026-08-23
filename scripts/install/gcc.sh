@@ -51,22 +51,45 @@ help(){
     exit 0
 }
 error_diagnosis(){
-    is_lsb_release_installed=$(command -v lsb_release >/dev/null 2>&1 && echo true || echo false)
-    if [ "${is_lsb_release_installed}" = true ]; then
+    local sources
+    sources=$(grep -rl 'ubuntu-toolchain-r' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | paste -sd' ' -)
+    {
         echo -e "[${this_script_name}]: diagnosis helper:"
-        echo -e "\t- while running on [$(lsb_release -d)]" >> /dev/stderr
-    fi
+        if command -v lsb_release >/dev/null 2>&1; then
+            echo -e "\t- distribution:         [$(lsb_release -ds 2>/dev/null)]"
+        fi
+        echo -e "\t- mode:                 [${arg_mode}]"
+        echo -e "\t- versions requested:   [${arg_versions}]"
+        echo -e "\t- toolchain PPA source: [${sources:-<none registered>}]"
+    } >> /dev/stderr
 }
 error(){
     echo -e "[${this_script_name}]: $@" >> /dev/stderr
     error_diagnosis
     exit 1
 }
+warning(){
+    echo -e "[${this_script_name}]: $@" >> /dev/stderr
+}
 log(){
     if [[ "${arg_silent}" == 1 ]]; then
         return 0;
     fi
     echo -e "[${this_script_name}]: $@"
+}
+# Launchpad is a third-party host: a transient refusal should not sink a whole image build.
+# Only the last attempt reports.
+retry(){
+    local attempts="$1" what="$2"; shift 2
+    local attempt=1
+
+    while [ "${attempt}" -lt "${attempts}" ]; do
+        "$@" > /dev/null 2>&1 && return 0
+        warning "${what} failed - retrying in $(( attempt * 5 ))s (attempt $(( attempt + 1 ))/${attempts})"
+        sleep $(( attempt * 5 ))
+        attempt=$(( attempt + 1 ))
+    done
+    "$@"
 }
 to_boolean(){
     if [[ $# != 1 ]]; then
@@ -254,7 +277,13 @@ ubuntu_toolchain_r_ppa="ubuntu-toolchain-r/test"
 is_ubuntu_toolchain_r_ppa_added=$(grep -r "${ubuntu_toolchain_r_ppa}" /etc/apt/sources.list.d/ >/dev/null 2>&1 && echo true || echo false)
 if [ "${is_ubuntu_toolchain_r_ppa_added}" = false ]; then
     log "adding ppa: [${ubuntu_toolchain_r_ppa}] ..."
-    add-apt-repository -y ppa:ubuntu-toolchain-r/test && apt update -qqy
+    # Unchecked, a failure here leaves the distro's own gcc as the only candidate,
+    # surfacing much later as a requested version that is simply "not available".
+    retry 3 "adding ppa [${ubuntu_toolchain_r_ppa}]" \
+        add-apt-repository -y "ppa:${ubuntu_toolchain_r_ppa}" \
+    || error "adding ppa [${ubuntu_toolchain_r_ppa}] failed"
+    retry 3 "refreshing the apt index" apt update -qqy -o Acquire::Retries=3 \
+    || error "refreshing the apt index failed"
 fi
 
 # --- runtime mode ---
@@ -265,8 +294,8 @@ fi
 #   so naming them here keeps that one fact in one place (scripts/checks/details/package-origins.sh).
 if [[ "${arg_mode}" == 'runtime' ]]; then
     log "installing the C++ runtime libraries ..."
-    apt install -qq -y --no-install-recommends  \
-            libstdc++6 libgcc-s1                \
+    apt install -qq -y --no-install-recommends -o Acquire::Retries=3 \
+            libstdc++6 libgcc-s1                                     \
         || error "installation of the runtime libraries failed"
     exit 0
 fi
@@ -320,20 +349,20 @@ mapfile -t gcc_versions_to_install < <(echo -n "$gcc_versions")
 for version in "${gcc_versions_to_install[@]}"; do
     log "installing ${version} ..."
 
-    apt install -qq -y --no-install-recommends                                  \
+    apt install -qq -y --no-install-recommends -o Acquire::Retries=3            \
             gcc-${version} g++-${version}                                       \
         || error "installation of [${version}] failed"
     if [[ ${arg_multilib} == 1 ]]; then
         # multilib availability is environmental:
         #   It lags for brand-new toolchain versions, and does not exist on non-amd64 hosts.
-        #   So a default (implicit) request is best-effort - skip with a log - while an explicit --multilib=yes is honored strictly and fails hard if unavailable.
-        if ! apt install -qq -y --no-install-recommends             \
-                gcc-${version}-multilib g++-${version}-multilib     \
+        #   So a default (implicit) request is best-effort - skip with a warning - while an explicit --multilib=yes is honored strictly and fails hard if unavailable.
+        if ! apt install -qq -y --no-install-recommends -o Acquire::Retries=3   \
+                gcc-${version}-multilib g++-${version}-multilib                 \
         ; then
             if [[ ${arg_multilib_explicit} == 1 ]]; then
                 error "multilib for [${version}] explicitly requested (--multilib) but not available"
             fi
-            log "multilib for [${version}] not available, skipping"
+            warning "multilib for [${version}] not available, skipping"
         fi
     fi
     # ISSUE: inconsistency: Not available for g++-13
