@@ -32,6 +32,9 @@ arg_cleanup=0
 internal_script_path='impl.sh'
 gpg_key_path='llvm-snapshot.gpg.key'
 
+# How many times a network-facing step is attempted
+max_attempts=3
+
 help(){
     echo "Usage: ${this_script_name}" 1>&2
     echo "
@@ -315,7 +318,7 @@ gpg_key_url="${apt_llvm_base_url}/llvm-snapshot.gpg.key"
 # REFACTO: remove gpg key -> already added by ${external_script_url}
 # Not piped into gpg: without pipefail, a failed download would surface as a malformed key.
 # wget --tries handles transient failures; a 404 is not retried.
-wget_options=(--no-verbose --tries=3 --retry-connrefused --timeout=30)
+wget_options=(--no-verbose --tries=${max_attempts} --retry-connrefused --timeout=30)
 
 run "fetching the signing key [${gpg_key_url}]" \
     wget "${wget_options[@]}" -O "${gpg_key_path}" "${gpg_key_url}" \
@@ -472,7 +475,7 @@ add_apt_llvm_repository(){
     unversioned=$(grep -oP '^LLVM_VERSION_PATTERNS\[\K[0-9]+(?=\]="")' "${internal_script_path}")
     [ "${version}" != "${unversioned}" ] || suffix=''
 
-    run_with_retries 3 "adding the apt.llvm.org repository for [${version}]" \
+    run_with_retries "${max_attempts}" "adding the apt.llvm.org repository for [${version}]" \
         add-apt-repository -y "deb ${apt_llvm_base_url}/${codename}/ llvm-toolchain-${codename}${suffix} main" \
     || error "adding the apt.llvm.org repository for [${version}] failed"
 }
@@ -487,16 +490,16 @@ for version in "${llvm_versions_to_install[@]}"; do
         runtime_packages="$(runtime_libraries_for)"
         log "installing the libc++ runtime for [${version}]: [${runtime_packages}]"
         add_apt_llvm_repository "${version}"
-        run_with_retries 3 "refreshing the apt index" \
-            apt-get update -q -y -o Acquire::Retries=3 \
+        run_with_retries "${max_attempts}" "refreshing the apt index" \
+            apt-get update -q -y -o Acquire::Retries=${max_attempts} \
         || error "refreshing the apt index failed"
         run "installing [${runtime_packages}]" \
-            apt-get install -q -y --no-install-recommends -o Acquire::Retries=3 ${runtime_packages} \
+            apt-get install -q -y --no-install-recommends -o Acquire::Retries=${max_attempts} ${runtime_packages} \
         || error "installing [${runtime_packages}] failed"
         continue
     fi
 
-    run_with_retries 3 "running [${external_script_url} ${version} ${upstream_package_set}]" \
+    run_with_retries "${max_attempts}" "running [${external_script_url} ${version} ${upstream_package_set}]" \
         ./${internal_script_path} ${version} ${upstream_package_set} -n ${codename} \
     || error "running [${external_script_url} ${version} ${upstream_package_set}] failed"
 
@@ -510,7 +513,7 @@ for version in "${llvm_versions_to_install[@]}"; do
     if [ -n "${extra_packages}" ]; then
         # The upstream installer has just run `apt-get update`, so the lists are populated here.
         run "installing [${extra_packages}]" \
-            apt-get install -q -y --no-install-recommends -o Acquire::Retries=3 ${extra_packages} \
+            apt-get install -q -y --no-install-recommends -o Acquire::Retries=${max_attempts} ${extra_packages} \
         || error "installing [${extra_packages}] failed"
     fi
 

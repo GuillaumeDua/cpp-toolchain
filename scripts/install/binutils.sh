@@ -47,6 +47,9 @@ arg_list_installed=0
 arg_list_targets=0
 arg_silent=1
 
+# How many times a network-facing step is attempted - through apt.
+max_attempts=3
+
 help(){
     echo "Usage: ${this_script_name}" 1>&2
     echo "
@@ -194,7 +197,7 @@ target_triplets(){
 }
 
 list_available_targets(){
-    run "refreshing the apt index" apt-get update -q -y -o Acquire::Retries=3 \
+    run "refreshing the apt index" apt-get update -q -y -o Acquire::Retries=${max_attempts} \
     || warning "refreshing the apt index failed - the target list below may be incomplete or empty"
     apt-cache search --names-only '^binutils-.*-linux-gnu' | awk '{print $1}' | target_triplets
 }
@@ -358,7 +361,7 @@ fi
 if [ "${arg_targets}" = 'all' ]; then
     arg_targets=$(list_available_targets | tr '\n' ' ')
 fi
-run "refreshing the apt index" apt-get update -q -y -o Acquire::Retries=3 \
+run "refreshing the apt index" apt-get update -q -y -o Acquire::Retries=${max_attempts} \
 || error "refreshing the apt index failed"
 
 for target in ${arg_targets}; do
@@ -366,7 +369,7 @@ for target in ${arg_targets}; do
     # Primary: the cross g++ transitively pulls the whole toolchain (binutils + libc + libgcc + libstdc++),
     #   so this single package makes C and C++ cross-compilation actually link,
     #   and Clang auto-detects the cross-GCC install, so `clang --target=${target}` works too.
-    if [[ ${arg_with_gcc} == 1 ]] && apt install -qq -y --no-install-recommends -o Acquire::Retries=3 "g++-${target}"; then
+    if [[ ${arg_with_gcc} == 1 ]] && apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "g++-${target}"; then
         log "[g++-${target}] installed - full cross toolchain (binutils + libc + libgcc + libstdc++)"
         continue
     fi
@@ -378,7 +381,7 @@ for target in ${arg_targets}; do
     #   Enough to compile to objects and inspect/strip; NOT to link a full executable (no target libgcc / libstdc++).
     pkg_binutils="binutils-${target}"
     log "installing [${pkg_binutils}] ..."
-    apt install -qq -y --no-install-recommends -o Acquire::Retries=3 "${pkg_binutils}" \
+    apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_binutils}" \
         || warning "[${pkg_binutils}] not available for this host/arch, skipping"
 
     debarch=$(triplet_to_deb_arch "${target}")
@@ -388,7 +391,7 @@ for target in ${arg_targets}; do
     fi
     pkg_libc="libc6-dev-${debarch}-cross"
     log "installing [${pkg_libc}] ..."
-    apt install -qq -y --no-install-recommends -o Acquire::Retries=3 "${pkg_libc}" \
+    apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_libc}" \
         || warning "[${pkg_libc}] not available for this host/arch, skipping"
 
 done

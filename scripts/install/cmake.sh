@@ -17,6 +17,9 @@ arg_rc=0
 
 internal_script_path='impl.sh'
 
+# How many times a network-facing step is attempted
+max_attempts=3
+
 help(){
     echo "Usage: ${this_script_name}" 1>&2
     echo "
@@ -186,19 +189,19 @@ external_script_url='https://apt.kitware.com/kitware-archive.sh'
 codename=$(value=$(lsb_release -cs); [[ "${value}" == "noble" ]] && value="jammy"; echo "${value}")
 
 # wget --tries handles transient failures; a 404 is not retried.
-wget --no-verbose --tries=3 --retry-connrefused --timeout=30 -O "${internal_script_path}" "${external_script_url}" \
+wget --no-verbose --tries=${max_attempts} --retry-connrefused --timeout=30 -O "${internal_script_path}" "${external_script_url}" \
 || error "fetching [${external_script_url}] failed"
 
 [ -f "${internal_script_path}" ] || error "fetching [${external_script_url}] produced no file"
 chmod +x "${internal_script_path}"
 
 rc_option=$([[ "${arg_rc}" == 1 ]] && echo '--rc' || echo '')
-retry 3 "running [${external_script_url} --release ${codename} ${rc_option}]" \
+retry "${max_attempts}" "running [${external_script_url} --release ${codename} ${rc_option}]" \
     ./${internal_script_path} --release ${codename} ${rc_option} \
 || error "running [${external_script_url} --release ${codename} ${rc_option}] failed"
 clean
 
-retry 3 "refreshing the apt index" apt update -qqy -o Acquire::Retries=3 \
+retry "${max_attempts}" "refreshing the apt index" apt update -qqy -o Acquire::Retries=${max_attempts} \
 || error "refreshing the apt index failed"
 
 # --- list versions ---
@@ -241,7 +244,7 @@ log "CMake version to be installed: [${cmake_version}]"
 
 # --- installation ---
 
-apt install -qqy --no-install-recommends -o Acquire::Retries=3 "cmake=${cmake_version}" \
+apt install -qqy --no-install-recommends -o Acquire::Retries=${max_attempts} "cmake=${cmake_version}" \
     || error "installation of cmake [${cmake_version}] failed"
 
 # --- summary ---
