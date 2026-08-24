@@ -31,9 +31,14 @@ arg_cleanup=0
 
 internal_script_path='impl.sh'
 gpg_key_path='llvm-snapshot.gpg.key'
+gpg_key_installed_path='/etc/apt/trusted.gpg.d/llvm-snapshot.gpg'
 
 # How many times a network-facing step is attempted
 max_attempts=3
+
+# Grows linearly with the attempt number, so the last attempt of `max_attempts` lands past the
+# minute apt.llvm.org can throttle a host for. Sized against that window, not against a CDN hiccup.
+retry_backoff_seconds=30
 
 help(){
     echo "Usage: ${this_script_name}" 1>&2
@@ -69,8 +74,10 @@ clean(){
     rm -f "${internal_script_path}" "${gpg_key_path}"
 }
 error_diagnosis(){
-    local sources
+    local sources addresses
     sources=$(grep -rl 'apt\.llvm\.org' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | paste -sd' ' -)
+    # A connection failure does not name the address family it tried, and the two fail differently.
+    addresses=$(timeout 5 getent ahosts apt.llvm.org 2>/dev/null | awk '{print $1}' | sort -u | paste -sd' ' -)
     {
         echo -e "[${this_script_name}]: diagnosis helper:"
         if command -v lsb_release >/dev/null 2>&1; then
@@ -80,6 +87,7 @@ error_diagnosis(){
         echo -e "\t- mode:                [${arg_mode}]"
         echo -e "\t- versions requested:  [${arg_versions}]"
         echo -e "\t- apt.llvm.org source: [${sources:-<none registered>}]"
+        echo -e "\t- apt.llvm.org hosts:  [${addresses:-<unresolved>}]"
     } >> /dev/stderr
 }
 error(){
@@ -129,7 +137,7 @@ run(){
     rm -f "${output}"
     return "${status}"
 }
-# apt.llvm.org sits behind a CDN that intermittently refuses requests.
+# apt.llvm.org throttles a host that requests too much too fast, for up to a minute at a time.
 # Every step retried here is idempotent, and only the last attempt reports.
 run_with_retries(){
     local attempts="$1" what="$2"; shift 2
@@ -137,8 +145,8 @@ run_with_retries(){
 
     while [ "${attempt}" -lt "${attempts}" ]; do
         "$@" > /dev/null 2>&1 && return 0
-        warning "${what} failed - retrying in $(( attempt * 5 ))s (attempt $(( attempt + 1 ))/${attempts})"
-        sleep $(( attempt * 5 ))
+        warning "${what} failed - retrying in $(( attempt * retry_backoff_seconds ))s (attempt $(( attempt + 1 ))/${attempts})"
+        sleep $(( attempt * retry_backoff_seconds ))
         attempt=$(( attempt + 1 ))
     done
     run "${what}" "$@"
@@ -311,24 +319,33 @@ if [ -f "${internal_script_path}" ]; then
     exit 1
 fi
 
+codename=$(lsb_release -cs)
+
 apt_llvm_base_url='https://apt.llvm.org'
 external_script_url="${apt_llvm_base_url}/llvm.sh"
 gpg_key_url="${apt_llvm_base_url}/llvm-snapshot.gpg.key"
 
 # REFACTO: remove gpg key -> already added by ${external_script_url}
 # Not piped into gpg: without pipefail, a failed download would surface as a malformed key.
-# wget --tries handles transient failures; a 404 is not retried.
+# wget's own --tries burns its three attempts in about three seconds, well inside a throttling
+# window, so these fetches take the same backoff as every other network step below.
 wget_options=(--no-verbose --tries=${max_attempts} --retry-connrefused --timeout=30)
 
-run "fetching the signing key [${gpg_key_url}]" \
-    wget "${wget_options[@]}" -O "${gpg_key_path}" "${gpg_key_url}" \
-|| error "fetching the signing key [${gpg_key_url}] failed"
+# An image layered on another one re-runs this script with the key its base already installed,
+# and every needless request counts against the throttling window that the retries above wait out.
+if [ -f "${gpg_key_installed_path}" ]; then
+    log "signing key already installed at [${gpg_key_installed_path}]"
+else
+    run_with_retries "${max_attempts}" "fetching the signing key [${gpg_key_url}]" \
+        wget "${wget_options[@]}" -O "${gpg_key_path}" "${gpg_key_url}" \
+    || error "fetching the signing key [${gpg_key_url}] failed"
 
-run "installing the signing key" \
-    gpg --dearmor --batch --yes -o /etc/apt/trusted.gpg.d/llvm-snapshot.gpg "${gpg_key_path}" \
-|| error "installing the signing key fetched from [${gpg_key_url}] failed"
+    run "installing the signing key" \
+        gpg --dearmor --batch --yes -o "${gpg_key_installed_path}" "${gpg_key_path}" \
+    || error "installing the signing key fetched from [${gpg_key_url}] failed"
+fi
 
-run "fetching [${external_script_url}]" \
+run_with_retries "${max_attempts}" "fetching [${external_script_url}]" \
     wget "${wget_options[@]}" -O "${internal_script_path}" "${external_script_url}" \
 || error "fetching [${external_script_url}] failed"
 
@@ -392,8 +409,6 @@ if [[ "${arg_mode}" != 'runtime' ]]; then
 fi
 
 # --- installations ---
-
-codename=$(lsb_release -cs)
 
 if [[ ${arg_cleanup} == 1 ]]; then
     # Best-effort: matching nothing is the normal case.
