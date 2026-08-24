@@ -188,8 +188,7 @@ external_script_url='https://apt.kitware.com/kitware-archive.sh'
 # quick-fix: Ubuntu-24.04-noble not supported yet by kitware-archive.sh -> Ubuntu-22.04-jammy
 codename=$(value=$(lsb_release -cs); [[ "${value}" == "noble" ]] && value="jammy"; echo "${value}")
 
-# wget's own --tries burns its three attempts in about three seconds; the backoff between
-# `retry` attempts is what actually outlasts a transient refusal from a third-party host.
+# wget's own --tries exhausts all three attempts within about three seconds, too short to outlast a refusal from a third-party host.
 retry "${max_attempts}" "fetching [${external_script_url}]" \
     wget --no-verbose --tries=${max_attempts} --retry-connrefused --timeout=30 -O "${internal_script_path}" "${external_script_url}" \
 || error "fetching [${external_script_url}] failed"

@@ -36,8 +36,7 @@ gpg_key_installed_path='/etc/apt/trusted.gpg.d/llvm-snapshot.gpg'
 # How many times a network-facing step is attempted
 max_attempts=3
 
-# Grows linearly with the attempt number, so the last attempt of `max_attempts` lands past the
-# minute apt.llvm.org can throttle a host for. Sized against that window, not against a CDN hiccup.
+# The last of max_attempts has to land after the throttling window.
 retry_backoff_seconds=30
 
 help(){
@@ -76,7 +75,7 @@ clean(){
 error_diagnosis(){
     local sources addresses
     sources=$(grep -rl 'apt\.llvm\.org' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | paste -sd' ' -)
-    # A connection failure does not name the address family it tried, and the two fail differently.
+    # A connection failure does not name the address it tried.
     addresses=$(timeout 5 getent ahosts apt.llvm.org 2>/dev/null | awk '{print $1}' | sort -u | paste -sd' ' -)
     {
         echo -e "[${this_script_name}]: diagnosis helper:"
@@ -327,12 +326,10 @@ gpg_key_url="${apt_llvm_base_url}/llvm-snapshot.gpg.key"
 
 # REFACTO: remove gpg key -> already added by ${external_script_url}
 # Not piped into gpg: without pipefail, a failed download would surface as a malformed key.
-# wget's own --tries burns its three attempts in about three seconds, well inside a throttling
-# window, so these fetches take the same backoff as every other network step below.
+# wget's own --tries exhausts all three attempts within about three seconds, well inside a throttling window.
 wget_options=(--no-verbose --tries=${max_attempts} --retry-connrefused --timeout=30)
 
-# An image layered on another one re-runs this script with the key its base already installed,
-# and every needless request counts against the throttling window that the retries above wait out.
+# An image layered on another one inherits the key its base installed.
 if [ -f "${gpg_key_installed_path}" ]; then
     log "signing key already installed at [${gpg_key_installed_path}]"
 else
