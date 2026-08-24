@@ -63,11 +63,11 @@ Installs one or more GCC versions from the `ubuntu-toolchain-r/test` PPA (added 
 | `-m`, `--minimalistic`   | boolean | `0`             | Alias for `--mode=minimalistic`, kept for compatibility                                                  |
 | `-h`, `--help`           | -       | -               | Display usage                                                                                            |
 
-| `--mode`       | Installs                                                     |
-| -------------- | ------------------------------------------------------------ |
-| `runtime`      | `libstdc++6` `libgcc-s1` - the shared libraries, no compiler |
+| `--mode`       | Installs                                                                |
+| -------------- | ----------------------------------------------------------------------- |
+| `runtime`      | `libstdc++6` `libgcc-s1` - the shared libraries, no compiler            |
 | `minimalistic` | `gcc-<N>` `g++-<N>`; disables `--multilib` unless it was set explicitly |
-| `full`         | the above plus `gcc-<N>-multilib` / `g++-<N>-multilib`       |
+| `full`         | the above plus `gcc-<N>-multilib` / `g++-<N>-multilib`                  |
 
 `runtime` takes no `--versions`: `libstdc++6` and `libgcc-s1` carry no major in their name, one
 install serves every compiler, and there is nothing for a version selector to choose between. It
@@ -77,7 +77,8 @@ expectation is written down once rather than in both places.
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
-**Multilib is best-effort by default**: the packages lag for brand-new GCC versions and do not exist on non-amd64 hosts, so an unavailable one is skipped with a warning. An *explicit* `--multilib=yes` is honored strictly and fails hard instead - the default resolution is resilient, an explicit request is not silently ignored.
+**Multilib is best-effort by default**: the packages lag for brand-new GCC versions and do not exist on non-`amd64` hosts, so an unavailable one is skipped with a warning.  
+An *explicit* `--multilib=yes` is honored strictly and fails hard instead - the default resolution is resilient, an explicit request is not silently ignored.
 
 **Example**: install the two latest available versions:
 
@@ -131,8 +132,8 @@ but nothing is registered under an unversioned name: there is no binary to alter
 
 It needs **LLVM 20 or later**, and says so rather than guessing: apt.llvm.org carried the major in
 these package names until then, and spelled it inconsistently - `libc++1-18` and `libc++1-19`, but
-`libc++1-17t64` across the `time_t` transition. `libunwind` is deliberately absent, since
-apt.llvm.org builds `libc++abi` against `libgcc_s`, which every Debian-derived image already has.
+`libc++1-17t64` across the `time_t` transition.  
+`libunwind` is deliberately absent, since `apt.llvm.org` builds `libc++abi` against `libgcc_s`, which every Debian-derived image already has.
 
 The *compiler runtimes* are the libc++ stack (`libc++-<N>-dev`, `libc++abi-<N>-dev`, `libunwind-<N>-dev`), OpenMP (`libomp-<N>-dev`) and, from LLVM 15, the sanitizer and Polly runtimes (`libclang-rt-<N>-dev`, `libpolly-<N>-dev`). Every mode that installs a compiler installs them: they are compiler capabilities - `-stdlib=libc++`, `-fopenmp`, `-fsanitize=...` - rather than tools, so a `minimalistic` install still compiles everything a `full` one does.
 
@@ -142,7 +143,8 @@ Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
 The modes are meant to be **layered**: a first `--mode=minimalistic` run installs and registers only the compilers, and a later `--mode=full` run over the same environment adds `clang-tidy`/`clang-format`/`clangd`/`lldb`/`scan-build` without touching them. Useful when a compile-only environment and a full analysis one are built from a common base - which is exactly how the [Dockerfile](../../Dockerfile)'s `build` and `static-analysis` stages relate.
 
-`runtime` layers the same way, from underneath: it puts `libc++1` in place, and a later `--mode=minimalistic` run over it adds the compiler and headers that match. That is how `build` sits on `runtime` - one library, installed once, at the bottom of the stack where the image that only has to *run* things can stop.
+`runtime` layers the same way, from underneath: it puts `libc++1` in place, and a later `--mode=minimalistic` run over it adds the compiler and headers that match.  
+That is how `build` sits on `runtime` - one library, installed once, at the bottom of the stack where the image that only has to *run* things can stop.
 
 Example: install the two latest available versions:
 
