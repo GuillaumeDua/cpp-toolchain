@@ -38,7 +38,7 @@ ARG BASE_IMAGE=ubuntu:24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06b
 #   The only pin Renovate cannot own - a datasource must enumerate available versions,
 #   and the service accepts any timestamp without publishing an index.
 #   Bumped by .github/workflows/ubuntu-snapshot.yml.
-ARG UBUNTU_SNAPSHOT=20260720T000000Z
+ARG UBUNTU_SNAPSHOT=20260825T000000Z
 
 # GCC, from ppa:ubuntu-toolchain-r/test.
 #   Only major versions exist as packages (g++-15).
