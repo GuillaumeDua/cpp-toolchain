@@ -66,16 +66,15 @@ check_origin(){
     fail "[${package}] expected from [${expected}], apt reports:${origin}"
 }
 
-# Only the majors the build argument names are part of the promise.
-# The distribution's own GCC arrives as a build-essential dependency, from the Ubuntu archive,
-# and is a legitimate inhabitant of the image rather than a regression.
+# Only the majors the build argument names are part of the promise: the distribution's own GCC
+# arrives as a build-essential dependency and is a legitimate inhabitant of the image.
 #
-# A selector such as '>=15' or 'latest-stable' resolves against apt at build time,
-# so which majors it produced cannot be recomputed here.
-# Those builds fall back to requiring that at least one installed compiler comes from the right place.
-# `patterns` are package names in which %s stands for a major, so a toolchain can name more than
-# its compiler - the libc++ runtimes belong to the clang major that llvm.sh was asked to install,
-# and to no other.
+# A selector such as '>=15' or 'latest-stable' resolves against apt at build time, so which majors it
+# produced cannot be recomputed here - those builds fall back to requiring that at least one installed
+# compiler comes from the right place.
+#
+# `patterns` are package names in which %s stands for a major, so a toolchain can name more than its
+# compiler - the libc++ runtimes belong to the clang major llvm.sh was asked to install, and to no other.
 check_toolchain_origin(){
     local label="$1"
     local requested="$2"
@@ -117,19 +116,11 @@ check_toolchain_origin(){
     fail "[${label}] selector [${requested}] resolved to [${installed}], none of them from ${expected}"
 }
 
-# The libc++ packages are discovered rather than named, unlike every other check here.
-#
-# apt.llvm.org spells them three ways:
-#   - libc++1-17t64, across the time_t transition
-#   - libc++1-18 and libc++1-19
-#   - plain libc++1 from LLVM 20, where the major leaves the name altogether
-# A check that wrote one of those down would keep passing on the two it cannot see,
-# and `LLVM_VERSIONS` is not always a bare major it could derive the spelling from.
-#
-# What is invariant is the library, not its package:
-#   cxx-stdlibs.sh finds the installed libc++ by reading the shared objects,
-#   and dpkg answers which package put each one there.
-#   Origin is then asserted on that answer, so this stays correct through a rename it has never seen.
+# The libc++ packages are discovered rather than named, unlike every other check here:
+#   apt.llvm.org has spelled that runtime three ways, and `LLVM_VERSIONS` is not always a bare major
+#   a spelling could be derived from, so a check naming one would keep passing on the others.
+#   cxx-stdlibs.sh finds the installed libc++ by reading the shared objects, and dpkg answers which
+#   package put each one there.
 #
 # libc++abi has no row of its own - it is reported as the cxxabi of the libc++ that needs it -
 # so its package is resolved from that SONAME.

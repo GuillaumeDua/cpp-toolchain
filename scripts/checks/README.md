@@ -34,8 +34,7 @@ c++03 -> __cplusplus=199711
 c++26 -> __cplusplus=202400
 ```
 
-`--stable` drops draft spellings such as `c++2c`, `--greatest` keeps only the highest standard,
-and `--format` narrows each line to one field - `std` for `c++26`, `cplusplus` for `202400`.
+`--stable` drops draft spellings such as `c++2c`, `--greatest` keeps only the highest standard, and `--format` narrows each line to one field - `std` for `c++26`, `cplusplus` for `202400`.
 `--format=std` is spelled the way the compiler spells it, so it feeds straight back in:
 
 ```bash
@@ -62,17 +61,12 @@ libstdc++ 16 -> soname=libstdc++.so.6 abi=GLIBCXX_3.4.35 cxxabi=CXXABI_1.3.17 pa
 ```
 
 One row is one installed runtime, not one implementation.  
-`libstdc++` appears three times because [`gcc.sh`](../install/gcc.sh) installs multilib by default,
-which adds a 32-bit and an x32 build beside the 64-bit one:
-same release and same ABI, a different secondary ABI, and `package` is the field that tells them apart.  
+`libstdc++` appears three times because [`gcc.sh`](../install/gcc.sh) installs multilib by default, which adds a 32-bit and an x32 build beside the 64-bit one: same release and same ABI, a different secondary ABI, and `package` is the field that tells them apart.  
 These images carry them, so expect these rows.
 
-Two `libc++` rows are not a conflict either, and `soname` is why:
-apt.llvm.org gives its versioned runtimes a `SONAME` of their own,
-`libc++.so.1.0.20` against `libc++.so.1`, which is exactly what lets both sit on one host.  
+Two `libc++` rows are not a conflict either, and `soname` is why: apt.llvm.org gives its versioned runtimes a `SONAME` of their own, `libc++.so.1.0.20` against `libc++.so.1`, which is what lets both sit on one host.  
 A binary records one of those names and the loader looks up only that one, so the other is inert rather than competing.
-That is what makes `SONAME` the field to compare when the question is whether a binary will load -
-see [`cxx-stdlib-parity.sh`](details/), which does precisely that across two images.
+[`cxx-stdlib-parity.sh`](details/) compares that field across two images - [docs/IMAGES_VALIDATION.md](../../docs/IMAGES_VALIDATION.md) covers what it buys there.
 
 > [!IMPORTANT]
 > Every field above comes out of the binaries themselves, not out of a `-dev` package.  
@@ -111,34 +105,24 @@ see [`cxx-stdlib-parity.sh`](details/), which does precisely that across two ima
 > That one *does* need a rebuild, or a matching `-D_GLIBCXX_USE_CXX11_ABI`.  
 > The compiler view is where it shows up, as `abi=cxx11` or `abi=cxx03`.
 
-The two implementations answer in different currencies,
-because only one of them has GNU symbol versions:
+The two implementations answer in different currencies, because only one of them has GNU symbol versions:
 
 | Implementation | `abi` | `cxxabi` |
 | -------------- | ----- | -------- |
 | `libstdc++` | greatest `GLIBCXX_` in the ELF<br>ex: `GLIBCXX_3.4.35` | greatest `CXXABI_` in that same ELF<br>ex: `CXXABI_1.3.17` - its C++ ABI lives inside `libstdc++.so` |
 | `libc++` | the `std::__N` inline namespace in the ELF<br>ex: `LIBCPP_ABI_1` | the `SONAME` of the C++ ABI library it keeps apart<br>ex: `libc++abi.so.1` |
 
-*Unversioned* is not the same as *unstated*.
-libc++ has no GNU symbol versions, but it puts its ABI in an inline namespace, `std::__1`,
-that every mangled name in the library repeats - so the binary does say which ABI it is.
-Mangling is length-prefixed, which is what makes it readable:
-`St3__1` is the substitution for `std::` followed by a *three-character* identifier,
-so the digits after it belong to the next component's length and not to the namespace.
+*Unversioned* is not the same as *unstated*. libc++ has no GNU symbol versions, but it puts its ABI in an inline namespace, `std::__1`, that every mangled name in the library repeats - so the binary does say which ABI it is.
+Mangling is length-prefixed, which is what makes it readable: `St3__1` is the substitution for `std::` followed by a *three-character* identifier, so the digits after it belong to the next component's length and not to the namespace.
 
-`_LIBCPP_ABI_VERSION` in the headers says the same thing and is kept as the fallback,
-for a build whose namespace was renamed - the Android NDK's `__ndk1`, say -
-or an ABI numbered past a single digit.
+`_LIBCPP_ABI_VERSION` in the headers says the same thing and is kept as the fallback, for a build whose namespace was renamed - the Android NDK's `__ndk1`, say - or an ABI numbered past a single digit.
 
 #### The two views
 
 Everything above is the **library** view: what is installed.
-The **compiler** view answers a different question -
-what each compiler actually compiles against,
-which is not always the newest one installed, because a compiler picks headers
-off its own search path. `--compilers` selects it, and says which compilers to ask.
-It takes the same shape as `--versions` and `--targets` do in [`install/`](../install/):
-`all`, or a space-separated list.
+The **compiler** view answers a different question - what each compiler actually compiles against, which is not always the newest one installed, because a compiler picks headers off its own search path.
+`--compilers` selects it, and says which compilers to ask.
+It takes the same shape as `--versions` and `--targets` do in [`install/`](../install/): `all`, or a space-separated list.
 
 ```bash
 > bash scripts/checks/cxx-stdlibs.sh --compilers='clang++-18'
@@ -147,9 +131,7 @@ clang++-18 -> libc++ 22.1.8 abi=LIBCPP_ABI_1 headers=/usr/lib/llvm-22/include/c+
 clang++-18 -> libstdc++ 16 abi=cxx11 headers=/usr/include/c++/16
 ```
 
-`Clang 18` compiling against `libc++ 22` is not a misreading:
-`/usr/include/c++/v1` is a symlink into the newest LLVM's tree,
-so every clang installed shares one libc++.
+`Clang 18` compiling against `libc++ 22` is not a misreading: `/usr/include/c++/v1` is a symlink into the newest LLVM's tree, so every clang installed shares one libc++.
 
 > [!IMPORTANT]
 > One view answers at a time. `--compilers` **selects** the compiler view rather than
@@ -172,17 +154,14 @@ clang++-18 -> libstdc++ 16 abi=cxx11 headers=/usr/include/c++/16
 ```
 
 `libc++ 20.1.7` is installed and no compiler here reaches it.
-That is the whole reason the two views exist separately.
+A gap only two separate views can show.
 
 Bare `--compilers` is `--compilers=all`, every `g++`/`clang++` on `PATH`.
-Naming the ones you care about instead is worth it -
-asking every compiler a host has costs about a minute.
+Naming the ones you care about instead is worth it - asking every compiler a host has costs about a minute.
 `--view=compiler` is the same thing spelled out, for when no filter is wanted.
 
-`--format=fields` is the parseable form, one `key=value` set per line,
-tagged with the view it came from, so `--view=all` can be read off one stream.
-The library view needs neither a compiler nor binutils,
-so it still answers inside a runtime-only image:
+`--format=fields` is the parseable form, one `key=value` set per line, tagged with the view it came from, so `--view=all` can be read off one stream.
+The library view needs neither a compiler nor binutils, so it still answers inside a runtime-only image:
 
 ```bash
 > bash scripts/checks/cxx-stdlibs.sh --format=fields
@@ -190,8 +169,7 @@ so it still answers inside a runtime-only image:
 view=library impl=libstdc++ version=16 soname=libstdc++.so.6 path=/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.35 abi=GLIBCXX_3.4.35 cxxabi=CXXABI_1.3.17 package=libstdc++6
 ```
 
-A field this host cannot answer reads `-` rather than being dropped,
-so every line of a view keeps its shape.
+A field this host cannot answer reads `-` rather than being dropped, so every line of a view keeps its shape.
 
 The whole surface, of which the examples above use a part:
 
@@ -202,9 +180,7 @@ The whole surface, of which the examples above use a part:
 | `--compilers` | `all`, or a space-separated list of compilers           | `all` if bare                          |
 | `--format`    | `default`, `name`, `version`, `soname`, `abi`, `fields` | `default`                              |
 
-The four narrowing formats print one field per line, deduplicated:
-`name` gives `libstdc++`, `version` gives `16`, `soname` gives `libstdc++.so.6`,
-`abi` gives `GLIBCXX_3.4.35`.
+The four narrowing formats print one field per line, deduplicated: `name` gives `libstdc++`, `version` gives `16`, `soname` gives `libstdc++.so.6`, `abi` gives `GLIBCXX_3.4.35`.
 They are what makes the script scriptable - the sample above collapses to a single answer:
 
 ```bash
@@ -213,10 +189,7 @@ They are what makes the script scriptable - the sample above collapses to a sing
 libstdc++.so.6
 ```
 
-They print nothing that says which view a line came from, so they answer for one view
-and `--view=all` is **refused** rather than answered - an installed runtime's
-`GLIBCXX_3.4.35` and a compiler's `cxx11` are two different facts,
-and one flat list holding both cannot say which is which.
+They print nothing that says which view a line came from, so they answer for one view and `--view=all` is **refused** rather than answered - an installed runtime's `GLIBCXX_3.4.35` and a compiler's `cxx11` are two different facts, and one flat list holding both cannot say which is which.
 Narrow to a view, and `--stdlib` narrows the rest of the way:
 
 ```bash
@@ -225,8 +198,7 @@ Narrow to a view, and `--stdlib` narrows the rest of the way:
 22.1.8
 ```
 
-`--format=soname` is refused against the compiler view for the same reason:
-a compiler names the headers it reaches, and headers have no `SONAME`.
+`--format=soname` is refused against the compiler view for the same reason: a compiler names the headers it reaches, and headers have no `SONAME`.
 
 `--help` is the full reference.
 
@@ -238,16 +210,10 @@ a compiler names the headers it reaches, and headers have no `SONAME`.
 | `cxx-runtime.sh <compile\|inspect\|run> <directory>` | Compiles the payload for every standard, proves it links against the expected C++ runtime dynamically, then runs it |
 | `cxx-stdlib-parity.sh <record\|verify> <file>`       | The image that runs the binaries carries the same standard libraries the image that built them used      |
 
-Both `package-origins.sh` and `cxx-stdlib-parity.sh` build on `cxx-stdlibs.sh` above:
-one to discover which package owns the installed libc++ - a name apt.llvm.org has changed
-twice - and the other to compare `SONAME`, version and ABI either side of a `COPY --from`.
+Both `package-origins.sh` and `cxx-stdlib-parity.sh` build on `cxx-stdlibs.sh` above: one to discover which package owns the installed libc++ - a name apt.llvm.org has changed twice - and the other to compare `SONAME`, version and ABI either side of a `COPY --from`.
 
-Implementation details of this gate, in the C++ sense of a nested `detail` namespace:
-they know this repo's expected package origins,
-and they ask [`scripts/install/`](../install/) which compilers are installed rather than guessing.
-That reach is why the validate stages copy `scripts/` whole -
-a layout that separates the two fails loudly rather than silently finding no compilers.
+Implementation details of this gate, in the C++ sense of a nested `detail` namespace: they know this repo's expected package origins, and they ask [`scripts/install/`](../install/) which compilers are installed rather than guessing.
+That reach is why the validate stages copy `scripts/` whole - a layout that separates the two fails loudly rather than silently finding no compilers.
 
 Both report **every** failure before exiting, so one run tells you everything that is wrong.
-Both also run against a plain checkout, which is the quickest way to iterate on them;
-they discover whatever the host has, so expect a wider matrix than an image produces.
+Both also run against a plain checkout, which is the quickest way to iterate on them; they discover whatever the host has, so expect a wider matrix than an image produces.

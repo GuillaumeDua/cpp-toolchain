@@ -281,7 +281,7 @@ is_ubuntu_toolchain_r_ppa_added=$(grep -r "${ubuntu_toolchain_r_ppa}" /etc/apt/s
 if [ "${is_ubuntu_toolchain_r_ppa_added}" = false ]; then
     log "adding ppa: [${ubuntu_toolchain_r_ppa}] ..."
     # Unchecked, a failure here leaves the distro's own gcc as the only candidate,
-    # surfacing much later as a requested version that is simply "not available".
+    # surfacing much later as a requested version that is "not available".
     retry "${max_attempts}" "adding ppa [${ubuntu_toolchain_r_ppa}]" \
         add-apt-repository -y "ppa:${ubuntu_toolchain_r_ppa}" \
     || error "adding ppa [${ubuntu_toolchain_r_ppa}] failed"
@@ -368,9 +368,8 @@ for version in "${gcc_versions_to_install[@]}"; do
             warning "multilib for [${version}] not available, skipping"
         fi
     fi
-    # ISSUE: inconsistency: Not available for g++-13
-    #   g++-{}-aarch64-linux-gnu g++-{}-arm-linux-gnueabihf         \
-    #   g++-{}-powerpc64-linux-gnu g++-{}-powerpc64le-linux-gnu  g++-{}-powerpc-linux-gnu      \
+    # NOTE: no cross-target alternative is registered here.
+    #   The per-target `g++-<triplet>` toolchains are binutils.sh's, and they are not published uniformly across majors.
     update-alternatives --quiet                                                        \
             --install /usr/bin/gcc       gcc       /usr/bin/gcc-${version} ${version}  \
             --slave   /usr/bin/g++       g++       /usr/bin/g++-${version}             \
@@ -398,28 +397,3 @@ if [[ "${arg_alias}" == 1 ]]; then
 fi
 
 exit 0;
-
-# add-apt-repository ppa:ubuntu-toolchain-r/test
-
-# Legacy inline integration
-#
-# simpler alternative for 'all': apt install gcc-* g++-* ¯\_(ツ)_/¯
-#
-# ARG gcc_versions
-# RUN gcc_versions=${gcc_versions:=$(apt list --all-versions 2>/dev/null  | grep -oP '^gcc-\K([0-9]{2})' | sort -n | uniq)}; \
-#     \
-#     echo "[toolchain] Embedding gcc versions = [${gcc_versions}]";  \
-#     echo gcc_versions=\'${gcc_versions}\' >> /etc/bash.bashrc;      \
-#     # \'' fix coloration in vscode with docker extension ¯\_(ツ)_/¯
-#     echo gcc_versions=\'${gcc_versions}\' >> /etc/zsh/zshrc;        \
-#     # \'' fix coloration in vscode with docker extension ¯\_(ツ)_/¯
-#     \
-#     echo $gcc_versions | tr " " "\n" | xargs -I {} sh -c '          \
-#         apt install -y --no-install-recommends                      \
-#             gcc-{} g++-{}                                           \
-#             gcc-{}-multilib g++-{}-multilib                         \
-#         && update-alternatives                                      \
-#             --install /usr/bin/gcc  gcc  /usr/bin/gcc-{} {}         \
-#             --slave   /usr/bin/g++  g++  /usr/bin/g++-{}            \
-#             --slave   /usr/bin/gcov gcov /usr/bin/gcov-{}           \
-#     '

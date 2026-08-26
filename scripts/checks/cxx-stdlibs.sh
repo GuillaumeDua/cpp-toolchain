@@ -177,7 +177,7 @@ defined_value(){
 # _LIBCPP_VERSION packs the release as MMmmpp, so 220108 is 22.1.8. libc++ 15 and earlier packed
 # it in fewer digits, and running those through this arithmetic would turn 15000 into '1.50.0' -
 # a wrong answer that reads like a right one. Only the six-digit form is decoded; anything else
-# is handed back as the macro itself, which is at least recognisably raw.
+# is handed back as the macro itself, which is at least recognizably raw.
 dotted_libcpp_version(){
     case "$1" in
         [0-9][0-9][0-9][0-9][0-9][0-9] ) ;;

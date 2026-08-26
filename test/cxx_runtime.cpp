@@ -1,12 +1,11 @@
-// Compiled once per detected standard (-std=c++NN).
-// Scope: NOT to test that the standard's features work — the compiler already guarantees that.
-// Only to produce a binary that:
-//   (a) dynamically links the C++ runtime (a NEEDED libstdc++/libc++),
-//   (b) runs on the `runtime` image, resolving those symbols.
-// This is what --auto-remove / --allow-downgrades can break.
+// The image validation gate's payload, compiled once per detected standard (-std=c++NN).
+// What it is for, and why it is this small, is in docs/IMAGES_VALIDATION.md.
 //
-// Deliberately C++98-clean, so the same payload compiles under every standard the compiler exposes.
-// (No emplace_back, no range-based for, no %zu).
+// Two constraints an edit must not break:
+//   - C++98-clean, so one payload compiles under every standard the compiler exposes.
+//     No emplace_back, no range-based for, no %zu.
+//   - every library call stays out of line, so the runtime .so remains a genuine NEEDED
+//     dependency rather than being inlined away.
 
 #include <string>
 #include <vector>
@@ -23,8 +22,7 @@
 #  error "Unknown C++ standard library"
 #endif
 
-// Out-of-line library calls so the runtime .so is a genuine NEEDED dependency, not inlined away.
-// std::string/std::vector suffice: they pull versioned symbols and are stable across every standard, past and future.
+// std::string and std::vector suffice: they pull versioned symbols and are stable across every standard.
 int main() {
     std::vector<std::string> v;
     v.push_back(std::string("toolchain"));

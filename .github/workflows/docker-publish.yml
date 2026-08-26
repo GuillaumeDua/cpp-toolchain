@@ -11,14 +11,13 @@ name: docker-publish
 #
 # Tags are `<stage>-<version>`, with a `cross-` infix for the cross-arch variant,
 # and `dev` also owns the unprefixed aliases (v1.2, latest, cross-v1.2, cross-latest) as the default target.
-# See README.md#tags--versioning has the full scheme.
+# README.md#tags--versioning has the full scheme.
 #
 # Two rules the steps below rely on and cannot state for themselves:
 #   - releases/ is excluded from the skip-when-unchanged comparison.
 #     Every promotion merges a record onto main, so without the exclusion each release would spawn a pointless rc at the next cron,
 #     from a tree that builds to an identical image.
-#   - events triggered by GITHUB_TOKEN start no workflow runs.
-#     That is load-bearing twice over:
+#   - events triggered by GITHUB_TOKEN start no workflow runs, which cuts both ways here:
 #     - the release created here does not re-trigger this workflow (a PAT there would be an infinite build loop),
 #     - the candidate PR must therefore be created with RELEASE_PR_TOKEN or its checks would never run.
 #     Same reason its merge has to be a human, never a token.
@@ -132,7 +131,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # An alarm, not a correctness requirement - the re-tag below sources from the digest,
-      # so it would ship the right bytes even if a tag had moved. 
+      # so it would ship the right bytes even if a tag had moved.
       # But a moved rc tag means either a re-run (this candidate is stale) or tampering, and both warrant a stop, not a silent recovery.
       - name: Assert the rc digests have not moved
         if: steps.record.outputs.skip != 'true'
@@ -182,7 +181,7 @@ jobs:
           python3 scripts/details/render-manifest.py "${args[@]}" > note.md
           cat note.md >> "$GITHUB_STEP_SUMMARY"
 
-      # The human's action was the merge, so no release exists yet - this job creates it, at the recorded commit (the exact tree the image was built from). 
+      # The human's action was the merge, so no release exists yet - this job creates it, at the recorded commit (the exact tree the image was built from).
       # GITHUB_TOKEN-created releases fire no workflow runs, so this cannot re-trigger the release path. Upserts throughout,
       # so a re-run after a partial failure converges instead of erroring;
       # a tag already existing at a different commit is the one non-recoverable state, and fails.

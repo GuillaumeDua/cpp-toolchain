@@ -99,7 +99,7 @@ cplusplus_value_of(){
 }
 
 # Draft spellings such as c++2c share a __cplusplus value with the final name they anticipate,
-# so ties are resolved in favour of the final one: it ranks second and sorting puts it last.
+# so ties are resolved in favor of the final one: it ranks second and sorting puts it last.
 is_final_spelling(){ [[ "$1" =~ ^c\+\+[0-9]{2}$ ]]; }
 
 mapfile -t spellings < <(discover_spellings)

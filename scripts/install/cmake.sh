@@ -185,7 +185,7 @@ fi
 
 external_script_url='https://apt.kitware.com/kitware-archive.sh'
 
-# quick-fix: Ubuntu-24.04-noble not supported yet by kitware-archive.sh -> Ubuntu-22.04-jammy
+# QUICK-FIX: kitware-archive.sh does not know Ubuntu 24.04 noble, so noble asks for the 22.04 jammy suite.
 codename=$(value=$(lsb_release -cs); [[ "${value}" == "noble" ]] && value="jammy"; echo "${value}")
 
 # wget's own --tries exhausts all three attempts within about three seconds, too short to outlast a refusal from a third-party host.

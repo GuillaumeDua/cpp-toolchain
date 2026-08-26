@@ -4,9 +4,9 @@
 Every version these images contain is pinned as an annotated `ARG` in the Dockerfile,
 so the manifest is known before anything is built - no image introspection required.
 
-The parsing regexes are read from renovate.json rather than duplicated here. That is deliberate:
-if Renovate can bump a pin, this lists it, and if it cannot, neither shows it.
-The two cannot drift apart, because there is only one definition.
+The parsing regexes are read from renovate.json rather than duplicated here, so there is one
+definition and the two cannot drift apart: if Renovate can bump a pin, this lists it, and if it
+cannot, neither shows it.
 
 `UBUNTU_SNAPSHOT` is the documented exception - no datasource can enumerate snapshot timestamps,
 so it is matched separately here and bumped by .github/workflows/ubuntu-snapshot.yml.

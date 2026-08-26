@@ -1,6 +1,7 @@
 # Code coverage
 
-Both ecosystems are supported. They are **not** interchangeable: `gcov`/`lcov` read GCC counters (`.gcno` / `.gcda`), `llvm-cov`/`llvm-profdata` read Clang's (`.profraw` / `.profdata`).
+Both ecosystems are supported.
+They are **not** interchangeable: `gcov`/`lcov` read GCC counters (`.gcno` / `.gcda`), `llvm-cov`/`llvm-profdata` read Clang's (`.profraw` / `.profdata`).
 
 | Tool                        | Toolchain |     `build`      | `static-analysis` | `documentation` | `dev` |
 | --------------------------- | --------- | :--------------: | :---------------: | :-------------: | :---: |
@@ -20,7 +21,8 @@ llvm-profdata merge -sparse app.profraw -o app.profdata
 llvm-cov show ./app -instr-profile=app.profdata
 ```
 
-In `build`, Clang is installed minimalistically, so only the versioned `llvm-cov-<N>` / `llvm-profdata-<N>` exist there; the unversioned commands are registered from `static-analysis` / `documentation` onwards. `lcov` (the Perl frontend producing HTML) ships in the coverage-oriented stages only - `gcov` itself always comes with GCC.
+In `build`, Clang is installed minimalistically, so only the versioned `llvm-cov-<N>` / `llvm-profdata-<N>` exist there; the unversioned commands are registered from `static-analysis` / `documentation` onwards.
+`lcov` (the Perl frontend producing HTML) ships in the coverage-oriented stages only - `gcov` itself always comes with GCC.
 
 > [!TIP] llvm-cov compatibility mode
 > `llvm-cov` can also read GCC-style counters via its `llvm-cov gcov` compatibility mode, so `lcov --gcov-tool "llvm-cov gcov"` bridges Clang-compiled coverage into an `lcov` report.

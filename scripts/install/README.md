@@ -16,7 +16,8 @@ All require root privileges, take no dependency on each other, and describe them
 sudo ./cmake.sh [options]
 ```
 
-Registers the [Kitware apt repository](https://apt.kitware.com/) (via its `kitware-archive.sh` bootstrap, handling the Ubuntu-24.04-noble → jammy quick-fix), then installs a single `cmake` version. Unlike `gcc.sh`/`llvm.sh`, CMake has no side-by-side multi-version story (no `update-alternatives`) - the Kitware repo only ever exposes whichever versions are currently published.
+Registers the [Kitware apt repository](https://apt.kitware.com/) (via its `kitware-archive.sh` bootstrap, handling the Ubuntu-24.04-noble → jammy quick-fix), then installs a single `cmake` version.
+Unlike `gcc.sh`/`llvm.sh`, CMake has no side-by-side multi-version story (no `update-alternatives`) - the Kitware repo only ever exposes whichever versions are currently published.
 
 | Option                   | Type    | Default  | Description                                                                                                                                                      |
 | ------------------------ | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -38,8 +39,7 @@ sudo ./cmake.sh --versions="3.29.3-0kitware1ubuntu24.04.1~jammy"    # exact apt 
 ```
 
 An upstream version (`4.4.0`) is resolved to the `Kitware` apt version that carries it (`4.4.0-0kitware1ubuntu22.04.1`), newest first if several qualify.
-That indirection is what makes `CMake` pinnable by automation: the apt version string is distro-specific and published by no upstream datasource,
-whereas the plain upstream version is exactly what release trackers do publish - so a caller can pin `4.4.0` and let a bot follow `Kitware/CMake` releases.
+That indirection is what makes `CMake` pinnable by automation: the apt version string is distro-specific and published by no upstream datasource, whereas the plain upstream version is exactly what release trackers do publish - so a caller can pin `4.4.0` and let a bot follow `Kitware/CMake` releases.
 
 ---
 
@@ -69,11 +69,8 @@ Installs one or more GCC versions from the `ubuntu-toolchain-r/test` PPA (added 
 | `minimalistic` | `gcc-<N>` `g++-<N>`; disables `--multilib` unless it was set explicitly |
 | `full`         | the above plus `gcc-<N>-multilib` / `g++-<N>-multilib`                  |
 
-`runtime` takes no `--versions`: `libstdc++6` and `libgcc-s1` carry no major in their name, one
-install serves every compiler, and there is nothing for a version selector to choose between. It
-is what the [Dockerfile](../../Dockerfile)'s `runtime` stage installs, and it names the two
-packages the [validation gate](../../docs/IMAGES_VALIDATION.md) expects from this PPA - so that
-expectation is written down once rather than in both places.
+`runtime` takes no `--versions`: `libstdc++6` and `libgcc-s1` carry no major in their name, one install serves every compiler, and there is nothing for a version selector to choose between.
+It is what the [Dockerfile](../../Dockerfile)'s `runtime` stage installs, and it names the two packages the [validation gate](../../docs/IMAGES_VALIDATION.md) expects from this PPA - so that expectation is written down once rather than in both places.
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
@@ -130,18 +127,18 @@ It registers the same apt.llvm.org repository upstream would have, then installs
 `--versions` still selects which suite, because that is what decides the libc++ release,  
 but nothing is registered under an unversioned name: there is no binary to alternate between.
 
-It needs **LLVM 20 or later**, and says so rather than guessing: apt.llvm.org carried the major in
-these package names until then, and spelled it inconsistently - `libc++1-18` and `libc++1-19`, but
-`libc++1-17t64` across the `time_t` transition.  
+It needs **LLVM 20 or later**, and says so rather than guessing: apt.llvm.org carried the major in these package names until then, and spelled it inconsistently - `libc++1-18` and `libc++1-19`, but `libc++1-17t64` across the `time_t` transition.  
 `libunwind` is deliberately absent, since `apt.llvm.org` builds `libc++abi` against `libgcc_s`, which every Debian-derived image already has.
 
-The *compiler runtimes* are the libc++ stack (`libc++-<N>-dev`, `libc++abi-<N>-dev`, `libunwind-<N>-dev`), OpenMP (`libomp-<N>-dev`) and, from LLVM 15, the sanitizer and Polly runtimes (`libclang-rt-<N>-dev`, `libpolly-<N>-dev`). Every mode that installs a compiler installs them: they are compiler capabilities - `-stdlib=libc++`, `-fopenmp`, `-fsanitize=...` - rather than tools, so a `minimalistic` install still compiles everything a `full` one does.
+The *compiler runtimes* are the libc++ stack (`libc++-<N>-dev`, `libc++abi-<N>-dev`, `libunwind-<N>-dev`), OpenMP (`libomp-<N>-dev`) and, from LLVM 15, the sanitizer and Polly runtimes (`libclang-rt-<N>-dev`, `libpolly-<N>-dev`).
+Every mode that installs a compiler installs them: they are compiler capabilities - `-stdlib=libc++`, `-fopenmp`, `-fsanitize=...` - rather than tools, so a `minimalistic` install still compiles everything a `full` one does.
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
 `update-alternatives` priority is the version number, so the **highest installed version** wins the unversioned `clang`/`clang++` - the same rule `gcc.sh` uses.
 
-The modes are meant to be **layered**: a first `--mode=minimalistic` run installs and registers only the compilers, and a later `--mode=full` run over the same environment adds `clang-tidy`/`clang-format`/`clangd`/`lldb`/`scan-build` without touching them. Useful when a compile-only environment and a full analysis one are built from a common base - which is exactly how the [Dockerfile](../../Dockerfile)'s `build` and `static-analysis` stages relate.
+The modes are meant to be **layered**: a first `--mode=minimalistic` run installs and registers only the compilers, and a later `--mode=full` run over the same environment adds `clang-tidy`/`clang-format`/`clangd`/`lldb`/`scan-build` without touching them.
+Useful when a compile-only environment and a full analysis one are built from a common base - which is exactly how the [Dockerfile](../../Dockerfile)'s `build` and `static-analysis` stages relate.
 
 `runtime` layers the same way, from underneath: it puts `libc++1` in place, and a later `--mode=minimalistic` run over it adds the compiler and headers that match.  
 That is how `build` sits on `runtime` - one library, installed once, at the bottom of the stack where the image that only has to *run* things can stop.
@@ -201,10 +198,8 @@ Each target is installed **best-effort** - availability is host/arch dependent, 
 
 In the fallback path, cross-libc packages key off the **Debian architecture alias**, not the GNU triplet (`aarch64-linux-gnu` → `arm64`, `mipsisa64r6el-linux-gnuabin32` → `mipsn32r6el`), so the script carries an internal `triplet_to_deb_arch` lookup table (29 triplets; `alpha`, `hppa64`, `ia64` have no cross-libc and get binutils only).
 
-`common` is the set these images ship - `aarch64-linux-gnu`, `arm-linux-gnueabihf`,
-`riscv64-linux-gnu`, `x86-64-linux-gnu` - and `binutils.sh` is where that list lives. Nothing
-else in the repository repeats it: the workflows pass `common` through as `BINUTILS_TARGETS`,
-and the validation gate expands it with `--list-targets`.
+`common` is the set these images ship - `aarch64-linux-gnu`, `arm-linux-gnueabihf`, `riscv64-linux-gnu`, `x86-64-linux-gnu` - and `binutils.sh` is where that list lives.
+Nothing else in the repository repeats it: the workflows pass `common` through as `BINUTILS_TARGETS`, and the validation gate expands it with `--list-targets`.
 
 **Example**: discover the available targets, then install a couple:
 
@@ -217,9 +212,8 @@ sudo ./binutils.sh --targets='aarch64-linux-gnu' --with-gcc=no   # bare binutils
 ./binutils.sh --list-installed --targets='aarch64-linux-gnu riscv64-linux-gnu'
 ```
 
-`--list-available` without `--targets` answers "which of the defaults exist here", the same way
-`gcc.sh --list-available` answers for its default `--versions`. `--targets=all` is what lists
-every triplet the host offers.
+`--list-available` without `--targets` answers "which of the defaults exist here", the same way `gcc.sh --list-available` answers for its default `--versions`.
+`--targets=all` is what lists every triplet the host offers.
 
 With a cross-`g++` (the default), C and C++ both compile *and link* for the target, with GNU cross tools or with Clang:
 

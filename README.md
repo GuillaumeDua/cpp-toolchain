@@ -28,7 +28,8 @@ Each stage is published as its own image, so you pull only what you need - prefi
 | `documentation` | `build` + **documentation**<br>doxygen, graphviz - and lcov reports | [![documentation-latest](https://img.shields.io/badge/documentation--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-latest) [![documentation version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/documentation-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-latest?label=) | [![documentation-cross-latest](https://img.shields.io/badge/documentation--cross--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=documentation-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/documentation-cross-latest?label=) |
 | `dev` *(default target)* | Full **dev** environment<br>everything above + gdb, valgrind, editors, shells, jq, ripgrep | [![dev-latest](https://img.shields.io/badge/dev--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-latest) [![dev version](https://img.shields.io/docker/v/guillaumedua/cpp-toolchain/dev-latest?label=&logo=docker&logoColor=white&color=555)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-v)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-latest?label=) | [![dev-cross-latest](https://img.shields.io/badge/dev--cross--latest-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/guillaumedua/cpp-toolchain/tags?name=dev-cross)<br>![size](https://img.shields.io/docker/image-size/guillaumedua/cpp-toolchain/dev-cross-latest?label=) |
 
-The `-cross` images carry per-target cross toolchains (~+200 MB installed per target), so reach for them only when you cross-compile - see [Cross-compilation](docs/CROSS-COMPILATION.md). `runtime` has no toolchain, so it is published once, without a cross variant.  
+The `-cross` images carry per-target cross toolchains (~+200 MB installed per target), so reach for them only when you cross-compile - see [Cross-compilation](docs/CROSS-COMPILATION.md).
+`runtime` has no toolchain, so it is published once, without a cross variant.  
 What each version means - `latest`, pre-release `v<major>.<minor>-rc.<n>`, pinned `v<major>.<minor>` - is detailed in [Tags & versioning](#tags--versioning).
 
 ## Quick start
@@ -88,11 +89,12 @@ The stages form a diamond: `static-analysis` and `documentation` both build on `
 
 </details>
 
-`build` installs Clang minimalistically - just `clang`/`clang++`. The full LLVM tooling (`clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ...) is wired up in `static-analysis`, and inherited by `dev`.
+`build` installs Clang minimalistically - just `clang`/`clang++`.
+The full LLVM tooling (`clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ...) is wired up in `static-analysis`, and inherited by `dev`.
 
 ## Tags & versioning
 
-A tag is `<stage>[-cross]-<version>`: the **stage** picks *what is in the image*, the optional **`cross`** picks the *cross-arch flavour*, and the **version** picks *how fresh it is*.
+A tag is `<stage>[-cross]-<version>`: the **stage** picks *what is in the image*, the optional **`cross`** picks the *cross-arch flavor*, and the **version** picks *how fresh it is*.
 
 | Version | Published by | Meaning |
 | ------- | ------------ | ------- |
@@ -102,20 +104,26 @@ A tag is `<stage>[-cross]-<version>`: the **stage** picks *what is in the image*
 
 The three channels differ in *who decides*, not in what they contain:
 
-- **major** = the image contract changed - a base-image bump, a stage added or removed, a tool dropped. Only a human decides that.
-- **minor** = a validated rc, promoted. Renovate moved versions, the rc proved they hold up, a human shipped it.
+- **major** = the image contract changed - a base-image bump, a stage added or removed, a tool dropped.
+  Only a human decides that.
+- **minor** = a validated rc, promoted.
+  Renovate moved versions, the rc proved they hold up, a human shipped it.
 - **rc** = a fresh build from `main`, published early for validation.
 
 Every version in the image is **pinned** in the [Dockerfile](Dockerfile) and updated by [Renovate](renovate.json), so a scheduled run **publishes nothing when nothing changed** - no release is cut just because a date arrived.
 
 > [!NOTE]
-> A minor is not rebuilt from its rc's commit - it **is** the rc: promotion re-tags the exact image digests that were validated, so `v1.2` is byte-identical to the `v1.2-rc.<n>` it was promoted from. rc tags stay published and cost nothing (shared digests). How releases are cut is documented in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md).
+> A minor is not rebuilt from its rc's commit - it **is** the rc: promotion re-tags the exact image digests that were validated, so `v1.2` is byte-identical to the `v1.2-rc.<n>` it was promoted from.
+> rc tags stay published and cost nothing (shared digests).
+> How releases are cut is documented in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md).
 
-`dev` is the Dockerfile's default target, so it also answers to the **unprefixed** versions - `cpp-toolchain:latest` is the same digest as `cpp-toolchain:dev-latest`, and likewise for `v1.0` / `v1.2-rc.1` (and `cross-latest` = `dev-cross-latest`). Every other stage must be named explicitly.
+`dev` is the Dockerfile's default target, so it also answers to the **unprefixed** versions - `cpp-toolchain:latest` is the same digest as `cpp-toolchain:dev-latest`, and likewise for `v1.0` / `v1.2-rc.1` (and `cross-latest` = `dev-cross-latest`).
+Every other stage must be named explicitly.
 
 ### What's inside a given tag
 
-Every release note lists the exact versions that release contains - compilers, build systems, dependency managers, documentation tooling - and what moved since the previous one. Because the versions are pinned rather than resolved at build time, that list is the image's contents rather than a snapshot of them, and **two builds of the same commit produce the same image**.
+Every release note lists the exact versions that release contains - compilers, build systems, dependency managers, documentation tooling - and what moved since the previous one.
+Because the versions are pinned rather than resolved at build time, that list is the image's contents rather than a snapshot of them, and **two builds of the same commit produce the same image**.
 
 > [!NOTE]
 > **On host architecture**:
@@ -147,8 +155,7 @@ wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/i
 sudo bash llvm.sh --versions='latest-stable'
 ```
 
-The standards probe travels the same way, and needs no root - give it a compiler and it reports which C++ standards that compiler accepts,
-which is enough to drive a CI matrix without pulling an image:
+The standards probe travels the same way, and needs no root - give it a compiler and it reports which C++ standards that compiler accepts, which is enough to drive a CI matrix without pulling an image:
 
 ```bash
 wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/checks/cxx-standards.sh
@@ -179,7 +186,8 @@ docker build --target documentation   -t cpp-toolchain:documentation   .
 docker build --target dev             -t cpp-toolchain:dev             .
 ```
 
-The published images install a single pinned `GCC` and `Clang/LLVM` to stay lean. `gcc.sh` and `llvm.sh` both support **multiple versions side by side** (via `update-alternatives`) - useful to test against several compiler versions in the same environment:
+The published images install a single pinned `GCC` and `Clang/LLVM` to stay lean.
+`gcc.sh` and `llvm.sh` both support **multiple versions side by side** (via `update-alternatives`) - useful to test against several compiler versions in the same environment:
 
 ```bash
 docker build -t cpp-toolchain:dev . \
@@ -187,7 +195,7 @@ docker build -t cpp-toolchain:dev . \
     --build-arg LLVM_VERSIONS='12 20 22'
 ```
 
-Adding `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build produces the cross-arch flavour of that stage - see [Cross-compilation](docs/CROSS-COMPILATION.md).
+Adding `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build produces the cross-arch flavor of that stage - see [Cross-compilation](docs/CROSS-COMPILATION.md).
 
 <details>
 <summary><b>All build arguments</b></summary>
@@ -205,14 +213,16 @@ Adding `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build produ
 
 ## Compilers & standard library
 
-Available from the **`build`** stage onwards. Both toolchains are installed side by side - the pinned version of each by default:
+Available from the **`build`** stage onwards.
+Both toolchains are installed side by side - the pinned version of each by default:
 
 | Toolchain | Command             | Versioned command           | Also registered                                                  |
 | --------- | ------------------- | --------------------------- | ---------------------------------------------------------------- |
 | GNU       | `gcc` / `g++`       | `gcc-<N>` / `g++-<N>`       | `gcov`, `gcov-tool`                                              |
 | LLVM      | `clang` / `clang++` | `clang-<N>` / `clang++-<N>` | `clang-tidy`, `clangd`, `lldb`, ... in `static-analysis` / `dev` |
 
-Unversioned commands are `update-alternatives` symlinks; the **latest-stable version always has the highest priority**. With several versions installed ([Build it yourself](#build-it-yourself)), either switch the default or call a versioned binary directly:
+Unversioned commands are `update-alternatives` symlinks; the **latest-stable version always has the highest priority**.
+With several versions installed ([Build it yourself](#build-it-yourself)), either switch the default or call a versioned binary directly:
 
 ```bash
 update-alternatives --config gcc      # switch the default gcc/g++/gcov/gcov-tool set
@@ -235,7 +245,8 @@ libc++ (`libc++-<N>-dev`, `libc++abi-<N>-dev`, `libunwind-<N>-dev`) is installed
 clang++ -std=c++23 -stdlib=libc++ main.cpp
 ```
 
-The `runtime` image carries the matching shared libraries (`libc++1`, `libc++abi1`) beside `libstdc++6`, so it runs everything `build` can produce - `g++`, `clang++`, and `clang++ -stdlib=libc++` alike. That all three still run there is asserted by the [validation gate](docs/IMAGES_VALIDATION.md), not assumed.
+The `runtime` image carries the matching shared libraries (`libc++1`, `libc++abi1`) beside `libstdc++6`, so it runs everything `build` can produce - `g++`, `clang++`, and `clang++ -stdlib=libc++` alike.
+That all three still run there is asserted by the [validation gate](docs/IMAGES_VALIDATION.md), not assumed.
 
 ## Going further
 
@@ -250,15 +261,20 @@ The `runtime` image carries the matching shared libraries (`libc++1`, `libc++abi
 
 ## Dependency updates
 
-**Every version is pinned in the [Dockerfile](Dockerfile)** - base image (by digest), GCC, Clang/LLVM, CMake, vcpkg, Conan, Doxygen, build2, oh-my-zsh (by commit) and powerlevel10k - and each pin is tracked by [Renovate](renovate.json). Nothing resolves to "whatever is newest" at build time.
+**Every version is pinned in the [Dockerfile](Dockerfile)** - base image (by digest), GCC, Clang/LLVM, CMake, vcpkg, Conan, Doxygen, build2, oh-my-zsh (by commit) and powerlevel10k - and each pin is tracked by [Renovate](renovate.json).
+Nothing resolves to "whatever is newest" at build time.
 
 That has two consequences worth knowing:
 
-- **Updates arrive as reviewable pull requests**, not silently on a rebuild. A version bump that the upstream apt repository has not published yet fails the build gate, so it stays a red PR instead of a broken image.
-- **The ~20 distro packages** (`ninja`, `cppcheck`, `valgrind`, `gdb`, `lcov`, ...) are frozen by an [Ubuntu archive snapshot](https://snapshot.ubuntu.com) rather than pinned one by one. The timestamp moves monthly via [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) - Renovate cannot track it, because the service publishes no index of valid timestamps.
+- **Updates arrive as reviewable pull requests**, not silently on a rebuild.
+  A version bump that the upstream apt repository has not published yet fails the build gate, so it stays a red PR instead of a broken image.
+- **The ~20 distro packages** (`ninja`, `cppcheck`, `valgrind`, `gdb`, `lcov`, ...) are frozen by an [Ubuntu archive snapshot](https://snapshot.ubuntu.com) rather than pinned one by one.
+  The timestamp moves monthly via [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) - Renovate cannot track it, because the service publishes no index of valid timestamps.
 
 > [!NOTE] On reproducibility
-> Two builds of the same commit produce the same image. Rebuilding a *years-old* tag is a weaker promise: GCC, Clang and CMake come from a PPA and two third-party apt repositories, none of which keep superseded versions. The published image is the durable artifact, not the ability to recreate it.
+> Two builds of the same commit produce the same image.
+> Rebuilding a *years-old* tag is a weaker promise: GCC, Clang and CMake come from a PPA and two third-party apt repositories, none of which keep superseded versions.
+> The published image is the durable artifact, not the ability to recreate it.
 
 ## Contributing
 

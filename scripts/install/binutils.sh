@@ -34,7 +34,7 @@ this_script_name=$(basename "$0")
 # The triplets a cross build targets unless told otherwise, and the only place they are listed.
 # Referred to as `common` so nothing downstream has to repeat them.
 #
-# Which triplets belong here is a judgement call rather than a fixed set:
+# Which triplets belong here is a judgment call rather than a fixed set:
 # these are the architectures most cross builds are likely to want today, so expect the value to change as that answer does.
 # No code repeats it - callers pass `common` through and let this script resolve it.
 common_targets='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu x86-64-linux-gnu'

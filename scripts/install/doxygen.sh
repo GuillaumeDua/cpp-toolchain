@@ -20,7 +20,7 @@ set -euo pipefail
 #
 #   Argument:
 #       the GitHub release tag, e.g. `Release_1_17_0` (bumped by Renovate, see renovate.json).
-#       Doxygen tags use underscores (`Release_1_17_0`) while the download asset uses dots (`doxygen-1.17.0.linux.bin.tar.gz`), 
+#       Doxygen tags use underscores (`Release_1_17_0`) while the download asset uses dots (`doxygen-1.17.0.linux.bin.tar.gz`),
 #       so both forms are derived below from the single tag.
 # =============================================================================================
 

@@ -5,10 +5,9 @@
 #
 # std::print rather than iostream on purpose: it is a C++23 library feature, so this fails when
 # -std=c++23 is accepted but the standard library behind it is not what the manifest claims.
-# A hello world that only exercises the parser would pass on a badly broken image.
 #
-# Deliberately minimal for now - per-compiler-version coverage, the cross triplets, cmake,
-# clang-tidy and the vcpkg/conan paths are a follow-up issue.
+# TODO: widen the matrix - per-compiler-version coverage, the cross triplets, cmake, clang-tidy
+#   and the vcpkg/conan paths are all unexercised here.
 set -euo pipefail
 
 tmp=$(mktemp -d)
