@@ -2,8 +2,7 @@
 
 About encapsulation/scope:
 
-- **Public**: standalone and reusable as-is on any `Debian`/`Ubuntu`-based
-system, with no dependency on this repository - copy the file out and it works.  
+- **Public**: standalone and reusable as-is on any `Debian`/`Ubuntu`-based system, with no dependency on this repository - copy the file out and it works.  
 - **Details/internal**: it probes or parses this repo and only makes sense here.
 
 | Directory | Scope | What lives there |
@@ -13,14 +12,11 @@ system, with no dependency on this repository - copy the file out and it works.
 | [checks/details/](checks/details/) | Internal | The image validation gate, which runs *inside* a built image: it knows this repo's expected package origins and asks its installers what is present. See [docs/IMAGES_VALIDATION.md](../docs/IMAGES_VALIDATION.md). |
 | [details/](details/) | Internal | This repository's own tooling - the version-pin guard, the release-note renderer, the promotion-record schema and the image smoke test. Not reusable: they parse this repo's `Dockerfile`, `renovate.json` and `releases/` records. See [details/README.md](details/README.md). |
 
-The [Dockerfile](../Dockerfile) copies in and runs the `install/` scripts, one per stage that needs
-one, and copies `scripts/` whole into the throwaway validate stages so `checks/` can run there.  
-Nothing under the top-level `details/` ever enters an image: `.dockerignore` keeps it out of the
-build context entirely, and the smoke test reaches a built image by bind-mount instead.
+The [Dockerfile](../Dockerfile) copies in and runs the `install/` scripts, one per stage that needs one, and copies `scripts/` whole into the throwaway validate stages so `checks/` can run there.  
+Nothing under the top-level `details/` ever enters an image: `.dockerignore` keeps it out of the build context entirely, and the smoke test reaches a built image by bind-mount instead.
 
-`checks/details/` is a different `details/` - implementation details of `checks/`,
-in the C++ sense of a nested `detail` namespace. Being repo-specific is what the two share;
-unlike the top-level one, these *must* ship into the image they validate.
+`checks/details/` is a different `details/` - implementation details of `checks/`, in the C++ sense of a nested `detail` namespace.
+Being repo-specific is what the two share; unlike the top-level one, these *must* ship into the image they validate.
 
 ## Using a public script on its own
 
@@ -30,9 +26,7 @@ unlike the top-level one, these *must* ship into the image they validate.
 > - Optional value needs `<name>=<value>` semantic
 > - There are no positional arguments.
 
-Everything marked **Public** is a single file that needs nothing around it, so you can pull it
-straight from `raw.githubusercontent.com` and drop it into a project, a CI job or a plain shell -
-no image to pull, no repository to clone, no commitment to the rest of this toolchain:
+Everything marked **Public** is a single file that needs nothing around it, so you can pull it straight from `raw.githubusercontent.com` and drop it into a project, a CI job or a plain shell - no image to pull, no repository to clone, no commitment to the rest of this toolchain:
 
 ```bash
 base=https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts
@@ -54,8 +48,7 @@ bash cxx-stdlibs.sh --stdlib=libstdc++ --format=abi
 
 Every one of them describes itself with `--help`, so the fetched file is its own documentation.
 
-Swap `main` for a release tag when you want the URL pinned, which is what you usually want in CI -
-`main` moves.
+Swap `main` for a release tag when you want the URL pinned, which is what you usually want in CI - `main` moves.
 
-The `Internal` rows are not fetchable this way. They reach the rest of the tree by relative path
-and only work inside a checkout or an image.
+The `Internal` rows are not fetchable this way.
+They reach the rest of the tree by relative path and only work inside a checkout or an image.

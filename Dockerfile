@@ -1,16 +1,22 @@
 # =============================================================================================
 # cpp-toolchain - multi-stage build
 #
-#   Stages, each selectable via `docker build --target <stage>`:
-#     runtime : minimal C++ runtime (libc/libgcc/libstdc++) - deploy base for compiled binaries
-#     build   : runtime + compilers, build systems and dependency managers - CI/compile image
-#     dev     : build   + static analysis, debug, docs, editors, shells - full dev environment
+#   Published stages, each selectable via `docker build --target <stage>`:
+#     runtime         : minimal C++ runtime (libc/libgcc/libstdc++/libc++) - deploy base for compiled binaries
+#     build           : runtime + compilers, build systems and dependency managers - CI/compile image
+#     static-analysis : build   + the full LLVM toolchain, cppcheck, iwyu
+#     documentation   : build   + doxygen, graphviz, lcov
+#     dev             : the whole set + dynamic analysis, debugger, editors, shells - full dev environment
 #
-#   The stages form a superset chain (dev > build > runtime), so `--target dev` yields the full
-#   image while `--target runtime` / `--target build` stop early for leaner images.
+#   The stages form a diamond rather than a chain: `static-analysis` and `documentation` both sit on
+#   `build`, and `dev` inherits `static-analysis` and installs the documentation tools on top.
+#   `dev` is last in the file, so a bare `docker build .` builds it.
+#
+#   Two further stages, validate-build and validate-runtime, are the image validation gate.
+#   Nothing published inherits them - see docs/IMAGES_VALIDATION.md.
 #
 #   SSH remote access is an opt-in extra layer, built separately on top of the `dev` image via
-#   .devcontainer/ssh_support.dockerfile (see its docker-compose.yaml `ssh` profile / README > Remote access).
+#   .devcontainer/ssh_support.dockerfile (its docker-compose.yaml `ssh` profile; docs/DEVCONTAINER.md#remote-ssh).
 # =============================================================================================
 
 # ---------------------------------------------------------------------------------------------
@@ -24,7 +30,7 @@
 #   A per-stage default would be a second value for Renovate to keep in step.
 #
 #   The annotation must sit directly above its ARG,
-#   and follow the field order datasource / depName / versioning / extractVersion - that is what renovate.json's custom manager matches. 
+#   and follow the field order datasource / depName / versioning / extractVersion - that is what renovate.json's custom manager matches.
 #   Values must be unquoted: it captures `\S+`, so quotes would be read as part of them.
 # ---------------------------------------------------------------------------------------------
 
@@ -98,15 +104,15 @@ SHELL ["/bin/bash", "-c"]
 #   That bootstrap drags openssl forward, and libssl-dev pins its runtime with `=`,
 #   so every package is realigned onto the snapshot afterwards - downgrades included.
 #
-#   The temporary pin is what makes the downgrades possible at all:
+#   The temporary pin is what makes the downgrades possible:
 #       at apt's default priority of 500 a repository never wins against an installed higher version,
-#       so the realignment silently degrades into an upgrade-only pass and leaves exactly the skew it exists to remove.
+#       so the realignment would degrade into an upgrade-only pass and leave the skew it exists to remove.
 #   Only a priority above 1000 lets apt pick a lower version (apt_preferences(5)).
 #
 #   The pin is dropped again immediately: kept around, it would outrank the toolchain PPA added below,
 #   and drag libstdc++6 and friends back down to their Ubuntu archive versions.
 #
-#   This fix build failures like "The following packages have unmet dependencies: libssl-dev : Depends: libssl3t64 (= 3.0.13-0ubuntu3.11) but 3.0.13-0ubuntu3.12 is to be installed"
+#   This is what prevents build failures such as "The following packages have unmet dependencies: libssl-dev : Depends: libssl3t64 (= 3.0.13-0ubuntu3.11) but 3.0.13-0ubuntu3.12 is to be installed"
 RUN apt-get update -qqy                                                                             \
     && apt-get install -qqy --no-install-recommends ca-certificates                                 \
     && for src in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do                  \
@@ -257,7 +263,7 @@ RUN apt-get update -qqy                                                       \
 
 # C++ toolchain: LLVM/Clang (https://apt.llvm.org/)
 #   `--mode=minimalistic`: the compilers and their runtimes (libc++, sanitizers, OpenMP), nothing else.
-#   The rest of the LLVM toolchain (clang-tidy, clang-format, clangd, lldb, scan-build, ...) is a static-analysis / dev concern and is wired up in the `dev` stage below.
+#   The rest of the LLVM toolchain (clang-tidy, clang-format, clangd, lldb, scan-build, ...) is a static-analysis concern, wired up in that stage below and inherited by `dev`.
 #   It is neither installed nor registered here, so this stage carries only what compiling needs.
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
@@ -309,10 +315,7 @@ CMD ["/bin/bash"]
 # ---------------------------------------------------------------------------------------------
 # Stages: validate-build / validate-runtime - the image validation gate. See docs/IMAGES_VALIDATION.md
 #
-#   Throwaway stages:
-#       Nothing published inherits them, so no image below gains a layer.
-#       They sit here rather than at the end of the file so `dev` remains the last stage,
-#       which keeps a bare `docker build .` building `dev` as before.
+#   Throwaway: nothing published inherits them, so no image gains a layer.
 #
 #   `apt-get update` is needed because each stage above ends by wiping /var/lib/apt/lists,
 #   and the origin check reads what apt reports about the repository behind each installed package.
@@ -341,8 +344,8 @@ RUN apt-get update -qqy                                                         
     && bash /opt/cpp-toolchain-scripts/checks/details/cxx-stdlib-parity.sh record /validate/stdlib.expected \
     && rm -rf /var/lib/apt/lists/*
 
-# The binaries are built by `build` and executed here, which is the whole point:
-#   it is the only way to prove that what `runtime` ships can still run what `build` produces.
+# The binaries are built by `build` and executed here,
+#   the only arrangement that proves what `runtime` ships can still run what `build` produces.
 #
 #   Both stdlib sets cross over, `runtime` carrying libstdc++ and libc++,
 #   so the whole matrix `build` can produce (g++, clang++, clang++ -stdlib=libc++) is exercised where it has to work.
@@ -366,7 +369,7 @@ RUN apt-get update -qqy                                                         
 # ---------------------------------------------------------------------------------------------
 # Stage: static-analysis - static-analysis tooling for CI / PR evaluation, on top of `build`.
 #   Installs and registers the full LLVM toolchain - clang-tidy, etc. (the `build` stage took the
-#   compilers only), and adds the dedicated static analysers (cppcheck, iwyu).
+#   compilers only), and adds the dedicated static analyzers (cppcheck, iwyu).
 # ---------------------------------------------------------------------------------------------
 FROM build AS static-analysis
 ARG DEBIAN_FRONTEND=noninteractive
@@ -384,7 +387,7 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
     && ${script_path} --silent=yes --alias=yes --mode=full --versions="$LLVM_VERSIONS"  \
     && rm -rf /var/lib/apt/lists/*
 
-# Dedicated static analysers
+# Dedicated static analyzers
 # TODO: sonarlint
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
         cppcheck \
@@ -437,8 +440,9 @@ FROM static-analysis AS dev
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
-# Tooling: documentation (re-added from the `documentation` stage, since dev inherits the
-#          `static-analysis` sibling), dynamic analysis, debug, versioning extras, editors, misc
+# Tooling: documentation, dynamic analysis, debug, versioning extras, editors, misc.
+#   `dev` inherits `static-analysis`, not its `documentation` sibling, so the documentation tools are installed here too.
+#   A stage has a single FROM, and apt packages cannot be cleanly COPY --from'd.
 RUN apt update -qqy && apt install -qqy --no-install-recommends \
         # documentation (doxygen itself is installed as a pre-built binary below; graphviz -> `dot`, lcov -> coverage `genhtml`)
         graphviz lcov                                       \
@@ -454,8 +458,7 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends \
         docker-compose jq ripgrep                           \
     && rm -rf /var/lib/apt/lists/*
 
-# Documentation: Doxygen pre-built binary - re-added here because dev inherits `static-analysis`,
-#                not the sibling `documentation` stage (mirrors the graphviz re-add above).
+# Documentation: Doxygen pre-built binary, for the same reason graphviz is installed above.
 ARG DOXYGEN_RELEASE
 COPY ./scripts/install/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
 RUN chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh \
@@ -463,10 +466,12 @@ RUN chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh \
     && rm -rf /var/lib/apt/lists/*
 
 # Tooling: shells - bash, zsh, with oh-my-zsh + the powerlevel10k theme and no plugins.
-#   [TO_TEST] Installed directly rather than through zsh-in-docker,
-#   which hardcoded oh-my-zsh to `master` and powerlevel10k to its default branch with no way to pin either.
-#   The two pieces most likely to change under a rebuild were the only ones left floating.
-#   The generated .zshrc reproduces what zsh-in-docker wrote for this configuration.
+#   Installed directly rather than through zsh-in-docker, which hardcodes oh-my-zsh to `master` and
+#   powerlevel10k to its default branch with no way to pin either - the two pieces most likely to move under a rebuild.
+#   The .zshrc written here reproduces what zsh-in-docker generates for this configuration.
+#   Which shell a dev container opens with is the client's setting, not this image's:
+#   https://stackoverflow.com/questions/55987337/visual-studio-code-remote-containers-change-shell
+#   TODO: confirm this .zshrc matches what zsh-in-docker produced - it has not been compared against one.
 ARG OHMYZSH_COMMIT
 ARG POWERLEVEL10K_VERSION
 RUN apt update -qqy && apt install -qqy --no-install-recommends       \
@@ -498,7 +503,6 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends       \
         "POWERLEVEL9K_STATUS_OK=false"                                \
         "POWERLEVEL9K_STATUS_CROSS=true"                              \
         > "${HOME}/.zshrc"
-# see https://stackoverflow.com/questions/55987337/visual-studio-code-remote-containers-change-shell
 
 # Cleanup
 RUN apt clean \

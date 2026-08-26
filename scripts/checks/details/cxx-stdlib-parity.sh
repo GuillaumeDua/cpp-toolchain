@@ -15,18 +15,10 @@ fail() { echo "[${this_script_name}] FAIL: $*" >&2; failures=$((failures + 1)); 
 pass() { echo "[${this_script_name}] ok:   $*"; }
 
 # What this image has, as '<impl> <soname> <version> <abi>', one line per distinct SONAME.
-#
-# The SONAME is the key rather than the package or the path, because the SONAME is the whole contract:
-#   it is what the linker writes into a binary and the only name the loader ever looks up.
-#
-# Two libc++ releases can sit side by side precisely:
-#   when their SONAMEs differ (apt.llvm.org gives its versioned runtimes one of their own, libc++.so.1.0.20 against libc++.so.1),
-#   and when they do, a binary needing one is entirely unaffected by the other.
-# Counting installed libraries would call that a problem; keying on the SONAME asks the only question that decides whether a binary loads.
-#
-# Keying on it also collapses multilib for free:
-#   the 32-bit and x32 libstdc++ share a SONAME with the 64-bit one,
-#   so `build`'s three rows and `runtime`'s one become the same single line.
+#   The SONAME is the key rather than the package or the path: it is what the linker writes into a
+#   binary and the only name the loader looks up, so it is the field that decides whether a binary loads.
+#   Two consequences the callers below rely on - side-by-side libc++ releases, and multilib collapsing
+#   into one row - are explained in docs/IMAGES_VALIDATION.md.
 current_rows(){
     bash "${stdlibs_script}" --view=library --format=fields 2>/dev/null                     \
       | awk '{
@@ -40,20 +32,18 @@ current_rows(){
       | sort -u
 }
 
-# One SONAME answered by two releases is not something to collapse quietly:
-#   which of them a binary gets is decided by the loader, not by this image,
-#   so neither side of the comparison below would mean anything. Reported instead of resolved.
+# One SONAME answered by two releases is reported, not resolved:
+#   which of them a binary gets is the loader's decision, not this image's,
+#   so neither side of the comparison below would mean anything.
 #
-# Where this shows up is an image without binutils, which is exactly the kind `verify` runs in:
+# It arises in an image without binutils, which is the kind `verify` runs in:
 #   cxx-stdlibs.sh then approximates the SONAME from the file name,
 #   and the name alone cannot tell apt.llvm.org's libc++.so.1.0.20 from libc++.so.1.
-#   These images install one libc++ and never meet it -
-#   `llvm.sh --mode=runtime` refuses the majors whose packages carry one, and apt refuses two libc++ -dev at once -
-#   but a check that guessed here would be wrong silently rather than loudly.
+#   These images carry one libc++ and never meet the case, but a check that guessed
+#   would be wrong silently rather than loudly.
 #
-# Multilib does not trip it:
-#   the 32-bit and x32 libstdc++ agree with the 64-bit one on all four fields,
-#   so `sort -u` above has already made them one row.
+# Multilib does not trip it: the 32-bit and x32 libstdc++ agree with the 64-bit one on all
+# four fields, so `sort -u` above has already made them one row.
 check_unambiguous(){
     local rows="$1"
     local duplicated impl soname releases
@@ -97,14 +87,11 @@ do_record(){
 # Each recorded SONAME must still be here, and be at least as capable as the one that was recorded.
 #
 #   - libstdc++ is compared with >= because GNU symbol versions are backward compatible by construction:
-#       a library whose greatest GLIBCXX_ is above the recorded one still defines every symbol below it.
-#     That is the same comparison the `GLIBCXX_x.y.z not found` runtime error asks for,
-#     and scripts/checks/README.md walks a reader through making it by hand.
+#     a library whose greatest GLIBCXX_ is above the recorded one still defines every symbol below it.
+#     Same comparison the `GLIBCXX_x.y.z not found` error asks for - scripts/checks/README.md works one by hand.
 #
-#   - libc++ is compared for equality because it has no symbol versions at all - there is no ordering
-#     to be lenient with, and nothing in the ELF that would let a mismatch be diagnosed as anything
-#     better than an undefined symbol at load time.
-#     Both stages resolve one package from one repository, so a difference here is layer-cache skew rather than a legitimate upgrade.
+#   - libc++ is compared for equality: it has no symbol versions, so there is no ordering to be lenient with.
+#     Both stages resolve one package from one repository, so a difference is layer-cache skew rather than an upgrade.
 do_verify(){
     local file="$1"
 

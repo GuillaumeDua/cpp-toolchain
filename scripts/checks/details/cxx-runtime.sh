@@ -131,8 +131,8 @@ do_compile(){
     [ $(( ${#gcc_majors[@]} + ${#clang_majors[@]} )) -gt 0 ] \
       || die "no C++ compiler is installed in this image"
 
-    # clang++ appears twice: left alone it links libstdc++, GCC's being the Linux default.
-    # That is the whole reason `-stdlib=libc++` has to be asked for explicitly.
+    # clang++ appears twice: left alone it links libstdc++, GCC's being the Linux default,
+    # so libc++ is reached only through an explicit `-stdlib=libc++`.
     local major
     for major in "${gcc_majors[@]}"; do
         compile_for_compiler "g++-${major}" "${root}/libstdcxx"

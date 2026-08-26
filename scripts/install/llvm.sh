@@ -308,10 +308,6 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # --- fetch llvm.sh ---
-# or use:
-#   sudo add-apt-repository "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs) main"
-#   wget https://apt.llvm.org/llvm-snapshot.gpg.key
-#   sudo apt-key add llvm-snapshot.gpg.key
 
 if [ -f "${internal_script_path}" ]; then
     echo -e "temporary file [${internal_script_path}] already exists" >> /dev/stderr # not using error to avoid deleting the file
@@ -324,12 +320,13 @@ apt_llvm_base_url='https://apt.llvm.org'
 external_script_url="${apt_llvm_base_url}/llvm.sh"
 gpg_key_url="${apt_llvm_base_url}/llvm-snapshot.gpg.key"
 
-# REFACTO: remove gpg key -> already added by ${external_script_url}
-# Not piped into gpg: without pipefail, a failed download would surface as a malformed key.
-# wget's own --tries exhausts all three attempts within about three seconds, well inside a throttling window.
+# wget's own --tries exhausts all three attempts within about three seconds, well inside a throttling window,
+# which is why run_with_retries wraps it below rather than being replaced by it.
 wget_options=(--no-verbose --tries=${max_attempts} --retry-connrefused --timeout=30)
 
-# An image layered on another one inherits the key its base installed.
+# REFACTO: drop this block - the upstream installer at ${external_script_url} installs the same key.
+#   The fetch is not piped into gpg: without pipefail, a failed download would surface as a malformed key.
+#   An image layered on another one inherits the key its base installed.
 if [ -f "${gpg_key_installed_path}" ]; then
     log "signing key already installed at [${gpg_key_installed_path}]"
 else
@@ -424,9 +421,8 @@ fi
 # So anything between the two has to be named here.
 #
 # What every mode keeps beyond the default set are the compiler's own runtimes - the libc++ stack, the sanitizers, OpenMP and Polly.
-# Those are compiler capabilities rather than tools:
-#   dropping them would silently break `-stdlib=libc++`, `-fsanitize=...`, `-fopenmp` and `-mllvm -polly` for anyone
-#   using a minimalistic install, which is not what "only clang/clang++, not tools" promises.
+# Those are compiler capabilities rather than tools: dropping them would silently break
+# `-stdlib=libc++`, `-fsanitize=...`, `-fopenmp` and `-mllvm -polly` even on a minimalistic install.
 upstream_package_set=''
 if [[ "${arg_mode}" == 'full' ]]; then
     upstream_package_set='all'
@@ -443,7 +439,7 @@ compiler_runtimes_for(){
     echo "${packages}"
 }
 
-# WIP: to be re-checked
+# TODO: re-check the version floor below against what apt.llvm.org currently publishes.
 #
 # require_runtime_capable_version <version> - the majors `--mode=runtime` can name packages for.
 #   From LLVM 20 up, apt.llvm.org publishes these two without a major: libc++1, libc++abi1.
@@ -529,15 +525,9 @@ for version in "${llvm_versions_to_install[@]}"; do
         || error "installing [${extra_packages}] failed"
     fi
 
-    # WARNING: only one installation of `lldb` is allowed by `apt` at a time.
-    # Cannot use `--no-remove` here.
-    # apt install -qq -y --no-install-recommends \
-    #     clang-format-${version} \
-    #     clang-tidy-${version}   \
-    #     lldb-${version}         \
-    # || error "installation of [${version}] (tools) failed"
-    # clang and clang-tools
-
+    # WARNING: apt holds one `lldb` at a time, so installing a second major removes the first,
+    #   and the `lldb` slave registered below then points at a binary the earlier major no longer has.
+    #   `--no-remove` cannot be used to prevent it.
     update_alternative_priority="${version}"
 
     if [[ "${arg_mode}" == 'minimalistic' ]]; then
@@ -593,30 +583,3 @@ if [[ "${arg_alias}" == 1 ]]; then
 fi
 
 exit 0;
-
-# Legacy inline integration
-#
-# ARG llvm_versions=all
-# RUN apt install -y wget bash \
-#     && wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add - \
-#     && wget https://apt.llvm.org/llvm.sh \  
-#     && chmod +x llvm.sh \
-#     && llvm_versions=${llvm_versions:=$(cat llvm.sh | grep -oP 'LLVM_VERSION_PATTERNS\[(\d+)\]=\"\-\K(\d+)' | sort -n)} \
-#     \
-#     echo "[toolchain] Embedding llvm versions = [${llvm_versions}]";    \
-#     echo llvm_versions=\'${llvm_versions}\' >> /etc/bash.bashrc;        \
-#     # \'' fix coloration in vscode with docker extension ¯\_(ツ)_/¯
-#     echo llvm_versions=\'${llvm_versions}\' >> /etc/zsh/zshrc;          \
-#     # \'' fix coloration in vscode with docker extension ¯\_(ツ)_/¯
-#     \
-#     && (yes '' | ./llvm.sh $llvm_versions) \
-#     && echo $llvm_versions | tr " " "\n" | xargs -I {} sh -c '          \
-#         update-alternatives                                                                 \
-#             --install /usr/bin/clang clang /usr/bin/clang-{} {}                             \
-#             --slave /usr/bin/clang++         clang++         /usr/bin/clang++-{}            \
-#             --slave /usr/bin/clang-format    clang-format    /usr/bin/clang-format-{}       \
-#             --slave /usr/bin/clang-tidy      clang-tidy      /usr/bin/clang-tidy-{}         \
-#             --slave /usr/bin/clangd          clangd          /usr/bin/clangd-{}             \
-#             --slave /usr/bin/llvm-symbolizer llvm-symbolizer /usr/bin/llvm-symbolizer-{}    \
-#             --slave /usr/bin/lldb            lldb            /usr/bin/lldb-{}               \
-#     '

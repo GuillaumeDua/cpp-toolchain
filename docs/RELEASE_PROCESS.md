@@ -5,7 +5,8 @@ This page is about *cutting* releases, and it is the only place the cadence and 
 
 ## In a nutshell
 
-An rc is **built**, a release is that same rc **re-tagged**. Merging the candidate pull request is what promotes it:
+An rc is **built**, a release is that same rc **re-tagged**.
+Merging the candidate pull request is what promotes it:
 
 ```mermaid
 graph LR
@@ -82,15 +83,15 @@ Every moving part lives in two workflows and one schema:
   - schema
   - tag consistency
   - bumps recompute
-  - a smoke test of the image **by digest**. Make it a required status check on `main`.
+  - a smoke test of the image **by digest**.
+    Make it a required status check on `main`.
 - [scripts/details/check-release-file.py](../scripts/details/check-release-file.py) - the single definition of the `releases/v*.yaml` schema and of the stage lists.
 
 ## The normal path
 
 1. On the 8th or 22nd an rc is built and a **candidate PR** appears (branch `release/candidate/v1.2-rc.1`, adding `releases/v1.2.yaml`).
    Its body is the manifest - what moved since the last release.
-2. **Validate**: read the diff, pull the rc (`docker pull ghcr.io/guillaumedua/cpp-toolchain:dev-v1.2-rc.1`),
-   build something real against it, check the PR is green.
+2. **Validate**: read the diff, pull the rc (`docker pull ghcr.io/guillaumedua/cpp-toolchain:dev-v1.2-rc.1`), build something real against it, check the PR is green.
 3. **Merge**: that is the whole procedure - the promote job verifies the recorded digests against both registries,  
    re-tags them to `v1.2` + `latest`, and creates the GitHub release at the rc's commit.
 
@@ -117,12 +118,11 @@ Two constraints, both enforced and neither obvious:
 
 ## Rollback
 
-`git revert` of the promotion commit does **not** move image tags back on its own - the record is
-gone from `main`, but `latest` still points at the reverted release.
+`git revert` of the promotion commit does **not** move image tags back on its own - the record is gone from `main`, but `latest` still points at the reverted release.
 
-What actually rolls back: **re-run the previous version's promotion workflow run** from the Actions
-tab. Promotion is idempotent and reads its own `releases/v*.yaml`, so the old run re-tags `latest`
-back to the old digests in seconds. The digests being in git is what makes this archaeology-free.
+What actually rolls back: **re-run the previous version's promotion workflow run** from the Actions tab.
+Promotion is idempotent and reads its own `releases/v*.yaml`, so the old run re-tags `latest` back to the old digests in seconds.
+The digests being in git is what makes this archaeology-free.
 
 ## Cutting a major
 
@@ -158,7 +158,7 @@ Merging that PR re-fires the promote job as an idempotent no-op.
 
 So the guarantees are not read as stronger than they are:
 
-- The images are **unsigned** (`--provenance=false --sbom=false` is load-bearing for the untagged GHCR sweep).  
+- The images are **unsigned**: buildx attestations and the untagged GHCR sweep are mutually exclusive, and [docker-publish.yml](../.github/workflows/docker-publish.yml) takes the sweep.  
   The digest record in `releases/` is the tamper-evidence:  
   it proves what this workflow built, not - to a third party - that this workflow built it.
 - Anything holding `packages: write` or the Docker Hub token can move a tag between rc and merge.  
@@ -174,8 +174,7 @@ So the guarantees are not read as stronger than they are:
   A PR created with `GITHUB_TOKEN` fires no `pull_request` events, so its validation checks would never run.
 - **`DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN`** - read+write is sufficient; nothing deletes registry content anymore.
 - Branch protection on `main` requiring the `validate-candidate` check.
-- The candidate PR must be **merged by a human** (or native auto-merge enabled by one) - a merge
-  performed with `GITHUB_TOKEN` would suppress the push event that triggers promotion.
+- The candidate PR must be **merged by a human** (or native auto-merge enabled by one) - a merge performed with `GITHUB_TOKEN` would suppress the push event that triggers promotion.
 
 ## Failure modes
 

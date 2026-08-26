@@ -11,16 +11,19 @@ Both also work from any editor that speaks the Dev Containers or SSH protocols; 
 
 ## Reopen in Container
 
-VS Code opens the repository directly inside a `dev` container. You need two files:
+VS Code opens the repository directly inside a `dev` container.
+You need two files:
 
 - a [`devcontainer.json`](../.devcontainer/devcontainer.json) - see the example in this repo,
 - which references a [`docker-compose.yaml`](../.devcontainer/docker-compose.yaml) - likewise.
 
-With both present, run **Dev Containers: Reopen in Container** from the VS Code command palette. The container is pulled from the image referenced in `docker-compose.yaml`, so no local build is required.
+With both present, run **Dev Containers: Reopen in Container** from the VS Code command palette.
+The container is pulled from the image referenced in `docker-compose.yaml`, so no local build is required.
 
 ## Remote SSH
 
-The published image does **not** ship an SSH server by default. Remote/SSH access is an opt-in extra layer, built on top of `dev` via [`.devcontainer/ssh_support.dockerfile`](../.devcontainer/ssh_support.dockerfile).
+The published image does **not** ship an SSH server by default.
+Remote/SSH access is an opt-in extra layer, built on top of `dev` via [`.devcontainer/ssh_support.dockerfile`](../.devcontainer/ssh_support.dockerfile).
 
 ### 1. Build and start the SSH service
 
@@ -48,10 +51,11 @@ Host cpp-toolchain
 Then run **Remote-SSH: Connect to Host...** -> `cpp-toolchain` and enter the password `password` when prompted.
 
 > [!WARNING]
-> The default `vscodeuser` / `password` credentials are for local development only. Change them before exposing port `2222` beyond `localhost`.
+> The default `vscodeuser` / `password` credentials are for local development only.
+> Change them before exposing port `2222` beyond `localhost`.
 
 ## See also
 
 - [README.md](../README.md) - images, features, tags, build arguments.
-- [Pick your image](../README.md#pick-your-image) - the five stages and what each contains.
+- [Pick your image](../README.md#pick-your-image-one-per-stage) - the five stages and what each contains.
 - [docs/CROSS-COMPILATION.md](CROSS-COMPILATION.md) - cross-architecture compilation and multilib.

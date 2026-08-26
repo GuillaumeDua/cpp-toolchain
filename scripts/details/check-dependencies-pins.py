@@ -6,7 +6,7 @@ Three invariants, all cheap, all failing long before a 40-minute build:
   1. nothing floats         - a `latest` / `master` value makes two builds of one commit differ
   2. nothing is unwatched   - a pin nobody updates silently rots
   3. nothing is shadowed    - a stage re-declaring `ARG FOO=<value>` overrides the global pin,
-                              which is the exact bug hoisting the ARGs was meant to remove
+                              leaving a second value for Renovate to keep in step
 
 "Watched" is not decided by guessing which ARG names look like versions.
 The renovate.json manager regexes are run over the Dockerfile and the matched character spans recorded;
@@ -49,7 +49,7 @@ ARG_DECL = re.compile(r"^ARG ([A-Za-z_][A-Za-z0-9_]*)=(\S+)")
 def load_render_manifest():
     """render-manifest.py, imported by path - the hyphen makes it not a normal module name.
 
-    Sharing js_to_py/dockerfile_managers is the point:
+    js_to_py and dockerfile_managers are shared rather than reimplemented:
         both tools have to read renovate.json the same way, or the manifest and this guard disagree about what Renovate covers.
     """
     spec = importlib.util.spec_from_file_location("render_manifest", HERE / "render-manifest.py")

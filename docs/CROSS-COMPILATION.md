@@ -7,7 +7,8 @@ Two different things, both available from the **`build`** stage onwards:
 
 ## Cross-architecture compilation
 
-Cross-arch is **opt-in**: the default (lean) images ship no cross toolchain. You get it either by pulling a **`-cross` image** or by building any stage with `--build-arg BINUTILS_TARGETS='<triplets>'`.
+Cross-arch is **opt-in**: the default (lean) images ship no cross toolchain.
+You get it either by pulling a **`-cross` image** or by building any stage with `--build-arg BINUTILS_TARGETS='<triplets>'`.
 
 ```bash
 # pull the published cross variant of a stage
@@ -53,7 +54,8 @@ clang++ --target=aarch64-linux-gnu main.cpp                  # ✅ clang, libstd
 clang++ --target=aarch64-linux-gnu -stdlib=libc++ main.cpp   # ❌ no target libc++
 ```
 
-**libc++ for the target** (the GCC-free path) is **not bundled** - it has no portable apt cross package and requires an LLVM `runtimes` source build, tracked as a future `scripts/libcxx.sh`. This affects the *cross* case only: the **host** libc++ is installed, so native `clang++ -stdlib=libc++` works.
+**libc++ for the target** (the GCC-free path) is **not bundled** - it has no portable apt cross package and requires an LLVM `runtimes` source build, tracked as a future `scripts/libcxx.sh`.
+This affects the *cross* case only: the **host** libc++ is installed, so native `clang++ -stdlib=libc++` works.
 
 ## Multilib - secondary ABIs
 
@@ -65,10 +67,11 @@ g++ -m32  main.cpp   # 32-bit x86 (i386)
 g++ -mx32 main.cpp   # x32 - 32-bit pointers, 64-bit registers
 ```
 
-Installed by default, **best-effort**: multilib lags for brand-new GCC versions and does not exist on non-amd64 hosts, so an unavailable package is skipped with a log rather than failing the build. `gcc.sh` exposes `--multilib` (default on) and `-m` / `--minimalistic` (compilers only); an *explicit* `--multilib=yes` is honored strictly and fails hard if unavailable.
+Installed by default, **best-effort**: multilib lags for brand-new GCC versions and does not exist on non-amd64 hosts, so an unavailable package is skipped with a log rather than failing the build.
+`gcc.sh` exposes `--multilib` (default on) and `-m` / `--minimalistic` (compilers only); an *explicit* `--multilib=yes` is honored strictly and fails hard if unavailable.
 
 ## See also
 
 - [README.md](../README.md) - images, features, tags, build arguments.
-- [scripts/install/README.md](../scripts/install/README.md#binutilssh) - `binutils.sh` reference: available triplets, triplet axes, fallback behaviour.
+- [scripts/install/README.md](../scripts/install/README.md#binutilssh) - `binutils.sh` reference: available triplets, triplet axes, fallback behavior.
 - [docs/COVERAGE.md](COVERAGE.md) - GNU and LLVM code coverage.
