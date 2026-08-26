@@ -33,6 +33,9 @@ The `-cross` images carry the live non-x86 ecosystems - ARM 64-bit (servers/embe
 | `arm-linux-gnueabihf` | `g++-arm-linux-gnueabihf` | binutils · glibc · libgcc · **libstdc++** |
 | `riscv64-linux-gnu`   | `g++-riscv64-linux-gnu`   | binutils · glibc · libgcc · **libstdc++** |
 
+`common` resolves to those three plus `x86-64-linux-gnu`, the host triplet, so a `-cross` image also carries `g++-x86-64-linux-gnu`.
+[binutils.sh](../scripts/install/binutils.sh) is where that list lives.
+
 A custom build can name any triplet from `binutils.sh --list-available --targets=all`, or `common` for the published set - **CPU, FPU, ABI and endianness are selected by the triplet itself**, there is no separate switch.  
 See [scripts/install/README.md](../scripts/install/README.md#binutilssh) for the axes, the full option reference, and the 7 triplets (out of 32) that have no cross-`g++` and fall back to bare binutils.
 
