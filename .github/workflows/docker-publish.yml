@@ -3,7 +3,6 @@ name: docker-publish
 # Pushes images to Docker Hub and GHCR.
 # docs/RELEASE_PROCESS.md is the runbook: the release model, the cadence, the urgent-fix path and the failure modes are documented there, and stated nowhere else.
 #
-# The short version:
 # - an rc is a fresh build published as a pre-release,
 #   which opens a candidate pull request adding releases/v1.2.yaml - the manifest digest of every stage it pushed.
 # - a minor is that PR being merged: the promote job re-tags the recorded digests,
@@ -15,13 +14,14 @@ name: docker-publish
 # See README.md#tags--versioning has the full scheme.
 #
 # Two rules the steps below rely on and cannot state for themselves:
-#   - releases/ is excluded from the skip-when-unchanged comparison. Every promotion merges a
-#     record onto main, so without the exclusion each release would spawn a pointless rc at the
-#     next cron, from a tree that builds to an identical image.
-#   - events triggered by GITHUB_TOKEN start no workflow runs. That is load-bearing twice over:
-#     the release created here does not re-trigger this workflow (a PAT there would be an
-#     infinite build loop), and the candidate PR must therefore be created with RELEASE_PR_TOKEN
-#     or its checks would never run. Same reason its merge has to be a human, never a token.
+#   - releases/ is excluded from the skip-when-unchanged comparison.
+#     Every promotion merges a record onto main, so without the exclusion each release would spawn a pointless rc at the next cron,
+#     from a tree that builds to an identical image.
+#   - events triggered by GITHUB_TOKEN start no workflow runs.
+#     That is load-bearing twice over:
+#     - the release created here does not re-trigger this workflow (a PAT there would be an infinite build loop),
+#     - the candidate PR must therefore be created with RELEASE_PR_TOKEN or its checks would never run.
+#     Same reason its merge has to be a human, never a token.
 #
 # The build job holds all of its permissions for all of its steps, including the ~40-minute build.
 # Splitting the PR upkeep into a separate job would cost an artifact hop per output,
@@ -390,7 +390,7 @@ jobs:
       #   with every version pinned, a cache hit means the inputs really are unchanged, so replaying a layer cannot smuggle in a stale toolchain.
       # Each build writes a metadata file:
       #   the digests in there become the promotion record, so whatever this step pushes is exactly what a later promotion re-tags.
-      - name: Build and push all stages
+      - name: Validate, then build and push all stages
         if: steps.changed.outputs.skip != 'true'
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
@@ -398,8 +398,29 @@ jobs:
           set -euo pipefail
           mkdir -p build-metadata
 
-          # Cross-arch target triplets for the `-cross` image variant (single source of truth).
-          CROSS_TARGETS="x86-64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu"
+          # Cross-arch target triplets for the `-cross` image variant.
+          # `common` is an alias resolved by scripts/install/binutils.sh, which is where the triplets are listed.
+          
+          CROSS_TARGETS="common"
+
+          # Run the image validation gate for one variant. $1=BINUTILS_TARGETS build-arg, $2.. = stages.
+          #   `cacheonly` because only the exit status matters here - nothing is loaded or pushed,
+          #   and the layers these solves build are the very ones the pushes below reuse from the local cache.
+          #   No --cache-to: the throwaway validate layers have no reason to occupy the shared gha cache.
+          validate_variant() {
+            local targets="$1"; shift
+            for target in "$@"; do
+              echo "::group::validate cpp-toolchain:${target} [BINUTILS_TARGETS='${targets}']"
+              docker buildx build \
+                --file Dockerfile \
+                --target "${target}" \
+                --build-arg "BINUTILS_TARGETS=${targets}" \
+                --cache-from type=gha,scope=cpp-toolchain \
+                --output type=cacheonly \
+                .
+              echo "::endgroup::"
+            done
+          }
 
           # Build + push one variant. $1=BINUTILS_TARGETS build-arg, $2=tag infix, $3.. = stages.
           #   infix ""       -> normal / lean:  <stage>-<tag>        (+ unprefixed <tag> for dev)
@@ -439,6 +460,12 @@ jobs:
           # this loop, the recorded digests and the derived promotion targets from drifting apart.
           NORMAL_STAGES="$(python3 scripts/details/check-release-file.py --print-stages normal)"
           CROSS_STAGES="$(python3 scripts/details/check-release-file.py --print-stages cross)"
+
+          # Validate before publishing, so a stage that lost a package never reaches a registry.
+          #   Deliberately not part of NORMAL_STAGES/CROSS_STAGES: those name what gets published and recorded as a digest, and the validate stages are neither.
+          #   The cross variant has no `runtime`, hence no validate-runtime.
+          validate_variant ""                 validate-build validate-runtime
+          validate_variant "${CROSS_TARGETS}" validate-build
 
           # Normal variant first, so its shared toolchain layers populate the gha cache the cross pass reuses.
           #   `runtime` carries no toolchain, so it gets no cross variant (a cross runtime would be byte-identical).

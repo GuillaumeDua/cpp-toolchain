@@ -3,8 +3,8 @@
 set -eu
 
 # =============================================================================================
-# This file is part of https://github.com/GuillaumeDua/CppShelf
-# License: see https://github.com/GuillaumeDua/CppShelf/blob/main/LICENSE
+# This file is part of https://github.com/GuillaumeDua/cpp-toolchain
+# License: see https://github.com/GuillaumeDua/cpp-toolchain/blob/main/LICENSE
 #
 # Cross-compilation GNU toolchain(s) for one or more target architectures.
 #
@@ -31,38 +31,106 @@ set -eu
 
 this_script_name=$(basename "$0")
 
-arg_targets='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu x86-64-linux-gnu'
+# The triplets a cross build targets unless told otherwise, and the only place they are listed.
+# Referred to as `common` so nothing downstream has to repeat them.
+#
+# Which triplets belong here is a judgement call rather than a fixed set:
+# these are the architectures most cross builds are likely to want today, so expect the value to change as that answer does.
+# No code repeats it - callers pass `common` through and let this script resolve it.
+common_targets='aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu x86-64-linux-gnu'
+
+arg_targets='common'
 arg_with_gcc=1
-arg_list=0
+arg_targets_explicit=0
+arg_list_available=0
+arg_list_installed=0
+arg_list_targets=0
 arg_silent=1
+
+# How many times a network-facing step is attempted - through apt.
+max_attempts=3
 
 help(){
     echo "Usage: ${this_script_name}" 1>&2
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
-        [ -l | --list ]     : Only list the cross target triplets available on this host.                           Boolean -> default is [0]
-        [ -t | --targets ]  : Target triplets to install a cross toolchain for (space-separated).                   String -> default is ['${arg_targets}']
-                              Ex: 'aarch64-linux-gnu powerpc64le-linux-gnu s390x-linux-gnu'
-        [ --with-gcc ]      : Install \`g++-<triplet>\` -> full cross toolchain (binutils+libc+libgcc+libstdc++).   Boolean -> default is [1]
-                              When [0], or when no cross-g++ exists: \`binutils-<triplet>\` + \`libc6-dev-<debarch>-cross\` only.
-        [ -s | --silent ]   : Run in silent mod.                                                                    Boolean -> default is [1]
-        [ -h | --help ]     : Display usage/help
+        [ -l | --list-available ] : Only list the cross target triplets available on this host, restricted to [targets].
+                                    Use --targets=all to list every triplet this host offers.                               Boolean -> default is [0]
+        [ --list-installed ]      : Only list the cross target triplets already installed, restricted to [targets] when given explicitly.
+                                                                                                                            Boolean -> default is [0]
+        [ --list-targets ]        : Only print the triplets [targets] resolves to, without consulting apt.                  Boolean -> default is [0]
+        [ -t | --targets ]        : Target triplets to install a cross toolchain for (space-separated),                     String -> default is ['${arg_targets}']
+                                    or 'common' (${common_targets}),
+                                    or 'all' (every triplet this host offers).
+                                    Ex: 'aarch64-linux-gnu powerpc64le-linux-gnu s390x-linux-gnu'
+        [ --with-gcc ]            : Install \`g++-<triplet>\` -> full cross toolchain (binutils+libc+libgcc+libstdc++).     Boolean -> default is [1]
+                                    When [0], or when no cross-g++ exists: \`binutils-<triplet>\` + \`libc6-dev-<debarch>-cross\` only.
+        [ -s | --silent ]         : Run in silent mod.                                                                      Boolean -> default is [1]
+        [ -h | --help ]           : Display usage/help
 
     For instance, to install only the aarch64 cross-binutils, use:
         sudo ./${this_script_name} --targets='aarch64-linux-gnu'
         " 1>&2
     exit 0
 }
+
+error_diagnosis(){
+    {
+        echo -e "[${this_script_name}]: diagnosis helper:"
+        if command -v lsb_release >/dev/null 2>&1; then
+            echo -e "\t- distribution:       [$(lsb_release -ds 2>/dev/null)]"
+        fi
+        echo -e "\t- host architecture:  [$(dpkg --print-architecture 2>/dev/null)]"
+        echo -e "\t- targets requested:  [${arg_targets}]"
+        echo -e "\t- with gcc:           [${arg_with_gcc}]"
+    } >> /dev/stderr
+}
 error(){
     echo -e "[${this_script_name}]: $@" >> /dev/stderr
+    error_diagnosis
     exit 1
+}
+warning(){
+    echo -e "[${this_script_name}]: $@" >> /dev/stderr
 }
 log(){
     if [[ "${arg_silent}" == 1 ]]; then
         return 0;
     fi
     echo -e "[${this_script_name}]: $@"
+}
+# Runs a command quietly, replaying its output only if it fails.
+run(){
+    local what="$1"; shift
+    local output streamed=0 status=0
+
+    output=$(mktemp)
+    if [[ "${arg_silent}" == 0 ]]; then
+        # stderr, because stdout carries the result to the caller.
+        streamed=1
+        "$@" 2>&1 | tee "${output}" >&2
+        status=${PIPESTATUS[0]}
+    else
+        "$@" > "${output}" 2>&1 || status=$?
+    fi
+
+    if [ "${status}" -eq 0 ]; then
+        rm -f "${output}"
+        return 0
+    fi
+
+    {
+        echo -e "[${this_script_name}]: ${what} failed - exit status [${status}]"
+        echo -e "[${this_script_name}]: command: [$*]"
+        if [ "${streamed}" -eq 0 ]; then
+            echo -e "[${this_script_name}]: --- output ---"
+            cat "${output}"
+            echo -e "[${this_script_name}]: --- end of output ---"
+        fi
+    } >> /dev/stderr
+    rm -f "${output}"
+    return "${status}"
 }
 to_boolean(){
     if [[ $# != 1 ]]; then
@@ -122,17 +190,52 @@ triplet_to_deb_arch(){
     esac
 }
 
-# --- precondition: sudoer ---
+# --- list targets ---
+#   `-dbg`/`-dev` are debug-symbol / side packages of a target, not targets themselves.
+target_triplets(){
+    grep -oP '^binutils-\K.*-linux-gnu.*$' | grep -vE -- '-(dbg|dev)$' | sort -u
+}
 
-if [ "$EUID" -ne 0 ]; then
-  error "Requires root privileges"
-  exit 1
-fi
+list_available_targets(){
+    run "refreshing the apt index" apt-get update -q -y -o Acquire::Retries=${max_attempts} \
+    || warning "refreshing the apt index failed - the target list below may be incomplete or empty"
+    apt-cache search --names-only '^binutils-.*-linux-gnu' | awk '{print $1}' | target_triplets
+}
+
+list_installed_targets(){
+    dpkg-query --show --showformat='${Package} ${Status}\n' 2>/dev/null \
+      | awk '$2 == "install" && $4 == "installed" { print $1 }' | target_triplets
+}
+
+# Resolve the `common` alias. `all` needs the apt index, so it is left to the modes that have one.
+expand_targets(){
+    if [ "$1" = 'common' ]; then
+        echo "${common_targets}"
+    else
+        echo "$1"
+    fi
+}
+
+# Restrict a set of triplets to a --targets selector.
+#   'all' keeps the set as-is, an explicit list is intersected with it.
+select_targets(){
+    local selector="$1"
+    local targets="$2"
+
+    if [ "${selector}" = 'all' ]; then
+        echo "${targets}"
+        return
+    fi
+    local requested
+    for requested in ${selector}; do
+        grep -qx -- "${requested}" <<< "${targets}" && echo "${requested}"
+    done
+}
 
 # --- options management ---
 
 options_short=s:,t:,l,h
-options_long=silent:,targets:,with-gcc:,help,list
+options_long=silent:,targets:,with-gcc:,help,list-available,list-installed,list-targets
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -146,14 +249,23 @@ do
       ;;
     -t | --targets )
       arg_targets=$(echo $2 | tr -d '\n' | tr '\n' ' ')
+      arg_targets_explicit=1
       shift 2
       ;;
     --with-gcc )
       arg_with_gcc="$2"
       shift 2
       ;;
-    -l | --list )
-      arg_list=1
+    -l | --list-available )
+      arg_list_available=1
+      shift;
+      ;;
+    --list-installed )
+      arg_list_installed=1
+      shift;
+      ;;
+    --list-targets )
+      arg_list_targets=1
       shift;
       ;;
     -h | --help)
@@ -177,8 +289,18 @@ if [ "$arg_silent" == '' ] ; then
     exit 1;
 fi
 
-arg_list=$(to_boolean "${arg_list}")
-if [ "$arg_list" == '' ] ; then
+arg_list_available=$(to_boolean "${arg_list_available}")
+if [ "$arg_list_available" == '' ] ; then
+    exit 1;
+fi
+
+arg_list_installed=$(to_boolean "${arg_list_installed}")
+if [ "$arg_list_installed" == '' ] ; then
+    exit 1;
+fi
+
+arg_list_targets=$(to_boolean "${arg_list_targets}")
+if [ "$arg_list_targets" == '' ] ; then
     exit 1;
 fi
 
@@ -187,44 +309,80 @@ if [ "$arg_with_gcc" == '' ] ; then
     exit 1;
 fi
 
-log "arguments - targets:  [${arg_targets}]"
-log "arguments - with-gcc: [${arg_with_gcc}]"
-log "arguments - silent:   [${arg_silent}]"
-log "arguments - list:     [${arg_list}]"
+log "arguments - targets:           [${arg_targets}]"
+log "arguments - with-gcc:          [${arg_with_gcc}]"
+log "arguments - silent:            [${arg_silent}]"
+log "arguments - list-available:    [${arg_list_available}]"
+log "arguments - list-installed:    [${arg_list_installed}]"
+log "arguments - list-targets:      [${arg_list_targets}]"
+
+# Resolved once, so every mode below sees a plain triplet list rather than an alias.
+if [ "${arg_targets}" != 'all' ]; then
+    arg_targets=$(expand_targets "${arg_targets}")
+fi
+
+# --- list targets mod ? ---
+#   Pure expansion: no root, no apt, so anything downstream can resolve `common` for itself.
+if [[ ${arg_list_targets} == 1 ]]; then
+    [ "${arg_targets}" != 'all' ] \
+      || error "--list-targets cannot expand [all] without the apt index - use --list-available --targets=all"
+    for target in ${arg_targets}; do
+        echo "${target}"
+    done
+    exit 0
+fi
+
+# --- list installed mod ? ---
+#   Answered from dpkg alone, so this stays a query: no root, no apt index refresh.
+if [[ ${arg_list_installed} == 1 ]]; then
+    installed_targets=$(list_installed_targets)
+    if [[ ${arg_targets_explicit} == 1 ]]; then
+        select_targets "${arg_targets}" "${installed_targets}"
+    elif [ -n "${installed_targets}" ]; then
+        echo "${installed_targets}"
+    fi
+    exit 0
+fi
+
+# --- precondition: sudoer ---
+
+if [ "$EUID" -ne 0 ]; then
+  error "Requires root privileges"
+  exit 1
+fi
 
 # --- list mod ? ---
-#   lists the target triplets for which a `binutils-<triplet>` cross package exists on this host.
-if [[ ${arg_list} == 1 ]]; then
-    apt-get update -qqy >/dev/null 2>&1 || true
-    #   `-dbg`/`-dev` are debug-symbol / side packages of a target, not targets themselves.
-    apt-cache search --names-only '^binutils-.*-linux-gnu' \
-        | awk '{print $1}' | grep -oP '^binutils-\K.*-linux-gnu.*$' \
-        | grep -vE -- '-(dbg|dev)$' | sort -u
+if [[ ${arg_list_available} == 1 ]]; then
+    select_targets "${arg_targets}" "$(list_available_targets)"
     exit 0
 fi
 
 # --- installations ---
-apt-get update -qqy
+if [ "${arg_targets}" = 'all' ]; then
+    arg_targets=$(list_available_targets | tr '\n' ' ')
+fi
+run "refreshing the apt index" apt-get update -q -y -o Acquire::Retries=${max_attempts} \
+|| error "refreshing the apt index failed"
 
 for target in ${arg_targets}; do
 
     # Primary: the cross g++ transitively pulls the whole toolchain (binutils + libc + libgcc + libstdc++),
     #   so this single package makes C and C++ cross-compilation actually link,
     #   and Clang auto-detects the cross-GCC install, so `clang --target=${target}` works too.
-    if [[ ${arg_with_gcc} == 1 ]] && apt install -qq -y --no-install-recommends "g++-${target}"; then
+    if [[ ${arg_with_gcc} == 1 ]] && apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "g++-${target}"; then
         log "[g++-${target}] installed - full cross toolchain (binutils + libc + libgcc + libstdc++)"
         continue
     fi
     if [[ ${arg_with_gcc} == 1 ]]; then
-        log "[g++-${target}] unavailable, falling back to binutils + cross-libc only"
+        warning "[g++-${target}] unavailable, falling back to binutils + cross-libc only"
     fi
 
     # Fallback: bare cross binutils (+ cross libc, keyed off the Debian arch).
     #   Enough to compile to objects and inspect/strip; NOT to link a full executable (no target libgcc / libstdc++).
     pkg_binutils="binutils-${target}"
     log "installing [${pkg_binutils}] ..."
-    apt install -qq -y --no-install-recommends "${pkg_binutils}" \
-        || log "[${pkg_binutils}] not available for this host/arch, skipping"
+    apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_binutils}" \
+        || warning "[${pkg_binutils}] not available for this host/arch, skipping"
 
     debarch=$(triplet_to_deb_arch "${target}")
     if [ -z "${debarch}" ]; then
@@ -233,8 +391,8 @@ for target in ${arg_targets}; do
     fi
     pkg_libc="libc6-dev-${debarch}-cross"
     log "installing [${pkg_libc}] ..."
-    apt install -qq -y --no-install-recommends "${pkg_libc}" \
-        || log "[${pkg_libc}] not available for this host/arch, skipping"
+    apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_libc}" \
+        || warning "[${pkg_libc}] not available for this host/arch, skipping"
 
 done
 

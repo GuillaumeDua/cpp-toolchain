@@ -3,59 +3,95 @@
 set -eu
 
 # =============================================================================================
-# This file is part of https://github.com/GuillaumeDua/CppShelf
-# License: see https://github.com/GuillaumeDua/CppShelf/blob/main/LICENSE
+# This file is part of https://github.com/GuillaumeDua/cpp-toolchain
+# License: see https://github.com/GuillaumeDua/cpp-toolchain/blob/main/LICENSE
 #
-# libc++ scope: every --mode installs the host libc++ (libc++-<N>-dev / libc++abi-<N>-dev / libunwind-<N>-dev),
+# libc++ scope: every compiler --mode installs the host libc++ (libc++-<N>-dev / libc++abi-<N>-dev / libunwind-<N>-dev),
 #   so native `clang++ -stdlib=libc++` works without GCC - see the package set note further down.
-#   Cross-target libc++ (libc++ built for another arch) is NOT bundled: it has no portable apt package and requires an
-#   LLVM `runtimes` source build (future scripts/libcxx.sh). See binutils.sh for the cross scope.
+#
+#   `--mode=runtime` is the other half of that:
+#       the shared libraries alone, no compiler and no headers,
+#       for an image whose job is to run what such a toolchain produced.
+#
+#   WARNING: Cross-target libc++ (libc++ built for another arch) is NOT bundled:
+#       it has no portable apt package and requires an LLVM `runtimes` source build (future scripts/libcxx.sh).
+#       See binutils.sh for the cross scope.
 # =============================================================================================
 
 this_script_name=$(basename "$0")
 
 arg_versions='latest-stable'
-arg_list=0
+arg_versions_explicit=0
+arg_list_available=0
+arg_list_installed=0
 arg_silent=1
 arg_alias=0
 arg_mode='full'
 arg_cleanup=0
 
 internal_script_path='impl.sh'
+gpg_key_path='llvm-snapshot.gpg.key'
+gpg_key_installed_path='/etc/apt/trusted.gpg.d/llvm-snapshot.gpg'
+
+# How many times a network-facing step is attempted
+max_attempts=3
+
+# The last of max_attempts has to land after the throttling window.
+retry_backoff_seconds=30
 
 help(){
     echo "Usage: ${this_script_name}" 1>&2
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
-        [ -l | --list ]         : Only list available versions, expanding [versions].       Boolean -> default is [0]
-        [ -v | --versions ]     : Versions to install.                                      String: all|latest|latest-stable|>=(number)|(space-separated-numbers...) -> default is [latest-stable]
-            - [all]             : all versions availables                                       Ex: 'all'
-            - [latest]          : only the latest        version available                      Ex: 'latest'
-            - [latest-stable]   : only the latest-stable version available                      Ex: 'latest-stable'
-            - [>=(number)]      : all versions greater or equal to <number>                     Ex: '>=42'
-            - [numbers...]      : only listed versions.                                         Ex: '13 25 42' (space-separated)
-        [ -s | --silent ]       : Run in silent mod.                                        Boolean -> default is [1]
-        [ -a | --alias]         : Set bash/zsh-rc aliases.                                  Boolean -> default is [0]
-        [ --mode ]              : How much of the toolchain to install.                     String: minimalistic|coverage|full -> default is [full]
-            - [minimalistic]    : the compilers and their runtimes, no tools
-            - [coverage]        : minimalistic + the coverage tools (llvm-cov, llvm-profdata)
-            - [full]            : the whole toolchain (clang-tidy, clang-format, clangd, lldb, scan-build, ...)
-        [ -c | --cleanup]       : purge any (pre-)existing llvm/clang package installation: Boolean -> default is [0]
-        [ -h | --help ]         : Display usage/help
+        [ -l | --list-available ]: Only list available versions, expanding [versions].  Boolean -> default is [0]
+        [ --list-installed ]     : Only list the major versions already installed.      Boolean -> default is [0]
+                                   Filtered by [versions] when given explicitly, otherwise every installed major is listed.
+        [ -v | --versions ]      : Versions to install.                                 String: all|latest|latest-stable|>=(number)|(space-separated-numbers...) -> default is [latest-stable]
+            - [all]              : all versions availables                                  Ex: 'all'
+            - [latest]           : only the latest        version available                 Ex: 'latest'
+            - [latest-stable]    : only the latest-stable version available                 Ex: 'latest-stable'
+            - [>=(number)]       : all versions greater or equal to <number>                Ex: '>=42'
+            - [numbers...]       : only listed versions.                                    Ex: '13 25 42' (space-separated)
+        [ -s | --silent ]        : Run in silent mod.                                    Boolean -> default is [1]
+        [ -a | --alias]          : Set bash/zsh-rc aliases.                              Boolean -> default is [0]
+        [ --mode ]               : How much of the toolchain to install.                 String: runtime|minimalistic|coverage|full -> default is [full]
+            - [runtime]          : the libc++ runtime alone (libc++1, libc++abi1) - no compiler, no headers.
+                                   For an image that runs what another one built. LLVM 20 and later.
+            - [minimalistic]     : the compilers and their runtimes, no tools
+            - [coverage]         : minimalistic + the coverage tools (llvm-cov, llvm-profdata)
+            - [full]             : the whole toolchain (clang-tidy, clang-format, clangd, lldb, scan-build, ...)
+        [ -c | --cleanup]        : purge any (pre-)existing llvm/clang package installation: Boolean -> default is [0]
+        [ -h | --help ]          : Display usage/help
 
     For instance, to only install the two latest versions available, use:
-        sudo ./${this_script_name} --versions=\"\$(sudo ./${this_script_name} --list --versions='all' | tail -2)\"
+        sudo ./${this_script_name} --versions=\"\$(sudo ./${this_script_name} --list-available --versions='all' | tail -2)\"
         " 1>&2
     exit 0
 }
 clean(){
-    if [ -f "${internal_script_path}" ]; then
-        rm -rf "${internal_script_path}"
-    fi
+    rm -f "${internal_script_path}" "${gpg_key_path}"
+}
+error_diagnosis(){
+    local sources addresses
+    sources=$(grep -rl 'apt\.llvm\.org' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | paste -sd' ' -)
+    # A connection failure does not name the address it tried.
+    addresses=$(timeout 5 getent ahosts apt.llvm.org 2>/dev/null | awk '{print $1}' | sort -u | paste -sd' ' -)
+    {
+        echo -e "[${this_script_name}]: diagnosis helper:"
+        if command -v lsb_release >/dev/null 2>&1; then
+            echo -e "\t- distribution:        [$(lsb_release -ds 2>/dev/null)]"
+        fi
+        echo -e "\t- apt codename:        [${codename:-<unresolved>}]"
+        echo -e "\t- mode:                [${arg_mode}]"
+        echo -e "\t- versions requested:  [${arg_versions}]"
+        echo -e "\t- apt.llvm.org source: [${sources:-<none registered>}]"
+        echo -e "\t- apt.llvm.org hosts:  [${addresses:-<unresolved>}]"
+    } >> /dev/stderr
 }
 error(){
     echo -e "[${this_script_name}]: $@" >> /dev/stderr
+    error_diagnosis
     clean; exit 1
 }
 warning(){
@@ -67,6 +103,52 @@ log(){
     fi
     echo -e "[${this_script_name}]: $@"
     return 0
+}
+# Runs a command quietly, replaying its output only if it fails.
+run(){
+    local what="$1"; shift
+    local output streamed=0 status=0
+
+    output=$(mktemp)
+    if [[ "${arg_silent}" == 0 ]]; then
+        # stderr, because stdout carries the result to the caller.
+        streamed=1
+        "$@" 2>&1 | tee "${output}" >&2
+        status=${PIPESTATUS[0]}
+    else
+        "$@" > "${output}" 2>&1 || status=$?
+    fi
+
+    if [ "${status}" -eq 0 ]; then
+        rm -f "${output}"
+        return 0
+    fi
+
+    {
+        echo -e "[${this_script_name}]: ${what} failed - exit status [${status}]"
+        echo -e "[${this_script_name}]: command: [$*]"
+        if [ "${streamed}" -eq 0 ]; then
+            echo -e "[${this_script_name}]: --- output ---"
+            cat "${output}"
+            echo -e "[${this_script_name}]: --- end of output ---"
+        fi
+    } >> /dev/stderr
+    rm -f "${output}"
+    return "${status}"
+}
+# apt.llvm.org throttles a host that requests too much too fast, for up to a minute at a time.
+# Every step retried here is idempotent, and only the last attempt reports.
+run_with_retries(){
+    local attempts="$1" what="$2"; shift 2
+    local attempt=1
+
+    while [ "${attempt}" -lt "${attempts}" ]; do
+        "$@" > /dev/null 2>&1 && return 0
+        warning "${what} failed - retrying in $(( attempt * retry_backoff_seconds ))s (attempt $(( attempt + 1 ))/${attempts})"
+        sleep $(( attempt * retry_backoff_seconds ))
+        attempt=$(( attempt + 1 ))
+    done
+    run "${what}" "$@"
 }
 to_boolean(){
     if [[ $# != 1 ]]; then
@@ -83,16 +165,10 @@ to_boolean(){
     esac
 }
 
-# --- precondition: sudoer ---
-
-if [ "$EUID" -ne 0 ]; then
-    error "Requires root privileges"
-fi
-
 # --- options management ---
 
 options_short=s:,v:,a:,c,l,h
-options_long=silent:,versions:,alias:,mode:,cleanup,help,list
+options_long=silent:,versions:,alias:,mode:,cleanup,help,list-available,list-installed
 getopt_result=$(getopt -a -n ${this_script_name} --options ${options_short} --longoptions ${options_long} -- "$@")
 
 eval set -- "$getopt_result"
@@ -110,6 +186,7 @@ do
         ;;
     -v | --versions )
         arg_versions=$(echo $2 | tr -d '\n' | tr '\n' ' ')
+        arg_versions_explicit=1
         shift 2
         ;;
     --mode )
@@ -120,8 +197,12 @@ do
         arg_cleanup=1
         shift;
         ;;
-    -l | --list )
-        arg_list=1
+    -l | --list-available )
+        arg_list_available=1
+        shift;
+        ;;
+    --list-installed )
+        arg_list_installed=1
         shift;
         ;;
     -h | --help)
@@ -145,14 +226,19 @@ if [ "$arg_silent" == '' ] ; then
     exit 1;
 fi
 
-arg_list=$(to_boolean "${arg_list}")
-if [ "$arg_list" == '' ] ; then
+arg_list_available=$(to_boolean "${arg_list_available}")
+if [ "$arg_list_available" == '' ] ; then
+    exit 1;
+fi
+
+arg_list_installed=$(to_boolean "${arg_list_installed}")
+if [ "$arg_list_installed" == '' ] ; then
     exit 1;
 fi
 
 case "${arg_mode}" in
-    minimalistic | coverage | full ) ;;
-    * ) error "invalid --mode=[${arg_mode}] - expected one of: minimalistic, coverage, full" ;;
+    runtime | minimalistic | coverage | full ) ;;
+    * ) error "invalid --mode=[${arg_mode}] - expected one of: runtime, minimalistic, coverage, full" ;;
 esac
 
 arg_cleanup=$(to_boolean "${arg_cleanup}")
@@ -163,9 +249,63 @@ fi
 log "arguments - versions:          [${arg_versions}]"
 log "arguments - silent:            [${arg_silent}]"
 log "arguments - alias:             [${arg_alias}]"
-log "arguments - list:              [${arg_list}]"
+log "arguments - list-available:    [${arg_list_available}]"
 log "arguments - mode:              [${arg_mode}]"
 log "arguments - cleanup:           [${arg_cleanup}]"
+
+# --- list installed versions ---
+#   Answered from dpkg alone, ahead of everything below:
+#   the fetch writes a GPG key into /etc/apt/trusted.gpg.d, and a query must not touch
+#   what it is asked about.
+llvm_version_installed_regex='^clang-\K[0-9]+(?=(:.*)?$)'
+list_installed_llvm_versions(){
+    dpkg -l | grep ^ii | awk '{print $2}' | grep -oP "${llvm_version_installed_regex}" | sort -n -u
+}
+
+# Filter a set of majors by a --versions selector.
+#   This reports what is present rather than what could be installed, so an explicit list is intersected with the set rather than passed through.
+#   latest-stable is refused here: only the upstream index defines it, and fetching that is exactly what this query must not do.
+select_versions(){
+    local selector="$1"
+    local versions="$2"
+
+    case "${selector}" in
+        all )
+            echo "${versions}" ;;
+        latest )
+            echo "${versions}" | tail -1 ;;
+        latest-stable )
+            error "--list-installed cannot resolve [latest-stable] without the upstream index - use --versions=latest or --versions=all" ;;
+        '>='[0-9]* )
+            local from
+            from=$(echo "${selector}" | grep -oP '^>=\K[0-9]+$')
+            [ -n "${from}" ] || error "invalid version='>=[0-9]+' value: [${selector}]"
+            echo "${versions}" | awk -v from="${from}" '$1 >= from' ;;
+        * )
+            [[ "${selector}" =~ ^[0-9]+( [0-9]+)*$ ]] \
+                || error "invalid value for argument version [${selector}]"
+            local requested
+            for requested in ${selector}; do
+                grep -qx -- "${requested}" <<< "${versions}" && echo "${requested}"
+            done ;;
+    esac
+}
+
+if [[ ${arg_list_installed} == 1 ]]; then
+    installed_versions=$(list_installed_llvm_versions)
+    if [[ ${arg_versions_explicit} == 1 ]]; then
+        select_versions "${arg_versions}" "${installed_versions}"
+    elif [ -n "${installed_versions}" ]; then
+        echo "${installed_versions}"
+    fi
+    exit 0
+fi
+
+# --- precondition: sudoer ---
+
+if [ "$EUID" -ne 0 ]; then
+    error "Requires root privileges"
+fi
 
 # --- fetch llvm.sh ---
 # or use:
@@ -178,28 +318,42 @@ if [ -f "${internal_script_path}" ]; then
     exit 1
 fi
 
-external_script_url='https://apt.llvm.org/llvm.sh'
+codename=$(lsb_release -cs)
 
-# wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-# wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-# NO_PUBKEY 1A127079A92F09ED
+apt_llvm_base_url='https://apt.llvm.org'
+external_script_url="${apt_llvm_base_url}/llvm.sh"
+gpg_key_url="${apt_llvm_base_url}/llvm-snapshot.gpg.key"
+
 # REFACTO: remove gpg key -> already added by ${external_script_url}
-wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor --batch --yes -o /etc/apt/trusted.gpg.d/llvm-snapshot.gpg \
-    && wget -qO ${internal_script_path} ${external_script_url} \
-    && chmod +x "${internal_script_path}"
-if [ $? != 0 ] || [ ! -f "${internal_script_path}" ]; then
-    error "fetching [${external_script_url}] failed"
+# Not piped into gpg: without pipefail, a failed download would surface as a malformed key.
+# wget's own --tries exhausts all three attempts within about three seconds, well inside a throttling window.
+wget_options=(--no-verbose --tries=${max_attempts} --retry-connrefused --timeout=30)
+
+# An image layered on another one inherits the key its base installed.
+if [ -f "${gpg_key_installed_path}" ]; then
+    log "signing key already installed at [${gpg_key_installed_path}]"
+else
+    run_with_retries "${max_attempts}" "fetching the signing key [${gpg_key_url}]" \
+        wget "${wget_options[@]}" -O "${gpg_key_path}" "${gpg_key_url}" \
+    || error "fetching the signing key [${gpg_key_url}] failed"
+
+    run "installing the signing key" \
+        gpg --dearmor --batch --yes -o "${gpg_key_installed_path}" "${gpg_key_path}" \
+    || error "installing the signing key fetched from [${gpg_key_url}] failed"
 fi
+
+run_with_retries "${max_attempts}" "fetching [${external_script_url}]" \
+    wget "${wget_options[@]}" -O "${internal_script_path}" "${external_script_url}" \
+|| error "fetching [${external_script_url}] failed"
+
+[ -f "${internal_script_path}" ] || error "fetching [${external_script_url}] produced no file"
+chmod +x "${internal_script_path}"
 
 # --- list versions ---
 
 llvm_version_to_install_regex='^LLVM_VERSION_PATTERNS\[(\d+)\]=\"\-\K(\d+)'
 list_to_install_llvm_versions(){
     grep -oP $llvm_version_to_install_regex ${internal_script_path} | uniq | sort -n
-}
-llvm_version_installed_regex='^clang-\K([0-9]{2})'
-list_installed_llvm_versions(){
-    dpkg -l | grep ^ii |  awk '{print $2}' | grep -oP $llvm_version_installed_regex | uniq | sort -n
 }
 
 # --- which versions ---
@@ -236,7 +390,7 @@ if [[ ! $(echo -n $llvm_versions) =~  ^[0-9]+( [0-9]+)*$ ]]; then
 fi
 
 ## --- list mod ? ---
-if [[ ${arg_list} == 1 ]]; then
+if [[ ${arg_list_available} == 1 ]]; then
     echo -e "${llvm_versions}"
     clean; exit 0
 fi
@@ -244,31 +398,21 @@ fi
 log "LLVM version(s) to be installed: [${llvm_versions}]"
 
 # --- clean update-alternatives ---
-sudo rm -rf /etc/alternatives/clang* /etc/alternatives/llvm-symbolizer /etc/alternatives/lldb
-sudo rm -rf /var/lib/dpkg/alternatives/clang* /var/lib/dpkg/alternatives/llvm-symbolizer /var/lib/dpkg/alternatives/lldb
+#   Skipped for `runtime`: it registers no alternative, so it has nothing to reset,
+#   and a mode that installs no compiler has no business deleting another one's links.
+if [[ "${arg_mode}" != 'runtime' ]]; then
+    rm -rf /etc/alternatives/clang* /etc/alternatives/llvm-symbolizer /etc/alternatives/lldb
+    rm -rf /var/lib/dpkg/alternatives/clang* /var/lib/dpkg/alternatives/llvm-symbolizer /var/lib/dpkg/alternatives/lldb
+fi
 
 # --- installations ---
 
-# for version in "${llvm_versions_to_install[@]}"; do
-#     add-apt-repository -y \
-#         "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-${version}" main   \
-#         > /dev/null                                         \
-#     || error "adding apt-repository for [${version}] failed"
-# done
-# apt update -qqy
-
-# quick-fix: Ubuntu-24.04-noble not fully supported yet, switching to Ubuntu-22.04-jammy
-codename=$(lsb_release -cs)
-# if [ "${codename}" = "noble" ]; then
-#     warning "codename=[${codename}] is not supported yet, switching to [jammy]"
-#     codename="jammy"
-# fi
-
 if [[ ${arg_cleanup} == 1 ]]; then
-    sudo apt-get remove -y "llvm-*"
-    sudo apt-get remove -y "lldb-*"
-    sudo apt-get remove -y "clang-*"
-    sudo apt-get remove -y "python3-lldb-*"
+    # Best-effort: matching nothing is the normal case.
+    for pattern in 'llvm-*' 'lldb-*' 'clang-*' 'python3-lldb-*'; do
+        run "purging [${pattern}]" apt-get remove -y "${pattern}" \
+        || warning "purging [${pattern}] found nothing to remove"
+    done
 fi
 
 # --- package set, per mode ---
@@ -299,14 +443,76 @@ compiler_runtimes_for(){
     echo "${packages}"
 }
 
+# WIP: to be re-checked
+#
+# require_runtime_capable_version <version> - the majors `--mode=runtime` can name packages for.
+#   From LLVM 20 up, apt.llvm.org publishes these two without a major: libc++1, libc++abi1.
+#   Below it they carry one, and not uniformly:
+#   - libc++1-18 and libc++1-19
+#   - but libc++1-17t64, across the time_t transition.
+#
+#   Guessing which a given major wants is how a silent mis-install happens, so anything below 20 is refused by name.
+#
+#   Separate from the function below rather than a guard inside it:
+#       `error` there would run in the command substitution that reads the function,
+#       exiting that subshell rather than this script, and only `set -e` would then stop the caller.
+require_runtime_capable_version(){
+    [ "$1" -gt 19 ] \
+      || error "--mode=runtime needs LLVM 20 or later: below it apt.llvm.org carries the major in these package names (libc++1-$1), and this script will not guess the spelling"
+}
+
+# runtime_libraries_for - the shared libraries alone, for `--mode=runtime`.
+#   Which release they hold is decided by the repository suite, not by the package name,
+#   which is why this takes no version while compiler_runtimes_for above does.
+#   libunwind is deliberately absent: apt.llvm.org builds libc++abi against libgcc_s,
+#   which every Debian-derived image already carries, so nothing here would ever load it.
+runtime_libraries_for(){
+    echo 'libc++1 libc++abi1'
+}
+
+# The apt.llvm.org repository, registered here rather than by the upstream installer.
+#   `--mode=runtime` must not run that installer at all - it installs clang -
+#   so this is the one place the wrapper stops delegating and has to stay in step with upstream by hand.
+#
+#   Mirrors REPO_NAME in https://apt.llvm.org/llvm.sh:
+#       deb ${BASE_URL}/${CODENAME}/ llvm-toolchain${LINKNAME}${LLVM_VERSION_STRING} main
+#   LLVM_VERSION_STRING is '-<major>' for every published major but one:
+#       the development version is served from the suite with no suffix.
+#   Which major that is, is read out of the installer rather than assumed,
+#   the same way the available versions and CURRENT_LLVM_STABLE already are.
+add_apt_llvm_repository(){
+    local version="$1"
+    local unversioned suffix="-$1"
+
+    unversioned=$(grep -oP '^LLVM_VERSION_PATTERNS\[\K[0-9]+(?=\]="")' "${internal_script_path}")
+    [ "${version}" != "${unversioned}" ] || suffix=''
+
+    run_with_retries "${max_attempts}" "adding the apt.llvm.org repository for [${version}]" \
+        add-apt-repository -y "deb ${apt_llvm_base_url}/${codename}/ llvm-toolchain-${codename}${suffix} main" \
+    || error "adding the apt.llvm.org repository for [${version}] failed"
+}
+
 mapfile -t llvm_versions_to_install < <(echo -n "$llvm_versions")
 for version in "${llvm_versions_to_install[@]}"; do
 
-    # fix potential conflicts:
-    #   sudo apt-get purge --auto-remove llvm python3-lldb-14 llvm-14 -y; \
+    # `runtime` stops here: the upstream installer's smallest package set still starts with clang-<N>,
+    # so it is skipped entirely and only the repository it would have registered is kept.
+    if [[ "${arg_mode}" == 'runtime' ]]; then
+        require_runtime_capable_version "${version}"
+        runtime_packages="$(runtime_libraries_for)"
+        log "installing the libc++ runtime for [${version}]: [${runtime_packages}]"
+        add_apt_llvm_repository "${version}"
+        run_with_retries "${max_attempts}" "refreshing the apt index" \
+            apt-get update -q -y -o Acquire::Retries=${max_attempts} \
+        || error "refreshing the apt index failed"
+        run "installing [${runtime_packages}]" \
+            apt-get install -q -y --no-install-recommends -o Acquire::Retries=${max_attempts} ${runtime_packages} \
+        || error "installing [${runtime_packages}] failed"
+        continue
+    fi
 
-    # yes '' |
-    ./${internal_script_path} ${version} ${upstream_package_set} -n ${codename} > /dev/null 2>&1 \
+    run_with_retries "${max_attempts}" "running [${external_script_url} ${version} ${upstream_package_set}]" \
+        ./${internal_script_path} ${version} ${upstream_package_set} -n ${codename} \
     || error "running [${external_script_url} ${version} ${upstream_package_set}] failed"
 
     # `full` already has everything through `all`; the other two have to add what they need.
@@ -318,11 +524,13 @@ for version in "${llvm_versions_to_install[@]}"; do
     esac
     if [ -n "${extra_packages}" ]; then
         # The upstream installer has just run `apt-get update`, so the lists are populated here.
-        sudo apt-get install -qqy --no-install-recommends ${extra_packages} > /dev/null 2>&1 \
+        run "installing [${extra_packages}]" \
+            apt-get install -q -y --no-install-recommends -o Acquire::Retries=${max_attempts} ${extra_packages} \
         || error "installing [${extra_packages}] failed"
     fi
 
-    # Warning: only one installation of `lldb` is allowed by `apt` at a time. Cannot use `--no-remove` here
+    # WARNING: only one installation of `lldb` is allowed by `apt` at a time.
+    # Cannot use `--no-remove` here.
     # apt install -qq -y --no-install-recommends \
     #     clang-format-${version} \
     #     clang-tidy-${version}   \
@@ -341,8 +549,8 @@ for version in "${llvm_versions_to_install[@]}"; do
         update-alternatives --quiet                                                                                             \
             --install /usr/bin/clang clang /usr/bin/clang-${version} ${update_alternative_priority}                             \
             --slave /usr/bin/clang++                  clang++                   /usr/bin/clang++-${version}                     \
-            --slave /usr/bin/llvm-cov                 llvm-cov                  /usr/bin/llvm-cov-${version}                     \
-            --slave /usr/bin/llvm-profdata            llvm-profdata             /usr/bin/llvm-profdata-${version}                \
+            --slave /usr/bin/llvm-cov                 llvm-cov                  /usr/bin/llvm-cov-${version}                    \
+            --slave /usr/bin/llvm-profdata            llvm-profdata             /usr/bin/llvm-profdata-${version}               \
         || error "update-alternatives of [${version}] failed"
     else
         update-alternatives --quiet                                                                                             \
@@ -354,8 +562,8 @@ for version in "${llvm_versions_to_install[@]}"; do
             --slave /usr/bin/clang-check              clang-check               /usr/bin/clang-check-${version}                 \
             --slave /usr/bin/clang-query              clang-query               /usr/bin/clang-query-${version}                 \
             --slave /usr/bin/clang-apply-replacements clang-apply-replacements  /usr/bin/clang-apply-replacements-${version}    \
-            --slave /usr/bin/llvm-cov                 llvm-cov                  /usr/bin/llvm-cov-${version}                     \
-            --slave /usr/bin/llvm-profdata            llvm-profdata             /usr/bin/llvm-profdata-${version}                \
+            --slave /usr/bin/llvm-cov                 llvm-cov                  /usr/bin/llvm-cov-${version}                    \
+            --slave /usr/bin/llvm-profdata            llvm-profdata             /usr/bin/llvm-profdata-${version}               \
             --slave /usr/bin/sancov                   sancov                    /usr/bin/sancov-${version}                      \
             --slave /usr/bin/scan-build               scan-build                /usr/bin/scan-build-${version}                  \
             --slave /usr/bin/scan-view                scan-view                 /usr/bin/scan-view-${version}                   \

@@ -38,7 +38,7 @@ ARG BASE_IMAGE=ubuntu:24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06b
 #   The only pin Renovate cannot own - a datasource must enumerate available versions,
 #   and the service accepts any timestamp without publishing an index.
 #   Bumped by .github/workflows/ubuntu-snapshot.yml.
-ARG UBUNTU_SNAPSHOT=20260720T000000Z
+ARG UBUNTU_SNAPSHOT=20260825T000000Z
 
 # GCC, from ppa:ubuntu-toolchain-r/test.
 #   Only major versions exist as packages (g++-15).
@@ -123,18 +123,33 @@ RUN apt-get update -qqy                                                         
     && rm -f /etc/apt/preferences.d/99-snapshot-realign                                             \
     && echo "[C++ toolchain] apt frozen at snapshot ${UBUNTU_SNAPSHOT}"
 
-# C++ runtime libraries, pulled from the same PPA the `build` stage installs GCC from,
-# so `--target runtime` can execute binaries linked against the pinned libstdc++.
-RUN apt-get update -qqy \
-    && apt-get install -qqy --no-install-recommends \
-        tzdata \
-        gnupg software-properties-common \
-    && add-apt-repository -y ppa:ubuntu-toolchain-r/test \
-    && apt-get update -qqy \
-    && apt-get install -qqy --no-install-recommends \
-        libc6 libgcc-s1 libstdc++6 \
-    && apt-get purge -y --auto-remove gnupg software-properties-common \
-    && rm -rf /var/lib/apt/lists/*
+# C++ runtime libraries:
+#   both implementations (scripts/install/<compiler>.sh --mode=runtime),
+#   each from the repository the `build` stage installs its compiler from:
+#   - libstdc++ from the toolchain PPA
+#   - libc++ from apt.llvm.org
+#
+#   Both are needed because `build` produces binaries against both:
+#   - g++ and clang++ linking with libstdc++,
+#   - `clang++ -stdlib=libc++` linking with libc++.
+ARG TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
+COPY ./scripts/install/gcc.sh  ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
+COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
+WORKDIR ${TOOLCHAIN_TMP_DIR}
+ARG LLVM_VERSIONS
+RUN scripts_dir=${TOOLCHAIN_TMP_DIR}/scripts;                                               \
+    echo -e "[C++ toolchain] Installing the C++ runtimes, libc++ from LLVM_VERSIONS=[$LLVM_VERSIONS] ..."; \
+    apt-get update -qqy                                                                     \
+    && apt-get install -qqy --no-install-recommends                                         \
+        tzdata libc6                                                                        \
+        gnupg software-properties-common wget lsb-release                                   \
+    && chmod +x ${scripts_dir}/gcc.sh ${scripts_dir}/llvm.sh                                \
+    && ${scripts_dir}/gcc.sh  --silent=yes --mode=runtime                                   \
+    && ${scripts_dir}/llvm.sh --silent=yes --mode=runtime --versions="$LLVM_VERSIONS"       \
+    && apt-get purge -y --auto-remove gnupg software-properties-common wget lsb-release     \
+    && rm -rf ${TOOLCHAIN_TMP_DIR} /var/lib/apt/lists/*
+
+WORKDIR /
 
 CMD ["/bin/bash"]
 
@@ -292,6 +307,63 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 CMD ["/bin/bash"]
 
 # ---------------------------------------------------------------------------------------------
+# Stages: validate-build / validate-runtime - the image validation gate. See docs/IMAGES_VALIDATION.md
+#
+#   Throwaway stages:
+#       Nothing published inherits them, so no image below gains a layer.
+#       They sit here rather than at the end of the file so `dev` remains the last stage,
+#       which keeps a bare `docker build .` building `dev` as before.
+#
+#   `apt-get update` is needed because each stage above ends by wiping /var/lib/apt/lists,
+#   and the origin check reads what apt reports about the repository behind each installed package.
+# ---------------------------------------------------------------------------------------------
+#   scripts/ is copied whole rather than scripts/checks/details alone:
+#       the checks ask gcc.sh and llvm.sh which compilers are installed (--list-installed),
+#       and that only resolves if both directories keep their relative positions.
+#   .dockerignore keeps the top-level scripts/details out; it does not match
+#   scripts/checks/details, which is why the checks below are still in the build context.
+FROM build AS validate-build
+ARG DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+ARG GCC_VERSIONS
+ARG LLVM_VERSIONS
+ARG BINUTILS_TARGETS
+COPY ./scripts/ /opt/cpp-toolchain-scripts/
+COPY ./test/cxx_runtime.cpp /opt/cpp-toolchain-scripts/checks/details/
+# This stage compiles and inspects; it executes nothing.
+#   Every tree it produces is either run in `runtime`, the only place that proves anything, or not runnable (`cross`).
+#   It leaves the standard libraries it compiled against behind,
+#   so the stage that runs the binaries can name the missing library rather than only an unresolved symbol.
+RUN apt-get update -qqy                                                                                     \
+    && bash /opt/cpp-toolchain-scripts/checks/details/package-origins.sh build                              \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh compile /validate                      \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh inspect /validate                      \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-stdlib-parity.sh record /validate/stdlib.expected \
+    && rm -rf /var/lib/apt/lists/*
+
+# The binaries are built by `build` and executed here, which is the whole point:
+#   it is the only way to prove that what `runtime` ships can still run what `build` produces.
+#
+#   Both stdlib sets cross over, `runtime` carrying libstdc++ and libc++,
+#   so the whole matrix `build` can produce (g++, clang++, clang++ -stdlib=libc++) is exercised where it has to work.
+FROM runtime AS validate-runtime
+ARG DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+COPY --from=validate-build /validate/libstdcxx/      /validate/libstdcxx/
+COPY --from=validate-build /validate/libcxx/         /validate/libcxx/
+COPY --from=validate-build /validate/stdlib.expected /validate/stdlib.expected
+COPY ./scripts/ /opt/cpp-toolchain-scripts/
+# Parity first:
+#   it names a version or ABI that drifted,
+#   while the runs below would only report the same drift as a symbol that failed to resolve.
+RUN apt-get update -qqy                                                                                     \
+    && bash /opt/cpp-toolchain-scripts/checks/details/package-origins.sh runtime                            \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-stdlib-parity.sh verify /validate/stdlib.expected \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh run /validate/libstdcxx                \
+    && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh run /validate/libcxx                   \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------------------------------------
 # Stage: static-analysis - static-analysis tooling for CI / PR evaluation, on top of `build`.
 #   Installs and registers the full LLVM toolchain - clang-tidy, etc. (the `build` stage took the
 #   compilers only), and adds the dedicated static analysers (cppcheck, iwyu).
@@ -306,10 +378,10 @@ SHELL ["/bin/bash", "-c"]
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
-RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                       \
-    echo -e "[C++ analysis] Installing LLVM tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ;      \
-    chmod +x ${script_path}                                                                 \
-    && ${script_path} --silent=yes --alias=yes --mode=full --versions="$LLVM_VERSIONS"      \
+RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                   \
+    echo -e "[C++ analysis] Installing LLVM tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ; \
+    chmod +x ${script_path}                                                             \
+    && ${script_path} --silent=yes --alias=yes --mode=full --versions="$LLVM_VERSIONS"  \
     && rm -rf /var/lib/apt/lists/*
 
 # Dedicated static analysers

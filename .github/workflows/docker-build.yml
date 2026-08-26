@@ -38,8 +38,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Cross-arch target triplets for the cross-arch variant (single source of truth).
-          CROSS_TARGETS="x86-64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu"
+          # Cross-arch target triplets for the `-cross` image variant.
+          #   `common` is an alias resolved by scripts/install/binutils.sh, which is where the triplets are listed
+          CROSS_TARGETS="common"
 
           # Build one variant (no push). $1=BINUTILS_TARGETS build-arg, $2.. = stages.
           build_variant() {
@@ -57,5 +58,9 @@ jobs:
           }
 
           # Normal variant first (populates the shared cache); `runtime` has no cross variant.
-          build_variant ""                 runtime build static-analysis documentation dev
-          build_variant "${CROSS_TARGETS}" build static-analysis documentation dev
+          # validate-build / validate-runtime are the image validation gate:
+          # throwaway stages on top of layers this job already built, so they cost a cache hit plus their own RUN (see docs/IMAGES_VALIDATION.md).
+          build_variant ""         runtime build validate-build validate-runtime static-analysis documentation dev
+          
+          # The cross variant has no `runtime`, hence no validate-runtime.
+          build_variant "${CROSS_TARGETS}" build validate-build                  static-analysis documentation dev
