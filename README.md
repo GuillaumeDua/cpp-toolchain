@@ -89,8 +89,8 @@ The stages form a diamond: `static-analysis` and `documentation` both build on `
 
 </details>
 
-`build` installs Clang minimalistically - just `clang`/`clang++`.
-The full LLVM tooling (`clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ...) is wired up in `static-analysis`, and inherited by `dev`.
+`build` installs Clang minimalistically: only `clang`/`clang++` answer to an unversioned name there, though the upstream installer's default set also leaves `lld-<N>`, `lldb-<N>` and `clangd-<N>` behind.
+The full LLVM tooling (`clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ...) is installed and registered in `static-analysis`, and inherited by `dev`.
 
 ## Tags & versioning
 
@@ -206,8 +206,8 @@ Adding `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build produ
 | GCC_VERSIONS            | `15`              | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
 | LLVM_VERSIONS           | `22`              | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
 | BINUTILS_TARGETS        | `''` (none)       | Cross toolchain target triplets; empty = lean, a list = cross-arch variant             | `'aarch64-linux-gnu riscv64-linux-gnu'`  |
-| OPT_IN_INTEGRATE_BAZEL  | `n`               | `y` or `n`                                                                             |                                          |
-| OPT_IN_INTEGRATE_BUILD2 | `n`               | `y` or `n`                                                                             |                                          |
+| OPT_IN_INTEGRATE_BAZEL  | `no`               | `y` or `n`                                                                             |                                          |
+| OPT_IN_INTEGRATE_BUILD2 | `no`               | `y` or `n`                                                                             |                                          |
 
 </details>
 
