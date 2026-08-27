@@ -3,6 +3,7 @@
 [![pulls](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/general)
 [![docker-build](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml)
 [![docker-publish](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-publish.yml)
+[![documentation](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/documentation.yml/badge.svg)](https://guillaumedua.github.io/cpp-toolchain)
 
 Up-to-date C++ toolchain images for the complete development cycle - **GNU and LLVM side by side**, from a minimal runtime to a full dev container.  
 Built as a single multi-stage [`Dockerfile`](Dockerfile), published to [Docker Hub](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain) and [GHCR](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain) by [GitHub Actions](.github/workflows/docker-publish.yml).
@@ -251,6 +252,8 @@ The `runtime` image carries the matching shared libraries (`libc++1`, `libc++abi
 That all three still run there is asserted by the [validation gate](docs/IMAGES_VALIDATION.md), not assumed.
 
 ## Going further
+
+Everything below is also published as a browsable site at <https://guillaumedua.github.io/cpp-toolchain>.
 
 | Document | Content |
 | -------- | ------- |

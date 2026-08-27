@@ -1,0 +1,55 @@
+name: documentation
+
+# Renders the repository's markdown as a site and publishes it to GitHub Pages, from main only.
+#
+# docs/details/generate.sh does the rendering and is what to run locally; this workflow only decides
+# when it runs and where the result lands. docs/details/README.md covers the rest, including the
+# repository setting that makes GitHub serve the gh-pages branch this pushes to.
+#
+# Deliberately not gated on docker-build: the markdown does not depend on the images building,
+# so a documentation-only push is published in a minute rather than after a ~40-minute image build.
+#
+# Pull requests render the site without publishing it. That is what catches a broken cross-document link,
+# or a markdown construct doxygen renders differently from GitHub, before it reaches the published page.
+# Path-filtered, so it stays quiet on a pull request that touches no documentation.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**.md'
+      - 'docs/details/**'
+      - '.github/workflows/documentation.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '**.md'
+      - 'docs/details/**'
+      - '.github/workflows/documentation.yml'
+  workflow_dispatch: {}
+
+# Write access is what pushes the rendered site to gh-pages, and is used by that step alone.
+permissions:
+  contents: write
+
+concurrency:
+  group: documentation-${{ github.ref }}
+  # A superseded pull request render is worth nothing, whereas cancelling a publish half way
+  # would leave gh-pages holding a site nobody asked for.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Render the documentation
+        run: bash docs/details/generate.sh
+
+      - name: Publish to GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: JamesIves/github-pages-deploy-action@v4.9.0
+        with:
+          branch: gh-pages
+          folder: docs/output

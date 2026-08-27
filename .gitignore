@@ -5,3 +5,7 @@ CLAUDE.md
 # Python bytecode
 __pycache__/
 *.py[cod]
+
+# Documentation site: the rendered output, and the doxygen and theme downloads that produce it
+docs/output/
+docs/details/.cache/
