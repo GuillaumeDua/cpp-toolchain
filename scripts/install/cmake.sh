@@ -28,7 +28,7 @@ help(){
         [ -l | --list-available ]   : Only list available versions from the Kitware apt repository. Boolean -> default is [0]
         [ -v | --versions ]         : Version to install.                                           String: latest|(exact-version) -> default is [latest]
             - [latest]              : the version apt would resolve by default (Candidate)              Ex: 'latest'
-            - [x.y.z-...]           : an exact version, pinned via 'apt install cmake=<version>'        Ex: '3.29.3-0kitware1ubuntu24.04.1~jammy'
+            - [x.y.z-...]           : an exact version, pinned via 'apt install cmake=<version>'        Ex: '3.29.6-0kitware1ubuntu24.04.1'
         [ -s | --silent ]           : Run in silent mod.                                            Boolean -> default is [1]
         [ -a | --alias]             : Set bash/zsh-rc 'cmake_version' alias.                        Boolean -> default is [0]
         [ -r | --rc ]               : Also register the Kitware release-candidate apt repository.   Boolean -> default is [0]
@@ -36,7 +36,7 @@ help(){
 
     For instance, to list the versions currently available, then install one of them:
         sudo ./${this_script_name} --list-available
-        sudo ./${this_script_name} --versions=\"3.29.3-0kitware1ubuntu24.04.1~jammy\"
+        sudo ./${this_script_name} --versions=\"3.29.6-0kitware1ubuntu24.04.1\"
         " 1>&2
     exit 0
 }
@@ -185,8 +185,7 @@ fi
 
 external_script_url='https://apt.kitware.com/kitware-archive.sh'
 
-# QUICK-FIX: kitware-archive.sh does not know Ubuntu 24.04 noble, so noble asks for the 22.04 jammy suite.
-codename=$(value=$(lsb_release -cs); [[ "${value}" == "noble" ]] && value="jammy"; echo "${value}")
+codename=$(lsb_release -cs)
 
 # wget's own --tries exhausts all three attempts within about three seconds, too short to outlast a refusal from a third-party host.
 retry "${max_attempts}" "fetching [${external_script_url}]" \
@@ -224,7 +223,7 @@ if [ "$arg_versions" = 'latest' ]; then
     cmake_version=$(apt-cache policy cmake | grep -oP 'Candidate:\s*\K.*')
 elif [[ "$arg_versions" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
     # An upstream version (e.g. '4.4.0'), resolved to the Kitware apt version that carries it.
-    #   The apt version is a longer, distro-specific string ('4.4.0-0kitware1ubuntu22.04.1') that no
+    #   The apt version is a longer, distro-specific string ('4.4.0-0kitware1ubuntu24.04.1') that no
     #   upstream datasource publishes, so pinning the plain version is what lets Renovate track CMake
     #   at all. Anchored on a '-' so '4.4.0' cannot match '4.4.01'; newest wins if several qualify.
     cmake_version=$(echo "${all_cmake_versions_available}" | grep -E "^${arg_versions//./\\.}-" | sort -V | tail -1)
