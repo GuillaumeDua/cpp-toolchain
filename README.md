@@ -200,14 +200,16 @@ Adding `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build produ
 <details>
 <summary><b>All build arguments</b></summary>
 
-| Name                    | default (pinned)  | description                                                                            | example                                  |
+| Name                    | default           | description                                                                            | example                                  |
 | ----------------------- | ----------------- | -------------------------------------------------------------------------------------- | ---------------------------------------- |
-| CMAKE_VERSION           | `4.4.0`           | exact version, or `latest`                                                             | `latest`                                 |
-| GCC_VERSIONS            | `15`              | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
-| LLVM_VERSIONS           | `22`              | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
+| CMAKE_VERSION           | *pinned*          | exact version, or `latest`                                                             | `latest`                                 |
+| GCC_VERSIONS            | *pinned*          | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
+| LLVM_VERSIONS           | *pinned*          | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
 | BINUTILS_TARGETS        | `''` (none)       | Cross toolchain target triplets; empty = lean, a list = cross-arch variant             | `'aarch64-linux-gnu riscv64-linux-gnu'`  |
 | OPT_IN_INTEGRATE_BAZEL  | `no`               | `y` or `n`                                                                             |                                          |
 | OPT_IN_INTEGRATE_BUILD2 | `no`               | `y` or `n`                                                                             |                                          |
+
+The *pinned* defaults are the `ARG` block at the top of the [Dockerfile](Dockerfile), and every release note lists the values that release shipped.
 
 </details>
 

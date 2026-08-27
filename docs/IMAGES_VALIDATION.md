@@ -16,7 +16,7 @@ The last one is the sharpest: without this gate, a `-cross` image that installed
 
 ### 1 - No version number is written down
 
-Renovate owns every version, through the annotated `ARG` block at the top of the [`Dockerfile`](../Dockerfile).  
+`Renovate` owns every version, through the annotated `ARG` block at the top of the [`Dockerfile`](../Dockerfile).  
 A validation suite that repeated those versions would be a second source of truth to keep in step, so this one never states a version.  
 It asserts **origin** instead: *the installed version of a package must come from the repository that is supposed to provide it*.
 
@@ -53,7 +53,8 @@ Given one explicitly, `--list-installed` narrows to it - `--versions=">=13"` rep
 
 So a `GCC_VERSIONS=">=15"` that resolved to two majors is exercised as two majors, and the selector is re-implemented nowhere.
 
-**Origin is asserted only for the majors the build argument names.** The distribution's own GCC arrives as a `build-essential` dependency, from the Ubuntu archive, and is a legitimate inhabitant of the image - demanding that *every* installed compiler come from the PPA would fail on it.
+**Origin is asserted only for the majors the build argument names.**  
+The distribution's own GCC arrives as a `build-essential` dependency, from the Ubuntu archive, and is a legitimate inhabitant of the image - demanding that *every* installed compiler come from the PPA would fail on it.
 It still gets compiled and run: it is in the image, so it should work.
 
 When a build argument is a selector (`>=15`, `latest-stable`) rather than bare majors, which majors it produced cannot be recomputed, so the check falls back to requiring that at least one installed compiler comes from the expected repository.
@@ -65,7 +66,7 @@ Nothing published inherits them, so no image gains a layer, and `dev` stays the 
 
 ```mermaid
 graph LR
-    base["ubuntu:24.04"] --> runtime
+    base["BASE_IMAGE"] --> runtime
     runtime --> build
     build --> sa["static-analysis"]
     build --> doc["documentation"]
@@ -117,7 +118,7 @@ flowchart TD
     record ==>|"COPY --from"| verify
 ```
 
-The payload is compiled once per stable standard the compiler reports, for every installed compiler.
+The payload is compiled once per stable standard the compiler reports, for every installed compiler.  
 It is deliberately trivial and deliberately C++98-clean: its job is not to exercise language features - the compiler already guarantees those - but to produce a binary that dynamically links the C++ runtime and then resolves it.
 
 `inspect` exists because a statically linked payload would resolve nothing at run time, which would make the whole runtime check pass while proving nothing.
