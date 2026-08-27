@@ -31,7 +31,7 @@ $ apt-cache policy libstdc++6
         500 http://archive.ubuntu.com/ubuntu noble-updates/main amd64
 ```
 
-Letting the archive win here swaps libstdc++ 16 for 14 in `runtime`, silently, while `build` still has GCC 15/16.
+Letting the archive win here swaps the PPA's libstdc++ for the archive's much older one in `runtime`, silently, while `build` still compiles against the newer one.
 
 ### 2 - What is installed is discovered, not declared
 
