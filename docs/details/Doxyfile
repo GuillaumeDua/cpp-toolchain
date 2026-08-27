@@ -1,0 +1,69 @@
+# Doxygen configuration for the documentation site published to GitHub Pages.
+#
+# Only the settings that differ from doxygen's own defaults are listed, so this file reads as the delta.
+# The input is the repository's markdown - there is no C++ API here to extract.
+#
+# Paths are relative to the repository root, which is where docs/details/generate.sh invokes doxygen.
+# Run that script rather than doxygen directly: it fetches the doxygen version and the theme this file expects.
+
+PROJECT_NAME           = cpp-toolchain
+PROJECT_BRIEF          = "Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side"
+OUTPUT_DIRECTORY       = docs/output
+HTML_OUTPUT            = .
+
+# Every markdown file in the tree is a page, so a new document is published by existing.
+# docs/output is the site itself, and the dot-directories hold the theme cache and the assistant context.
+INPUT                  = .
+RECURSIVE              = YES
+FILE_PATTERNS          = *.md
+EXCLUDE                = docs/output
+EXCLUDE_PATTERNS       = */.*/*
+USE_MDFILE_AS_MAINPAGE = README.md
+
+# Left on, a `<directory>/README.md` documents its directory instead of becoming a page of its own,
+# and the site shows no directory tree for those pages to hang off.
+IMPLICIT_DIR_DOCS      = NO
+
+# The markdown is written for GitHub, where a link can reach any file in the tree.
+# The site only holds rendered pages, so links to anything else are rewritten to absolute GitHub URLs.
+INPUT_FILTER           = "python3 docs/details/github-links.py"
+
+# GITHUB ids make a heading anchor match the fragment GitHub would produce,
+# so a cross-document `...md#section` link written for GitHub resolves here too.
+MARKDOWN_ID_STYLE      = GITHUB
+TOC_INCLUDE_HEADINGS   = 3
+
+# Prose about C++ toolchains is full of words doxygen would happily turn into dangling code links.
+AUTOLINK_SUPPORT       = NO
+
+# ```mermaid fences need doxygen 1.17.0 or newer (doxygen PR #12069).
+# CLIENT_SIDE renders them in the browser from MERMAID_JS_URL, so no Node.js or mmdc is needed to build the site.
+MERMAID_RENDER_MODE    = CLIENT_SIDE
+
+# Sidebar-only doxygen-awesome layout - the theme requires all four together, and a LIGHT base it can restyle.
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+FULL_SIDEBAR           = NO
+HTML_COLORSTYLE        = LIGHT
+
+# Written by generate.sh from the running doxygen's own template, plus the theme's script tags.
+HTML_HEADER            = docs/details/.cache/header.html
+HTML_EXTRA_STYLESHEET  = docs/details/.cache/doxygen-awesome/doxygen-awesome.css \
+                         docs/details/.cache/doxygen-awesome/doxygen-awesome-sidebar-only.css \
+                         docs/details/.cache/doxygen-awesome/doxygen-awesome-sidebar-only-darkmode-toggle.css
+HTML_EXTRA_FILES       = docs/details/.cache/doxygen-awesome/doxygen-awesome-darkmode-toggle.js \
+                         docs/details/.cache/doxygen-awesome/doxygen-awesome-paragraph-link.js \
+                         docs/details/.cache/doxygen-awesome/doxygen-awesome-interactive-toc.js
+
+# Nothing here documents source entities, so the code-oriented indexes would all be empty.
+SHOW_FILES             = NO
+SHOW_NAMESPACES        = NO
+ALPHABETICAL_INDEX     = NO
+HAVE_DOT               = NO
+GENERATE_LATEX         = NO
+
+# Warnings stay in the build log rather than failing the run: doxygen's markdown scanner reports an
+# unterminated verbatim block for a backtick used as an opening quote (`GLIBCXX_3.4.32'), which renders
+# correctly, and that false positive would take the whole site down with it.
+WARN_IF_UNDOCUMENTED   = NO
+WARN_AS_ERROR          = NO

@@ -35,7 +35,7 @@ Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 ```bash
 sudo ./cmake.sh --list-available
 sudo ./cmake.sh --versions="4.4.0"                                  # upstream version, resolved against apt
-sudo ./cmake.sh --versions="3.29.6-0kitware1ubuntu24.04.1"    # exact apt version, used verbatim
+sudo ./cmake.sh --versions="3.29.6-0kitware1ubuntu24.04.1"          # exact apt version, used verbatim
 ```
 
 An upstream version (`4.4.0`) is resolved to the `Kitware` apt version that carries it (`4.4.0-0kitware1ubuntu24.04.1`), newest first if several qualify.
