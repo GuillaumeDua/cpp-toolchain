@@ -28,7 +28,9 @@ llvm-cov show ./app -instr-profile=app.profdata
 `static-analysis` pulls them in transitively through the full LLVM toolchain, `documentation` installs `llvm-<N>` outright, and both register the unversioned commands.
 `lcov` (the Perl frontend producing HTML) ships in the coverage-oriented stages only - `gcov` itself always comes with GCC.
 
-> [!TIP] llvm-cov compatibility mode
+> [!TIP]
+> **llvm-cov compatibility mode**
+>
 > `llvm-cov` can also read GCC-style counters via its `llvm-cov gcov` compatibility mode, so `lcov --gcov-tool "llvm-cov gcov"` bridges Clang-compiled coverage into an `lcov` report.
 
 ## See also

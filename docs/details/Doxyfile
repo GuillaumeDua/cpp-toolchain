@@ -12,11 +12,14 @@ OUTPUT_DIRECTORY       = docs/output
 HTML_OUTPUT            = .
 
 # Every markdown file in the tree is a page, so a new document is published by existing.
-# docs/output is the site itself, and the dot-directories hold the theme cache and the assistant context.
+# docs/output is the site itself, the dot-directories hold the theme cache, and .claude and a root
+# CLAUDE.md are a contributor's own assistant context, gitignored rather than part of the documentation.
 INPUT                  = .
 RECURSIVE              = YES
 FILE_PATTERNS          = *.md
-EXCLUDE                = docs/output
+EXCLUDE                = docs/output    \
+                         .claude        \
+                         CLAUDE.md
 EXCLUDE_PATTERNS       = */.*/*
 USE_MDFILE_AS_MAINPAGE = README.md
 
@@ -24,8 +27,7 @@ USE_MDFILE_AS_MAINPAGE = README.md
 # and the site shows no directory tree for those pages to hang off.
 IMPLICIT_DIR_DOCS      = NO
 
-# The markdown is written for GitHub, where a link can reach any file in the tree.
-# The site only holds rendered pages, so links to anything else are rewritten to absolute GitHub URLs.
+# The site holds rendered pages only, so a link to anything else is rewritten to an absolute GitHub URL.
 INPUT_FILTER           = "python3 docs/details/github-links.py"
 
 # GITHUB ids make a heading anchor match the fragment GitHub would produce,
@@ -46,6 +48,10 @@ DISABLE_INDEX          = NO
 FULL_SIDEBAR           = NO
 HTML_COLORSTYLE        = LIGHT
 
+# doxygen-awesome-sidebar-only.css pins the sidebar at 335px and states the two must match;
+# this value is what doxygen writes into navtree.js as the initial split, before any resize cookie exists.
+TREEVIEW_WIDTH         = 335
+
 # Written by generate.sh from the running doxygen's own template, plus the theme's script tags.
 HTML_HEADER            = docs/details/.cache/header.html
 HTML_EXTRA_STYLESHEET  = docs/details/.cache/doxygen-awesome/doxygen-awesome.css \
@@ -62,8 +68,7 @@ ALPHABETICAL_INDEX     = NO
 HAVE_DOT               = NO
 GENERATE_LATEX         = NO
 
-# Warnings stay in the build log rather than failing the run: doxygen's markdown scanner reports an
-# unterminated verbatim block for a backtick used as an opening quote (`GLIBCXX_3.4.32'), which renders
-# correctly, and that false positive would take the whole site down with it.
+# Warnings never fail the render. docs/details/generate.sh collects them from stderr instead, and
+# .github/workflows/documentation.yml reports whatever it collected as a dedicated issue.
 WARN_IF_UNDOCUMENTED   = NO
 WARN_AS_ERROR          = NO

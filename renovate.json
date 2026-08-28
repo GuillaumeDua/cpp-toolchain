@@ -34,6 +34,14 @@
     },
     {
       "customType": "regex",
+      "description": "Documentation theme pinned in the site generator - the theme is not installed in any image, so it has no `ARG` in the Dockerfile to hang off",
+      "managerFilePatterns": ["/^docs/details/generate\\.sh$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+readonly DOXYGEN_AWESOME_PIN=(?<currentValue>\\S+)"
+      ]
+    },
+    {
+      "customType": "regex",
       "description": "Base image declared as `ARG BASE_IMAGE=` in the Dockerfile - needs its own manager rather than the `# renovate:`-annotated one above, because a digest pin has to capture currentValue and currentDigest separately",
       "managerFilePatterns": ["/^Dockerfile$/"],
       "matchStrings": [
