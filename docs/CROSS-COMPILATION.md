@@ -39,7 +39,10 @@ The `-cross` images carry the live non-x86 ecosystems - ARM 64-bit (servers/embe
 A custom build can name any triplet from `binutils.sh --list-available --targets=all`, or `common` for the published set - **CPU, FPU, ABI and endianness are selected by the triplet itself**, there is no separate switch.  
 See [scripts/install/README.md](../scripts/install/README.md#binutilssh) for the axes, the full option reference, and the 7 triplets (out of 32) that have no cross-`g++` and fall back to bare binutils.
 
-### ⚠️ Limitation: cross-arch with `libc++`
+### Capabilities
+
+> [!CAUTION]
+> **Limitation**: cross-arch with libc++
 
 Assuming the target has a cross-`g++` (the published targets do):
 
@@ -57,7 +60,7 @@ clang++ --target=aarch64-linux-gnu main.cpp                  # ✅ clang, libstd
 clang++ --target=aarch64-linux-gnu -stdlib=libc++ main.cpp   # ❌ no target libc++
 ```
 
-**libc++ for the target** (the GCC-free path) is **not bundled** - it has no portable apt cross package and requires an LLVM `runtimes` source build, tracked as a future `scripts/libcxx.sh`.
+**libc++ for the target** (the GCC-free path) is **not bundled** - it has no portable apt cross package and requires an LLVM `runtimes` source build, tracked as a future `scripts/libcxx.sh`.  
 This affects the *cross* case only: the **host** libc++ is installed, so native `clang++ -stdlib=libc++` works.
 
 ## Multilib - secondary ABIs

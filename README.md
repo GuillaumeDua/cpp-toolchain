@@ -46,7 +46,9 @@ docker pull ghcr.io/guillaumedua/cpp-toolchain:build-latest
 docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version
 ```
 
-> [!TIP] GHCR or Docker Hub ?
+> [!TIP]
+> **GHCR or Docker Hub ?**
+>
 > Both registries carry the same images - prefer [GHCR](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain) for CI, public images there have no anonymous pull rate limit.  
 > Working in [VS Code](https://code.visualstudio.com/) ? Open the repo and **Reopen in Container** - see [As a dev environment](#as-a-dev-environment).
 
@@ -130,9 +132,10 @@ Because the versions are pinned rather than resolved at build time, that list is
 > **On host architecture**:
 >
 > The published images are `linux/amd64` (not yet multi-platform manifests), so on an **arm64** host they run under emulation.  
-> Because the toolchain already **cross-compiles** to **arm64** and beyond, a native **arm64** image is seldom needed - but when you want to build, run or debug *on* the target platform itself, the same [Dockerfile](Dockerfile) rebuilds for other architectures on a **best-effort** basis - natively via `docker build` on an arm64 host, or `docker buildx build --platform linux/arm64 --load` (through QEMU) on **amd64**.  
->
-> ⚠️ A few pieces degrade on non-amd64: `Doxygen` falls back to the distro apt package, and Bazel and the `-m32` / `-mx32` multilib are **amd64-only** (skipped with a log).
+> Because the toolchain already **cross-compiles** to **arm64** and beyond, a native **arm64** image is seldom needed - but when you want to build, run or debug *on* the target platform itself, the same [Dockerfile](Dockerfile) rebuilds for other architectures on a **best-effort** basis - natively via `docker build` on an arm64 host, or `docker buildx build --platform linux/arm64 --load` (through QEMU) on **amd64**.
+
+> [!WARNING]
+> A few pieces degrade on non-amd64: `Doxygen` falls back to the distro apt package, and `Bazel` and the `-m32` / `-mx32` multilib are **amd64-only** (skipped with a log).
 
 ## As a dev environment
 
@@ -169,7 +172,9 @@ bash cxx-standards.sh --stable g++-16
 bash cxx-standards.sh --greatest --stable --format=std g++-16   # c++26
 ```
 
-> [!TIP] On scripts documentation
+> [!TIP]
+> **On scripts documentation**
+>
 > `cmake.sh` and `binutils.sh` work the same way.  
 > See [scripts/install/README.md](scripts/install/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference,
 > [scripts/checks/README.md](scripts/checks/README.md) for the standards probe, and [scripts/README.md](scripts/README.md) for which scripts are public.
@@ -276,7 +281,9 @@ That has two consequences worth knowing:
 - **The ~20 distro packages** (`ninja`, `cppcheck`, `valgrind`, `gdb`, `lcov`, ...) are frozen by an [Ubuntu archive snapshot](https://snapshot.ubuntu.com) rather than pinned one by one.
   The timestamp moves monthly via [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) - Renovate cannot track it, because the service publishes no index of valid timestamps.
 
-> [!NOTE] On reproducibility
+> [!NOTE]
+> **On reproducibility**
+>
 > Two builds of the same commit produce the same image.
 > Rebuilding a *years-old* tag is a weaker promise: GCC, Clang and CMake come from a PPA and two third-party apt repositories, none of which keep superseded versions.
 > The published image is the durable artifact, not the ability to recreate it.

@@ -1,41 +1,31 @@
 name: documentation
 
-# Renders the repository's markdown as a site and publishes it to GitHub Pages, from main only.
+# Renders the repository's markdown as a site and publishes it to GitHub Pages.
 #
 # docs/details/generate.sh does the rendering and is what to run locally; this workflow only decides
 # when it runs and where the result lands. docs/details/README.md covers the rest, including the
 # repository setting that makes GitHub serve the gh-pages branch this pushes to.
 #
-# Deliberately not gated on docker-build: the markdown does not depend on the images building,
-# so a documentation-only push is published in a minute rather than after a ~40-minute image build.
+# Runs on merges to main, never on a pull request, so documentation never stands between a change and its merge.
+# Doxygen's warnings, and a render that fails outright, are reported as a dedicated issue that this
+# workflow closes again once a run comes back clean.
 #
-# Pull requests render the site without publishing it. That is what catches a broken cross-document link,
-# or a markdown construct doxygen renders differently from GitHub, before it reaches the published page.
-# Path-filtered, so it stays quiet on a pull request that touches no documentation.
+# Deliberately not path-filtered. github-links.py rewrites a link according to whether its target exists,
+# so renaming the Dockerfile or a script under scripts/install/ changes what the site should contain
+# while touching no markdown at all. A render costs far less than a broken link on the published site.
 on:
   push:
     branches: [main]
-    paths:
-      - '**.md'
-      - 'docs/details/**'
-      - '.github/workflows/documentation.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - '**.md'
-      - 'docs/details/**'
-      - '.github/workflows/documentation.yml'
   workflow_dispatch: {}
 
-# Write access is what pushes the rendered site to gh-pages, and is used by that step alone.
 permissions:
-  contents: write
+  contents: write # pushes the rendered site to gh-pages
+  issues: write # opens, updates and closes the doxygen diagnostics issue
 
 concurrency:
   group: documentation-${{ github.ref }}
-  # A superseded pull request render is worth nothing, whereas cancelling a publish half way
-  # would leave gh-pages holding a site nobody asked for.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Cancelling a publish half way would leave gh-pages holding a partly updated site.
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -44,12 +34,79 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Render the documentation
-        run: bash docs/details/generate.sh
+      # Doxygen is pinned once, by `ARG DOXYGEN_RELEASE` in the Dockerfile, so a Renovate bump moves the
+      # images and this site together; the theme is pinned in generate.sh, which no image installs.
+      # Both are read from the script that fetches them, so the cache key cannot describe a different pair.
+      - name: Resolve the pinned versions
+        id: versions
+        run: bash docs/details/generate.sh --print-versions >> "${GITHUB_OUTPUT}"
 
+      - name: Restore the doxygen and theme downloads
+        uses: actions/cache@v4
+        with:
+          path: docs/details/.cache
+          key: documentation-doxygen-${{ steps.versions.outputs.doxygen }}-theme-${{ steps.versions.outputs.theme }}
+
+      - name: Render the documentation
+        id: render
+        run: bash docs/details/generate.sh --diagnostics doxygen-diagnostics.log
+
+      # workflow_dispatch takes a ref, so this is what keeps a manual run on a feature branch
+      # from force-pushing that branch's render over the published site.
       - name: Publish to GitHub Pages
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main'
         uses: JamesIves/github-pages-deploy-action@v4.9.0
         with:
           branch: gh-pages
           folder: docs/output
+
+      # One issue holding the current state, rewritten on each run rather than commented on,
+      # so it reads as "what is wrong now" and not as a log of every run that ever failed.
+      - name: Report doxygen diagnostics
+        if: always() && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RENDER_OUTCOME: ${{ steps.render.outcome }}
+        run: |
+          set -euo pipefail
+
+          title='documentation: doxygen diagnostics'
+          log='doxygen-diagnostics.log'
+
+          # Matched on the full title rather than on the search, which tokenizes and would also return near misses.
+          existing=$(gh issue list --state open --search 'in:title doxygen diagnostics' --json number,title \
+                     --jq "map(select(.title == \"${title}\")) | .[0].number // empty")
+
+          if [[ "${RENDER_OUTCOME}" == "success" && ! -s "${log}" ]]; then
+              if [[ -n "${existing}" ]]; then
+                  gh issue close "${existing}" --comment "Clean render at ${GITHUB_SHA}."
+              fi
+              echo "no diagnostics to report"
+              exit 0
+          fi
+
+          body=$(mktemp)
+          {
+              echo "The documentation render reported problems."
+              echo
+              echo "- commit: ${GITHUB_SHA}"
+              echo "- render: ${RENDER_OUTCOME}"
+              echo "- run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              echo
+              echo '```text'
+              if [[ -s "${log}" ]]; then
+                  cat "${log}"
+              else
+                  echo "(no diagnostics captured: the render did not reach doxygen)"
+              fi
+              echo '```'
+              echo
+              echo "Opened by .github/workflows/documentation.yml, rewritten on every run, and closed once a render comes back clean."
+              echo "Reproduce with \`bash docs/details/generate.sh\`."
+          } > "${body}"
+
+          if [[ -n "${existing}" ]]; then
+              gh issue edit "${existing}" --body-file "${body}"
+          else
+              gh issue create --title "${title}" --body-file "${body}"
+          fi

@@ -1,7 +1,8 @@
 # Toolchain installation scripts
 
-Standalone scripts to install `CMake`, `GCC`, `LLVM/Clang`, and cross-compilation `binutils` (+ cross-libc), reusable on any Debian/Ubuntu-based system.  
-All require root privileges, take no dependency on each other, and describe themselves with `--help`.
+Standalone scripts to install `CMake`, `GCC`, `LLVM/Clang`, cross-compilation `binutils` (+ cross-libc), and `Doxygen`, reusable on any Debian/Ubuntu-based system.  
+All take no dependency on each other and describe themselves with `--help`.
+All need root privileges, except `doxygen.sh --prefix=<directory>`, which installs under a directory of the caller's choosing.
 
 - `gcc.sh` and `llvm.sh` can install **multiple compiler versions side by side** in the same environment (one `apt install` per requested version, wired together with `update-alternatives`) - see their `--versions` option below.  
   Both default to `latest-stable`, i.e. a single version; pass a range (`>=11`), a list (`'11 12 13'`), or `all` to get more.
@@ -226,3 +227,34 @@ clang++ --target=aarch64-linux-gnu main.cpp  # Clang, libstdc++ (auto-detected)
 > **Current limitation**: The **GCC-free** cross path - Clang with **libc++** *for the target* (`-stdlib=libc++`) - is **not** bundled:  
 > `libc++` has no portable apt cross package and requires an LLVM `runtimes` source build (tracked as a future `libcxx.sh`).  
 > The *host* libc++ **is** installed by `llvm.sh`, so native `clang++ -stdlib=libc++` works without GCC - only the cross case is missing.
+
+---
+
+## `doxygen.sh`
+
+```bash
+sudo ./doxygen.sh <release-tag>
+```
+
+On `amd64`, installs the official pre-built binary from the GitHub release, because Ubuntu's `doxygen` package lags upstream by years: `mermaid` fences render as diagrams only from 1.17.0 on ([doxygen PR #12069](https://github.com/doxygen/doxygen/pull/12069)).
+Only the `doxygen` binary is taken out of the tarball; `dot` still comes from the `graphviz` package.
+
+On every other architecture, upstream publishes no pre-built binary, so the distro package is installed instead - older, but the only portable option short of a source build.
+
+The tag carries upstream's underscored spelling, and the dotted form the download asset uses (`doxygen-1.17.0.linux.bin.tar.gz`) is derived from it.
+
+| Option                  | Type   | Default      | Description                                                        |
+| ----------------------- | ------ | ------------ | ------------------------------------------------------------------ |
+| `<release-tag>`         | string | -            | Required, positional. A published doxygen release, `Release_1_17_0` |
+| `--prefix=<directory>`  | string | `/usr/local` | Install to `<directory>/bin/doxygen`                               |
+| `-h`, `--help`          | -      | -            | Display usage                                                      |
+
+`--prefix` needs no root and writes nothing outside the directory given, which is how [docs/details/generate.sh](../../docs/details/generate.sh) renders the documentation site.
+Under a prefix the apt fallback is refused rather than taken: `apt` writes `/usr/bin` whatever was asked for, and an older doxygen installed somewhere other than where the caller pointed is worse than a failure.
+
+**Example**: the images' system-wide install, and a private one:
+
+```bash
+sudo ./doxygen.sh Release_1_17_0                        # -> /usr/local/bin/doxygen
+./doxygen.sh --prefix="${HOME}/.local" Release_1_17_0   # -> ~/.local/bin/doxygen, no root
+```

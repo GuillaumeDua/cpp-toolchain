@@ -26,7 +26,9 @@ REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 LINK_TARGET = re.compile(r"(?<=\]\()(?P<target>[^)\s#]+)(?P<fragment>#[^)\s]*)?(?=\))")
 
 # A fenced block, whether at the top level or nested in a blockquote.
-FENCE = re.compile(r"^\s*(?:>\s*)*(```|~~~)")
+# The marker is captured because CommonMark closes a block only on the character it opened with,
+# so a ``` sample inside a ~~~ block does not end that block.
+FENCE = re.compile(r"^\s*(?:>\s*)*(?P<marker>`{3,}|~{3,})")
 
 EXTERNAL_SCHEMES = ("http://", "https://", "mailto:", "ftp://")
 
@@ -62,11 +64,16 @@ def main() -> int:
     source = pathlib.Path(sys.argv[1]).resolve()
     source_directory = source.parent
 
-    in_fence = False
+    open_marker = None
     for line in source.read_text(encoding="utf-8").splitlines(keepends=True):
-        if FENCE.match(line):
-            in_fence = not in_fence
-        sys.stdout.write(line if in_fence else rewrite(line, source_directory))
+        fence = FENCE.match(line)
+        if fence:
+            marker = fence["marker"]
+            if open_marker is None:
+                open_marker = marker
+            elif marker[0] == open_marker[0] and len(marker) >= len(open_marker):
+                open_marker = None
+        sys.stdout.write(line if open_marker else rewrite(line, source_directory))
 
     return 0
 
