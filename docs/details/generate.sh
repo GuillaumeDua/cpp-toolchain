@@ -217,10 +217,18 @@ trap 'rm -f "${raw_diagnostics}"' EXIT
 
 # Doxygen writes its warnings to stderr, and so does the shell it spawns for INPUT_FILTER,
 # so a filter that cannot run is visible here even though doxygen still exits 0.
-diagnostics=$(grep -Ev "${KNOWN_BENIGN_DIAGNOSTIC}" "${raw_diagnostics}" || true)
+# Doxygen names the file by absolute path and STRIP_FROM_PATH does not reach its warnings,
+# so the repository root is cut here to leave the same relative paths the documentation uses.
+diagnostics=$(grep -Ev "${KNOWN_BENIGN_DIAGNOSTIC}" "${raw_diagnostics}" | sed "s|${PWD}/||g" || true)
 
+# A trailing newline only when there is something to report: the workflow tests the file's size,
+# so a clean run has to leave zero bytes rather than a lone newline.
 if [[ -n "${diagnostics_file}" ]]; then
-    printf '%s' "${diagnostics}" > "${diagnostics_file}"
+    if [[ -n "${diagnostics}" ]]; then
+        printf '%s\n' "${diagnostics}" > "${diagnostics_file}"
+    else
+        : > "${diagnostics_file}"
+    fi
 fi
 if [[ -n "${diagnostics}" ]]; then
     echo "${diagnostics}" >&2

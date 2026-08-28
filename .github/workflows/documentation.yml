@@ -93,7 +93,7 @@ jobs:
               echo "- render: ${RENDER_OUTCOME}"
               echo "- run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
               echo
-              echo '```text'
+              echo '```'
               if [[ -s "${log}" ]]; then
                   cat "${log}"
               else
@@ -101,8 +101,14 @@ jobs:
               fi
               echo '```'
               echo
+              echo "Reproduce, from a clone of this repository:"
+              echo
+              echo '```bash'
+              echo "git checkout ${GITHUB_SHA}"
+              echo "bash docs/details/generate.sh --diagnostics doxygen-diagnostics.log"
+              echo '```'
+              echo
               echo "Opened by .github/workflows/documentation.yml, rewritten on every run, and closed once a render comes back clean."
-              echo "Reproduce with \`bash docs/details/generate.sh\`."
           } > "${body}"
 
           if [[ -n "${existing}" ]]; then
