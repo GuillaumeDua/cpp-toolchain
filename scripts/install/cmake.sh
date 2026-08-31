@@ -135,12 +135,6 @@ to_boolean(){
     esac
 }
 
-# --- precondition: sudoer ---
-
-if [ "$EUID" -ne 0 ]; then
-    error "Requires root privileges"
-fi
-
 # --- options management ---
 
 options_short=s:,v:,a:,r,l,h
@@ -193,6 +187,12 @@ arg_silent=$(to_boolean "${arg_silent}")
 arg_list_available=$(to_boolean "${arg_list_available}")
 
 arg_rc=$(to_boolean "${arg_rc}")
+
+# --- precondition: sudoer ---
+
+if [ "$EUID" -ne 0 ]; then
+    error "Requires root privileges"
+fi
 
 log "arguments - versions:          [${arg_versions}]"
 log "arguments - silent:            [${arg_silent}]"
