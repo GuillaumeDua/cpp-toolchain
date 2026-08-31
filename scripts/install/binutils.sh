@@ -99,6 +99,7 @@ log(){
         return 0;
     fi
     echo -e "[${this_script_name}]: $@"
+    return 0
 }
 # Runs a command quietly, replaying its output only if it fails.
 run(){
@@ -135,14 +136,12 @@ run(){
 to_boolean(){
     if [[ $# != 1 ]]; then
         error "$0: missing argument"
-        exit 1
     fi
     case "$1" in
         [Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee]) echo 1;;
         [Nn]|[Nn][Oo]|0|[Ff][Aa][Ll][Ss][Ee]) echo 0;;
         *)
             error "to_boolean: invalid conversion from [$1] to boolean"
-            exit 1
             ;;
     esac
 }
@@ -285,29 +284,14 @@ do
 done
 
 arg_silent=$(to_boolean "${arg_silent}")
-if [ "$arg_silent" == '' ] ; then
-    exit 1;
-fi
 
 arg_list_available=$(to_boolean "${arg_list_available}")
-if [ "$arg_list_available" == '' ] ; then
-    exit 1;
-fi
 
 arg_list_installed=$(to_boolean "${arg_list_installed}")
-if [ "$arg_list_installed" == '' ] ; then
-    exit 1;
-fi
 
 arg_list_targets=$(to_boolean "${arg_list_targets}")
-if [ "$arg_list_targets" == '' ] ; then
-    exit 1;
-fi
 
 arg_with_gcc=$(to_boolean "${arg_with_gcc}")
-if [ "$arg_with_gcc" == '' ] ; then
-    exit 1;
-fi
 
 log "arguments - targets:           [${arg_targets}]"
 log "arguments - with-gcc:          [${arg_with_gcc}]"
@@ -348,7 +332,6 @@ fi
 
 if [ "$EUID" -ne 0 ]; then
   error "Requires root privileges"
-  exit 1
 fi
 
 # --- list mod ? ---
@@ -369,7 +352,8 @@ for target in ${arg_targets}; do
     # Primary: the cross g++ transitively pulls the whole toolchain (binutils + libc + libgcc + libstdc++),
     #   so this single package makes C and C++ cross-compilation actually link,
     #   and Clang auto-detects the cross-GCC install, so `clang --target=${target}` works too.
-    if [[ ${arg_with_gcc} == 1 ]] && apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "g++-${target}"; then
+    if [[ ${arg_with_gcc} == 1 ]] && run "installing [g++-${target}]" \
+        apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "g++-${target}"; then
         log "[g++-${target}] installed - full cross toolchain (binutils + libc + libgcc + libstdc++)"
         continue
     fi
@@ -381,8 +365,9 @@ for target in ${arg_targets}; do
     #   Enough to compile to objects and inspect/strip; NOT to link a full executable (no target libgcc / libstdc++).
     pkg_binutils="binutils-${target}"
     log "installing [${pkg_binutils}] ..."
-    apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_binutils}" \
-        || warning "[${pkg_binutils}] not available for this host/arch, skipping"
+    run "installing [${pkg_binutils}]" \
+        apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_binutils}" \
+        || warning "[${pkg_binutils}] not installed, skipping"
 
     debarch=$(triplet_to_deb_arch "${target}")
     if [ -z "${debarch}" ]; then
@@ -391,8 +376,9 @@ for target in ${arg_targets}; do
     fi
     pkg_libc="libc6-dev-${debarch}-cross"
     log "installing [${pkg_libc}] ..."
-    apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_libc}" \
-        || warning "[${pkg_libc}] not available for this host/arch, skipping"
+    run "installing [${pkg_libc}]" \
+        apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_libc}" \
+        || warning "[${pkg_libc}] not installed, skipping"
 
 done
 

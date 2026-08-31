@@ -23,6 +23,9 @@ arg_mode='full'
 # How many times a network-facing step is attempted
 max_attempts=3
 
+# Launchpad has no published throttling window; this is a plain transient-failure backoff.
+retry_backoff_seconds=5
+
 help(){
     echo "Usage: ${this_script_name}" 1>&2
     echo "
@@ -79,32 +82,63 @@ log(){
         return 0;
     fi
     echo -e "[${this_script_name}]: $@"
+    return 0
 }
-# Launchpad is a third-party host: a transient refusal should not sink a whole image build.
-# Only the last attempt reports.
-retry(){
+# Runs a command quietly, replaying its output only if it fails.
+run(){
+    local what="$1"; shift
+    local output streamed=0 status=0
+
+    output=$(mktemp)
+    if [[ "${arg_silent}" == 0 ]]; then
+        # stderr, because stdout carries the result to the caller.
+        streamed=1
+        "$@" 2>&1 | tee "${output}" >&2
+        status=${PIPESTATUS[0]}
+    else
+        "$@" > "${output}" 2>&1 || status=$?
+    fi
+
+    if [ "${status}" -eq 0 ]; then
+        rm -f "${output}"
+        return 0
+    fi
+
+    {
+        echo -e "[${this_script_name}]: ${what} failed - exit status [${status}]"
+        echo -e "[${this_script_name}]: command: [$*]"
+        if [ "${streamed}" -eq 0 ]; then
+            echo -e "[${this_script_name}]: --- output ---"
+            cat "${output}"
+            echo -e "[${this_script_name}]: --- end of output ---"
+        fi
+    } >> /dev/stderr
+    rm -f "${output}"
+    return "${status}"
+}
+# A third-party host can refuse a request transiently; that should not sink a whole image build.
+# Every step retried here is idempotent, and only the last attempt reports.
+run_with_retries(){
     local attempts="$1" what="$2"; shift 2
     local attempt=1
 
     while [ "${attempt}" -lt "${attempts}" ]; do
         "$@" > /dev/null 2>&1 && return 0
-        warning "${what} failed - retrying in $(( attempt * 5 ))s (attempt $(( attempt + 1 ))/${attempts})"
-        sleep $(( attempt * 5 ))
+        warning "${what} failed - retrying in $(( attempt * retry_backoff_seconds ))s (attempt $(( attempt + 1 ))/${attempts})"
+        sleep $(( attempt * retry_backoff_seconds ))
         attempt=$(( attempt + 1 ))
     done
-    "$@"
+    run "${what}" "$@"
 }
 to_boolean(){
     if [[ $# != 1 ]]; then
         error "$0: missing argument"
-        exit 1
     fi
     case "$1" in
         [Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee]) echo 1;;
         [Nn]|[Nn][Oo]|0|[Ff][Aa][Ll][Ss][Ee]) echo 0;;
         *)
             error "to_boolean: invalid conversion from [$1] to boolean"
-            exit 1
             ;;
     esac
 }
@@ -171,29 +205,14 @@ do
 done
 
 arg_silent=$(to_boolean "${arg_silent}")
-if [ "$arg_silent" == '' ] ; then
-    exit 1;
-fi
 
 arg_list_available=$(to_boolean "${arg_list_available}")
-if [ "$arg_list_available" == '' ] ; then
-    exit 1;
-fi
 
 arg_list_installed=$(to_boolean "${arg_list_installed}")
-if [ "$arg_list_installed" == '' ] ; then
-    exit 1;
-fi
 
 arg_multilib=$(to_boolean "${arg_multilib}")
-if [ "$arg_multilib" == '' ] ; then
-    exit 1;
-fi
 
 arg_minimalistic=$(to_boolean "${arg_minimalistic}")
-if [ "$arg_minimalistic" == '' ] ; then
-    exit 1;
-fi
 
 # --minimalistic is an alias for --mode=minimalistic, so it folds into the mode.
 #   It only wins where --mode is defaulted, the same way it treats --multilib below:
@@ -264,7 +283,6 @@ fi
 
 if [ "$EUID" -ne 0 ]; then
   error "Requires root privileges"
-  exit 1
 fi
 
 log "arguments - versions:       [${arg_versions}]"
@@ -282,10 +300,10 @@ if [ "${is_ubuntu_toolchain_r_ppa_added}" = false ]; then
     log "adding ppa: [${ubuntu_toolchain_r_ppa}] ..."
     # Unchecked, a failure here leaves the distro's own gcc as the only candidate,
     # surfacing much later as a requested version that is "not available".
-    retry "${max_attempts}" "adding ppa [${ubuntu_toolchain_r_ppa}]" \
+    run_with_retries "${max_attempts}" "adding ppa [${ubuntu_toolchain_r_ppa}]" \
         add-apt-repository -y "ppa:${ubuntu_toolchain_r_ppa}" \
     || error "adding ppa [${ubuntu_toolchain_r_ppa}] failed"
-    retry "${max_attempts}" "refreshing the apt index" apt update -qqy -o Acquire::Retries=${max_attempts} \
+    run_with_retries "${max_attempts}" "refreshing the apt index" apt update -qqy -o Acquire::Retries=${max_attempts} \
     || error "refreshing the apt index failed"
 fi
 
@@ -317,7 +335,6 @@ elif [[ "$arg_versions" =~  ^\>=[0-9]+$ ]]; then
     log "using user-provided rule: >=[$from_version]"
     if [ -z "$from_version" ]; then
         error "invalid version='>=[0-9]+' value"
-        exit 1
     fi
     gcc_versions=$(echo "$all_gcc_versions_available" | awk "\$1 >= ${from_version}")
 elif [[ "$arg_versions" =~  ^[0-9]+( [0-9]+)*$ ]]; then
@@ -325,17 +342,16 @@ elif [[ "$arg_versions" =~  ^[0-9]+( [0-9]+)*$ ]]; then
     gcc_versions="${arg_versions}"
 elif [ ! -z "$arg_versions" ]; then
     error "invalid value for argument version [${arg_versions}]"
-    exit 1
 fi
 
+# Fatal here, unlike llvm.sh, which logs and exits 0: this script refreshes the apt lists only when it
+# has to add the ubuntu-toolchain-r PPA, so an empty range means the caller left the lists unpopulated.
+# The Dockerfile's GCC step runs its own apt-get update for that reason; dropping it lands here.
 if [ -z "$gcc_versions" ]; then
-    error "empty request versions range [${gcc_versions}] , nothing to do. Available versions: [${all_gcc_versions_available}], requested versions: [${arg_versions}](${from_version})"
-    echo -e "$(list_installed_gcc_versions)" # result for the caller
-    exit 0
+    error "empty request versions range, nothing to do. Available versions: [$(echo ${all_gcc_versions_available})], requested versions: [${arg_versions}]"
 fi
 if [[ ! $(echo -n $gcc_versions) =~  ^[0-9]+( [0-9]+)*$ ]]; then
     error "invalid versions range: [$gcc_versions]"
-    exit 1
 fi
 
 ## --- list mod ? ---
@@ -386,9 +402,6 @@ echo -e "${gcc_versions}" # result for the caller
 
 # --- Create aliases ---
 arg_alias=$(to_boolean "${arg_alias}")
-if [ "$arg_alias" == '' ] ; then
-    exit 1;
-fi
 
 if [[ "${arg_alias}" == 1 ]]; then
     log "alias: adding aliases for [bash zsh]"

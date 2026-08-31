@@ -153,14 +153,12 @@ run_with_retries(){
 to_boolean(){
     if [[ $# != 1 ]]; then
         error "$0: missing argument"
-        exit 1
     fi
     case "$1" in
         [Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee]) echo 1;;
         [Nn]|[Nn][Oo]|0|[Ff][Aa][Ll][Ss][Ee]) echo 0;;
         *)
             error "to_boolean: invalid conversion from [$1] to boolean"
-            exit 1
             ;;
     esac
 }
@@ -222,19 +220,10 @@ do
 done
 
 arg_silent=$(to_boolean "${arg_silent}")
-if [ "$arg_silent" == '' ] ; then
-    exit 1;
-fi
 
 arg_list_available=$(to_boolean "${arg_list_available}")
-if [ "$arg_list_available" == '' ] ; then
-    exit 1;
-fi
 
 arg_list_installed=$(to_boolean "${arg_list_installed}")
-if [ "$arg_list_installed" == '' ] ; then
-    exit 1;
-fi
 
 case "${arg_mode}" in
     runtime | minimalistic | coverage | full ) ;;
@@ -242,9 +231,6 @@ case "${arg_mode}" in
 esac
 
 arg_cleanup=$(to_boolean "${arg_cleanup}")
-if [ "$arg_cleanup" == '' ] ; then
-    exit 1;
-fi
 
 log "arguments - versions:          [${arg_versions}]"
 log "arguments - silent:            [${arg_silent}]"
@@ -309,10 +295,12 @@ fi
 
 # --- fetch llvm.sh ---
 
-if [ -f "${internal_script_path}" ]; then
-    echo -e "temporary file [${internal_script_path}] already exists" >> /dev/stderr # not using error to avoid deleting the file
-    exit 1
-fi
+for temporary in "${internal_script_path}" "${gpg_key_path}"; do
+    if [ -f "${temporary}" ]; then
+        echo -e "temporary file [${temporary}] already exists" >> /dev/stderr # not using error to avoid deleting the file
+        exit 1
+    fi
+done
 
 codename=$(lsb_release -cs)
 
@@ -324,20 +312,19 @@ gpg_key_url="${apt_llvm_base_url}/llvm-snapshot.gpg.key"
 # which is why run_with_retries wraps it below rather than being replaced by it.
 wget_options=(--no-verbose --tries=${max_attempts} --retry-connrefused --timeout=30)
 
-# REFACTO: drop this block - the upstream installer at ${external_script_url} installs the same key.
-#   The fetch is not piped into gpg: without pipefail, a failed download would surface as a malformed key.
-#   An image layered on another one inherits the key its base installed.
-if [ -f "${gpg_key_installed_path}" ]; then
-    log "signing key already installed at [${gpg_key_installed_path}]"
-else
-    run_with_retries "${max_attempts}" "fetching the signing key [${gpg_key_url}]" \
-        wget "${wget_options[@]}" -O "${gpg_key_path}" "${gpg_key_url}" \
-    || error "fetching the signing key [${gpg_key_url}] failed"
+# REFACTO: drop this block - the upstream installer at ${external_script_url} installs the same key,
+#   and an image layered on another one inherits the key its base installed.
+# The fetch is not piped into gpg: without pipefail, a failed download would surface as a malformed key.
+# Installed unconditionally, never skipped on the file being present: gpg --dearmor creates its output
+#   before writing it, so an interrupted run leaves a truncated key that a presence check reads as installed,
+#   and every later apt-get update then fails with NO_PUBKEY until someone removes it by hand.
+run_with_retries "${max_attempts}" "fetching the signing key [${gpg_key_url}]" \
+    wget "${wget_options[@]}" -O "${gpg_key_path}" "${gpg_key_url}" \
+|| error "fetching the signing key [${gpg_key_url}] failed"
 
-    run "installing the signing key" \
-        gpg --dearmor --batch --yes -o "${gpg_key_installed_path}" "${gpg_key_path}" \
-    || error "installing the signing key fetched from [${gpg_key_url}] failed"
-fi
+run "installing the signing key" \
+    gpg --dearmor --batch --yes -o "${gpg_key_installed_path}" "${gpg_key_path}" \
+|| error "installing the signing key fetched from [${gpg_key_url}] failed"
 
 run_with_retries "${max_attempts}" "fetching [${external_script_url}]" \
     wget "${wget_options[@]}" -O "${internal_script_path}" "${external_script_url}" \
@@ -572,9 +559,6 @@ echo -e "${llvm_versions}" # result for the caller
 
 # --- Create aliases ---
 arg_alias=$(to_boolean "${arg_alias}")
-if [ "$arg_alias" == '' ] ; then
-    exit 1;
-fi
 
 if [[ "${arg_alias}" == 1 ]]; then
     log "alias: adding aliases for [bash zsh]"
