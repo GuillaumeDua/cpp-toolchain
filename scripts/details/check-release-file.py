@@ -185,31 +185,19 @@ def check_git(data):
     return errors
 
 
-def newest_release_before(version):
-    """Newest release tag by version order, excluding rcs and `version` itself."""
-    tags = [t for t in git("tag", "-l", "v*.*").splitlines()
-            if VERSION_RE.match(t) and t != version]
-    if not tags:
-        return ""
-    return max(tags, key=lambda t: tuple(int(part) for part in t[1:].split(".")))
-
-
 def check_bumps(data):
     """bumps: is generated, never hand-edited - assert it equals what render-manifest.py
     recomputes between the previous release and the recorded commit."""
     import yaml
     version = str(data.get("version", ""))
     commit = str(data.get("commit", ""))
-    previous = newest_release_before(version)
     cmd = [sys.executable, str(HERE / "render-manifest.py"),
            "--tag", version, "--ref", commit, "--bumps-yaml"]
-    if previous:
-        cmd += ["--previous-ref", previous]
     recomputed = yaml.safe_load(subprocess.run(cmd, capture_output=True, text=True, check=True).stdout)
     expected = recomputed.get("bumps") or {}
     recorded = data.get("bumps") or {}
     if recorded != expected:
-        return [f"bumps does not match the recompute against '{previous or '(none)'}': "
+        return [f"bumps does not match the recompute at {commit}: "
                 f"recorded {recorded!r}, recomputed {expected!r}"]
     return []
 

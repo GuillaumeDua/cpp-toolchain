@@ -25,15 +25,6 @@
     },
     {
       "customType": "regex",
-      "description": "Base image passed as a docker-compose build arg (BASE_IMAGE) - the docker-compose manager only reads `image:`, not `build.args`, so pin/track the digest here too",
-      "managerFilePatterns": ["/^\\.devcontainer/docker-compose\\.ya?ml$/"],
-      "matchStrings": [
-        "BASE_IMAGE:\\s*['\"]?(?<depName>[^:'\"@\\s]+):(?<currentValue>[^'\"@\\s]+)(@(?<currentDigest>sha256:[a-f0-9]+))?['\"]?"
-      ],
-      "datasourceTemplate": "docker"
-    },
-    {
-      "customType": "regex",
       "description": "Documentation theme pinned in the site generator - the theme is not installed in any image, so it has no `ARG` in the Dockerfile to hang off",
       "managerFilePatterns": ["/^docs/details/generate\\.sh$/"],
       "matchStrings": [

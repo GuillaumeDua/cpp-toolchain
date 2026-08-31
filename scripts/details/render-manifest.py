@@ -14,6 +14,9 @@ so it is matched separately here and bumped by .github/workflows/ubuntu-snapshot
 Usage, from the repository root - `--dockerfile` and `--renovate` default to paths relative to it:
     python3 scripts/details/render-manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
 
+`--previous-ref` defaults to the newest release before `--tag`, which is the base every caller
+wants, so no caller computes one. Pass `--previous-ref ''` for a manifest with no diff column.
+
 `--ref` reads the Dockerfile and renovate.json from a git ref instead of the worktree,
 so the manifest can be rendered for the exact commit an image was built from,
 even when the checkout has moved past it.
@@ -44,6 +47,8 @@ LABELS = [
     ("https://github.com/ohmyzsh/ohmyzsh", "oh-my-zsh"),
     ("romkatv/powerlevel10k", "powerlevel10k"),
 ]
+
+RELEASE_RE = re.compile(r"^v\d+\.\d+$")
 
 # Registry pages the images are published to - hardcoded like LABELS, this script is repository-specific.
 GHCR_PAGE = "https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain"
@@ -101,6 +106,25 @@ def git_show(ref, path):
         return None
 
 
+def newest_release_before(tag):
+    """Newest release tag by version order, excluding pre-releases and `tag` itself.
+
+    Ordered on the parsed (major, minor): lexically, v1.10 sorts below v1.9.
+    Empty outside a git checkout.
+    """
+    try:
+        tags = subprocess.run(
+            ["git", "tag", "-l", "v*.*"],
+            capture_output=True, text=True, check=True,
+        ).stdout.split()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return ""
+    releases = [t for t in tags if RELEASE_RE.match(t) and t != tag]
+    if not releases:
+        return ""
+    return max(releases, key=lambda t: tuple(int(part) for part in t[1:].split(".")))
+
+
 def delta(current, previous):
     """Markdown cell describing the move from `previous` to `current`."""
     if previous is None:
@@ -138,7 +162,8 @@ def bumps_yaml(current, previous, diffing):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", required=True, help="tag being released, e.g. v1.2")
-    parser.add_argument("--previous-ref", default="", help="git ref to diff against, e.g. v1.1")
+    parser.add_argument("--previous-ref", default=None,
+                        help="git ref to diff against (default: the newest release before --tag; '' for no diff)")
     parser.add_argument("--ref", default="",
                         help="git ref to read the Dockerfile and renovate.json from (default: the worktree)")
     parser.add_argument("--bumps-yaml", action="store_true",
@@ -160,11 +185,13 @@ def main():
     if not current:
         raise SystemExit("::error::no pinned versions found - has the Dockerfile or renovate.json changed shape?")
 
+    previous_ref = newest_release_before(args.tag) if args.previous_ref is None else args.previous_ref
+
     previous = {}
-    if args.previous_ref:
-        old_dockerfile = git_show(args.previous_ref, args.dockerfile)
+    if previous_ref:
+        old_dockerfile = git_show(previous_ref, args.dockerfile)
         if old_dockerfile is None:
-            print(f"[render-manifest] no Dockerfile at {args.previous_ref} - rendering without a diff",
+            print(f"[render-manifest] no Dockerfile at {previous_ref} - rendering without a diff",
                   file=sys.stderr)
         else:
             # The old Dockerfile is parsed with the *current* regexes.
@@ -201,7 +228,7 @@ def main():
             f"(https://github.com/GuillaumeDua/cpp-toolchain/blob/main/releases/{args.tag}.yaml)",
             "",
         ]
-    out.append("| Component | Version |" + (f" Since {args.previous_ref} |" if diffing else ""))
+    out.append("| Component | Version |" + (f" Since {previous_ref} |" if diffing else ""))
     out.append("| --- | --- |" + (" --- |" if diffing else ""))
     for name in ordered:
         row = f"| {labels.get(name, name)} | `{current[name]}` |"
