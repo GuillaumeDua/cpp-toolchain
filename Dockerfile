@@ -171,13 +171,13 @@ ENV TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
 # Basics / installation prerequisites
 #   openssh-client (not the `ssh` metapackage) so no SSH server is shipped here:
 #   remote access is an opt-in layer (see ssh_support.dockerfile).
-RUN apt update -qqy && apt install -qqy --no-install-recommends \
+RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         ca-certificates debian-keyring                      \
         gpg gpg-agent gnupg                                 \
         software-properties-common lsb-release apt-utils    \
-        python3 pip                                         \
+        python3                                             \
    && add-apt-repository -y ppa:ubuntu-toolchain-r/test     \
-   && apt update -qqy && apt install -qqy --no-install-recommends \
+   && apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         wget openssh-client                                 \
         sudo tzdata curl libssl-dev                         \
         less tar zip unzip gzip                             \
@@ -199,7 +199,7 @@ RUN git config --system --add safe.directory '*'
 # C++ toolchain: native libc dev headers.
 #   Cross-arch toolchains (opt-in, per target) are installed at the end of this stage by binutils.sh,
 #   so the expensive layers below stay shared between the normal and cross-arch image variants.
-RUN apt update -qqy && apt install -qqy --no-install-recommends \
+RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         libc6-dev                                              \
     && rm -rf /var/lib/apt/lists/*
 
@@ -219,16 +219,16 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh;                          
 ARG OPT_IN_INTEGRATE_BAZEL='no'
 RUN if [[ "${OPT_IN_INTEGRATE_BAZEL}" = "y" ]] && [[ "$(dpkg --print-architecture)" != "amd64" ]]; then           \
         echo "[bazel] apt repository is amd64-only, skipping on $(dpkg --print-architecture)";                     \
-    elif [[ "${OPT_IN_INTEGRATE_BAZEL}" = "y" ]]; then                    \
-        apt update -qqy && apt install -qqy --no-install-recommends     \
-            apt-transport-https curl gnupg                              \
+    elif [[ "${OPT_IN_INTEGRATE_BAZEL}" = "y" ]]; then                         \
+        apt-get update -qqy && apt-get install -qqy --no-install-recommends    \
+            apt-transport-https curl gnupg                                     \
         && curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor >bazel-archive-keyring.gpg \
-        && mv bazel-archive-keyring.gpg /usr/share/keyrings             \
-        && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/bazel-archive-keyring.gpg] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list \
-        && apt update -qqy && apt install -qqy --no-install-recommends  \
-            bazel                                                       \
-        && rm -rf /var/lib/apt/lists/*                                  \
-        ;                                                               \
+        && mv bazel-archive-keyring.gpg /usr/share/keyrings                    \
+        && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/bazel-archive-keyring.gpg] https://storage.googleapis.com/bazel-apt stable jdk1.8" | tee /etc/apt/sources.list.d/bazel.list \
+        && apt-get update -qqy && apt-get install -qqy --no-install-recommends \
+            bazel                                                              \
+        && rm -rf /var/lib/apt/lists/*                                         \
+        ;                                                                      \
     fi
 
 # Dependency managers
@@ -244,13 +244,13 @@ RUN \
 ARG CONAN_VERSION
 RUN \
     # conan (with work-around for pip "error: externally-managed-environment")
-    apt update -qqy && apt install -qqy --no-install-recommends \
+    apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         pipx                                                    \
     && (pipx install "conan==${CONAN_VERSION}" > /dev/null 2>&1) \
     && rm -rf /var/lib/apt/lists/*
 
 # C++ toolchain: GNU/GCC
-#   apt update here: gcc.sh only refreshes lists when it has to add the ubuntu-toolchain-r PPA,
+#   apt-get update here: gcc.sh only refreshes lists when it has to add the ubuntu-toolchain-r PPA,
 #   which the `runtime` stage already registered, so it relies on a populated apt cache.
 COPY ./scripts/install/gcc.sh ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
@@ -307,7 +307,7 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh;                       
     && ${script_path} --silent=yes --targets="$BINUTILS_TARGETS"                                       \
     && rm -rf /var/lib/apt/lists/*
 
-# Cleanup (keeps the published `build` image lean; `dev` re-runs `apt update` on top)
+# Cleanup (keeps the published `build` image lean; `dev` re-runs `apt-get update` on top)
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 CMD ["/bin/bash"]
@@ -389,7 +389,7 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
 
 # Dedicated static analyzers
 # TODO: sonarlint
-RUN apt update -qqy && apt install -qqy --no-install-recommends \
+RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         cppcheck \
         iwyu \
     && rm -rf /var/lib/apt/lists/*
@@ -422,10 +422,10 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
 #   lcov (`genhtml`) covers the GCC coverage path of CMake `doc` targets; gcov ships with GCC already.
 ARG DOXYGEN_RELEASE
 COPY ./scripts/install/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
-RUN apt update -qqy && apt install -qqy --no-install-recommends graphviz lcov \
-    && rm -rf /var/lib/apt/lists/*                                            \
-    && chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh                       \
-    && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}"           \
+RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends graphviz lcov \
+    && rm -rf /var/lib/apt/lists/*                                                    \
+    && chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh                               \
+    && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}"                   \
     && rm -rf /var/lib/apt/lists/*
 
 CMD ["/bin/bash"]
@@ -443,7 +443,7 @@ SHELL ["/bin/bash", "-c"]
 # Tooling: documentation, dynamic analysis, debug, versioning extras, editors, misc.
 #   `dev` inherits `static-analysis`, not its `documentation` sibling, so the documentation tools are installed here too.
 #   A stage has a single FROM, and apt packages cannot be cleanly COPY --from'd.
-RUN apt update -qqy && apt install -qqy --no-install-recommends \
+RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         # documentation (doxygen itself is installed as a pre-built binary below; graphviz -> `dot`, lcov -> coverage `genhtml`)
         graphviz lcov                                       \
         # dynamic analysis
@@ -468,15 +468,14 @@ RUN chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh \
 # Tooling: shells - bash, zsh, with oh-my-zsh + the powerlevel10k theme and no plugins.
 #   Installed directly rather than through zsh-in-docker, which hardcodes oh-my-zsh to `master` and
 #   powerlevel10k to its default branch with no way to pin either - the two pieces most likely to move under a rebuild.
-#   The .zshrc written here reproduces what zsh-in-docker generates for this configuration.
 #   Which shell a dev container opens with is the client's setting, not this image's:
 #   https://stackoverflow.com/questions/55987337/visual-studio-code-remote-containers-change-shell
-#   TODO: confirm this .zshrc matches what zsh-in-docker produced - it has not been compared against one.
+#   TODO: compare this .zshrc against what zsh-in-docker generates for this configuration.
 ARG OHMYZSH_COMMIT
 ARG POWERLEVEL10K_VERSION
-RUN apt update -qqy && apt install -qqy --no-install-recommends       \
-        bash zsh locales                                              \
-    && rm -rf /var/lib/apt/lists/*                                    \
+RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
+        bash zsh locales                                                \
+    && rm -rf /var/lib/apt/lists/*                                      \
     # oh-my-zsh, pinned by commit: the repository publishes no tags at all.
     && git clone --quiet https://github.com/ohmyzsh/ohmyzsh.git "${HOME}/.oh-my-zsh"                 \
     && git -C "${HOME}/.oh-my-zsh" checkout --quiet "${OHMYZSH_COMMIT}"                              \
@@ -484,28 +483,28 @@ RUN apt update -qqy && apt install -qqy --no-install-recommends       \
     && git clone --quiet --depth 1 --branch "v${POWERLEVEL10K_VERSION}"                              \
         https://github.com/romkatv/powerlevel10k.git                                                 \
         "${HOME}/.oh-my-zsh/custom/themes/powerlevel10k"                                             \
-    && printf '%s\n'                                                  \
-        "export LANG='en_US.UTF-8'"                                   \
-        "export LANGUAGE='en_US:en'"                                  \
-        "export LC_ALL='en_US.UTF-8'"                                 \
-        "export TERM=xterm"                                           \
-        ""                                                            \
-        "##### Zsh/Oh-my-Zsh Configuration"                           \
-        "export ZSH=\"${HOME}/.oh-my-zsh\""                           \
-        ""                                                            \
-        "ZSH_THEME=\"powerlevel10k/powerlevel10k\""                   \
-        "plugins=()"                                                  \
-        ""                                                            \
-        "source \$ZSH/oh-my-zsh.sh"                                   \
-        "POWERLEVEL9K_SHORTEN_STRATEGY=\"truncate_to_last\""          \
-        "POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(user dir vcs status)"     \
-        "POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=()"                       \
-        "POWERLEVEL9K_STATUS_OK=false"                                \
-        "POWERLEVEL9K_STATUS_CROSS=true"                              \
+    && printf '%s\n'                                                    \
+        "export LANG='en_US.UTF-8'"                                     \
+        "export LANGUAGE='en_US:en'"                                    \
+        "export LC_ALL='en_US.UTF-8'"                                   \
+        "export TERM=xterm"                                             \
+        ""                                                              \
+        "##### Zsh/Oh-my-Zsh Configuration"                             \
+        "export ZSH=\"${HOME}/.oh-my-zsh\""                             \
+        ""                                                              \
+        "ZSH_THEME=\"powerlevel10k/powerlevel10k\""                     \
+        "plugins=()"                                                    \
+        ""                                                              \
+        "source \$ZSH/oh-my-zsh.sh"                                     \
+        "POWERLEVEL9K_SHORTEN_STRATEGY=\"truncate_to_last\""            \
+        "POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(user dir vcs status)"       \
+        "POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=()"                         \
+        "POWERLEVEL9K_STATUS_OK=false"                                  \
+        "POWERLEVEL9K_STATUS_CROSS=true"                                \
         > "${HOME}/.zshrc"
 
 # Cleanup
-RUN apt clean \
+RUN apt-get clean \
     && rm -rf ${TOOLCHAIN_TMP_DIR} \
     && rm -rf /var/lib/apt/lists/*
 
