@@ -31,7 +31,7 @@ help(){
         [ -l | --list-available ]   : Only list available versions from the Kitware apt repository. Boolean -> default is [0]
         [ -v | --versions ]         : Version to install.                                           String: latest|(exact-version) -> default is [latest]
             - [latest]              : the version apt would resolve by default (Candidate)              Ex: 'latest'
-            - [x.y.z-...]           : an exact version, pinned via 'apt install cmake=<version>'        Ex: '3.29.6-0kitware1ubuntu24.04.1'
+            - [x.y.z-...]           : an exact version, pinned via 'apt-get install cmake=<version>'    Ex: '3.29.6-0kitware1ubuntu24.04.1'
         [ -s | --silent ]           : Run in silent mod.                                            Boolean -> default is [1]
         [ -a | --alias]             : Set bash/zsh-rc 'cmake_version' alias.                        Boolean -> default is [0]
         [ -r | --rc ]               : Also register the Kitware release-candidate apt repository.   Boolean -> default is [0]
@@ -225,7 +225,7 @@ run_with_retries "${max_attempts}" "running [${external_script_url} --release ${
 || error "running [${external_script_url} --release ${codename} ${rc_option}] failed"
 clean
 
-run_with_retries "${max_attempts}" "refreshing the apt index" apt update -qqy -o Acquire::Retries=${max_attempts} \
+run_with_retries "${max_attempts}" "refreshing the apt index" apt-get update -qqy -o Acquire::Retries=${max_attempts} \
 || error "refreshing the apt index failed"
 
 # --- list versions ---
@@ -268,7 +268,7 @@ log "CMake version to be installed: [${cmake_version}]"
 
 # --- installation ---
 
-apt install -qqy --no-install-recommends -o Acquire::Retries=${max_attempts} "cmake=${cmake_version}" \
+apt-get install -qqy --no-install-recommends -o Acquire::Retries=${max_attempts} "cmake=${cmake_version}" \
     || error "installation of cmake [${cmake_version}] failed"
 
 # --- summary ---

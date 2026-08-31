@@ -303,7 +303,7 @@ if [ "${is_ubuntu_toolchain_r_ppa_added}" = false ]; then
     run_with_retries "${max_attempts}" "adding ppa [${ubuntu_toolchain_r_ppa}]" \
         add-apt-repository -y "ppa:${ubuntu_toolchain_r_ppa}" \
     || error "adding ppa [${ubuntu_toolchain_r_ppa}] failed"
-    run_with_retries "${max_attempts}" "refreshing the apt index" apt update -qqy -o Acquire::Retries=${max_attempts} \
+    run_with_retries "${max_attempts}" "refreshing the apt index" apt-get update -qqy -o Acquire::Retries=${max_attempts} \
     || error "refreshing the apt index failed"
 fi
 
@@ -315,8 +315,8 @@ fi
 #   so naming them here keeps that one fact in one place (scripts/checks/details/package-origins.sh).
 if [[ "${arg_mode}" == 'runtime' ]]; then
     log "installing the C++ runtime libraries ..."
-    apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} \
-            libstdc++6 libgcc-s1                                                   \
+    apt-get install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} \
+            libstdc++6 libgcc-s1                                                       \
         || error "installation of the runtime libraries failed"
     exit 0
 fi
@@ -325,6 +325,8 @@ fi
 gcc_version_available_regex='^gcc-\K([0-9]{2})(?=/)'
 
 # --- which versions ---
+# The one `apt` left in this script: apt-get has no `list` subcommand.
+#   Its stderr is discarded, which is where `apt` puts its unstable-CLI warning.
 all_gcc_versions_available=$(apt list --all-versions 2>/dev/null | grep -oP "${gcc_version_available_regex}" | sort -n -u)
 if [ "$arg_versions" = 'all' ]; then
     gcc_versions=$all_gcc_versions_available
@@ -368,15 +370,15 @@ mapfile -t gcc_versions_to_install < <(echo -n "$gcc_versions")
 for version in "${gcc_versions_to_install[@]}"; do
     log "installing ${version} ..."
 
-    apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} \
-            gcc-${version} g++-${version}                                          \
+    apt-get install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} \
+            gcc-${version} g++-${version}                                              \
         || error "installation of [${version}] failed"
     if [[ ${arg_multilib} == 1 ]]; then
         # multilib availability is environmental:
         #   It lags for brand-new toolchain versions, and does not exist on non-amd64 hosts.
         #   So a default (implicit) request is best-effort - skip with a warning - while an explicit --multilib=yes is honored strictly and fails hard if unavailable.
-        if ! apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} \
-                gcc-${version}-multilib g++-${version}-multilib                             \
+        if ! apt-get install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} \
+                gcc-${version}-multilib g++-${version}-multilib                                 \
         ; then
             if [[ ${arg_multilib_explicit} == 1 ]]; then
                 error "multilib for [${version}] explicitly requested (--multilib) but not available"
