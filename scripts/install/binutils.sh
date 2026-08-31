@@ -353,7 +353,7 @@ for target in ${arg_targets}; do
     #   so this single package makes C and C++ cross-compilation actually link,
     #   and Clang auto-detects the cross-GCC install, so `clang --target=${target}` works too.
     if [[ ${arg_with_gcc} == 1 ]] && run "installing [g++-${target}]" \
-        apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "g++-${target}"; then
+        apt-get install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "g++-${target}"; then
         log "[g++-${target}] installed - full cross toolchain (binutils + libc + libgcc + libstdc++)"
         continue
     fi
@@ -366,7 +366,7 @@ for target in ${arg_targets}; do
     pkg_binutils="binutils-${target}"
     log "installing [${pkg_binutils}] ..."
     run "installing [${pkg_binutils}]" \
-        apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_binutils}" \
+        apt-get install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_binutils}" \
         || warning "[${pkg_binutils}] not installed, skipping"
 
     debarch=$(triplet_to_deb_arch "${target}")
@@ -377,7 +377,7 @@ for target in ${arg_targets}; do
     pkg_libc="libc6-dev-${debarch}-cross"
     log "installing [${pkg_libc}] ..."
     run "installing [${pkg_libc}]" \
-        apt install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_libc}" \
+        apt-get install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_libc}" \
         || warning "[${pkg_libc}] not installed, skipping"
 
 done
