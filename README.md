@@ -52,7 +52,7 @@ docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version
 > Both registries carry the same images - prefer [GHCR](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain) for CI, public images there have no anonymous pull rate limit.  
 > Working in [VS Code](https://code.visualstudio.com/) ? Open the repo and **Reopen in Container** - see [As a dev environment](#as-a-dev-environment).
 
-## 🌟 Key features
+## Key features
 
 - **Five stages**, from a minimal runtime to a full dev environment - so you pull only what you need ([Pick your image/stage](#pick-your-image-one-per-stage)).
 - **Both toolchains side by side**: GNU `g++`/`libstdc++` and LLVM `clang++`/`libc++`, a pinned major of each ([Compilers & standard library](#compilers--standard-library)).
@@ -68,7 +68,7 @@ docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version
 The stages form a diamond: `static-analysis` and `documentation` both build on `build`; `dev` inherits `static-analysis` and re-adds the documentation tools.
 
 <details>
-<summary><b>📦 Full package matrix</b> - what lands in which stage</summary>
+<summary><b>Full package matrix</b> - what lands in which stage</summary>
 
 | Category                                                                                                        | `runtime` | `build` | `static-analysis` | `documentation` | `dev` |
 | --------------------------------------------------------------------------------------------------------------- | :-------: | :-----: | :---------------: | :-------------: | :---: |
@@ -204,7 +204,7 @@ docker build -t cpp-toolchain:dev . \
 Adding `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build produces the cross-arch flavor of that stage - see [Cross-compilation](docs/CROSS-COMPILATION.md).
 
 <details>
-<summary><b>All build arguments</b></summary>
+<summary><b>Common build arguments</b></summary>
 
 | Name                    | default           | description                                                                            | example                                  |
 | ----------------------- | ----------------- | -------------------------------------------------------------------------------------- | ---------------------------------------- |

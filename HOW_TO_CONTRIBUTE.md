@@ -4,7 +4,7 @@ Thanks for helping improve **cpp-toolchain**.
 
 This document covers the contribution workflow: how changes get in, what the CI gate expects, and how images get published.
 
-## The two workflows
+## The workflows
 
 There is a hard split between **building** (gate, runs on every PR) and **publishing** (pushes tags, only ever from `main`):
 

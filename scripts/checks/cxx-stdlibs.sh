@@ -138,8 +138,8 @@ case "${arg_format}" in
           || die "format [${arg_format}] answers for one view - pass --view=library or --view=compiler" ;;
 esac
 
-# A compiler reports the headers it reaches rather than a library, and headers have no SONAME.
-# There is nothing to narrow to, so this is refused rather than answered with empty output.
+# A compiler reports the headers it reaches, not a library, and headers have no SONAME.
+# There is nothing to narrow to, so this is refused instead of answered with empty output.
 [ "${arg_format}" != 'soname' ] || [ "${arg_view}" != 'compiler' ] \
   || die "format [soname] has no meaning for [--view=compiler] - a compiler names headers, not a library"
 
@@ -199,13 +199,8 @@ discover_library_files(){
     } | grep -E '/lib(stdc\+\+|c\+\+)\.so\.[0-9]'
 }
 
-# binutils reads the SONAME straight out of the ELF. A runtime image ships none of it, so the
-# name up to the major stands in - exact for libstdc++, and exact for the only libc++ such an
-# image could carry. It is an approximation rather than a read: apt.llvm.org gives its
-# versioned runtimes a SONAME of their own, libc++.so.1.0.20 against the host's libc++.so.1,
-# which is what lets two of them coexist, and the name alone cannot tell those apart.
-# Guarded on the file existing, so asking about a libc++abi that was never installed answers
-# [-] rather than inventing a name for it.
+# binutils reads the SONAME straight out of the ELF. A runtime image ships none of it, so the name
+# up to the major stands in - an approximation, whose limits scripts/checks/README.md states.
 soname_of(){
     [ -f "$1" ] || { printf '%s' '-'; return; }
 
@@ -238,19 +233,15 @@ max_symbol_version(){
     printf '%s' "${found:--}"
 }
 
-# The same question as max_symbol_version, asked of libc++, which answers it differently: it carries
-# no GNU symbol versions, and puts its ABI in an inline namespace instead - std::__1 - that every
-# mangled name in the library repeats. Mangling is length-prefixed, so 'St3__1' is the substitution
-# for std:: followed by a three-character identifier, and the match has to stop after one digit:
-# the digits that follow belong to the next component's own length, not to the namespace.
-# No binutils, so this is one more thing a runtime-only image can still answer.
+# The same question as max_symbol_version, asked of libc++, which carries no GNU symbol versions and
+# states its ABI in an inline namespace instead - scripts/checks/README.md covers the mangling, and
+# why the match has to stop after one digit.
 libcpp_abi_from_elf(){
     local found
     found=$(LC_ALL=C grep -aoE 'St3__[0-9]' "$1" 2>/dev/null | sort -u)
 
-    # Silence is deferral, not an answer. A two-digit ABI (St4__10) or a renamed namespace (__ndk1)
-    # does not match this at all, and a library carrying two of them is genuinely ambiguous -
-    # in both cases the headers get to speak instead of this guessing.
+    # No match and more than one match both hand the question to the headers: a two-digit ABI
+    # (St4__10) or a renamed namespace (__ndk1) never matches, and two matches are ambiguous.
     [ -n "${found}" ] || return
     [ "$(printf '%s\n' "${found}" | wc -l)" -eq 1 ] || return
 
@@ -344,12 +335,9 @@ library_rows(){
             abi=$(max_symbol_version "${real}" 'GLIBCXX')
             cxxabi=$(max_symbol_version "${real}" 'CXXABI')
         else
-            # A row describes an installed runtime, and the runtime states its own ABI in every
-            # symbol it exports, so that is where it is read from. The headers are the fallback
-            # rather than the source: they ship in a -dev package that need not be installed at
-            # all, and need not be the one this .so came from.
-            # Its C++ ABI does live in a library of its own rather than inside libc++.so,
-            # named after it, so that one is found by substitution rather than by guess.
+            # The runtime states its own ABI in every symbol it exports, so that is where a row
+            # reads it. The headers are only the fallback: they ship in a -dev package that need
+            # not be installed, and need not be the one this .so came from.
             abi=$(libcpp_abi_from_elf "${real}")
             headers=$(libcpp_headers_for "${real}" "${version}")
 
@@ -453,8 +441,7 @@ render_libraries(){
 }
 
 # No soname arm: a compiler reports what it compiles against, which has no SONAME of its own.
-# Nothing falls through to that absence either - --format=soname is refused against this view
-# while the arguments are still being read, so it never reaches here.
+# --format=soname is refused against this view while the arguments are read, so it never lands here.
 render_compilers(){
     case "${arg_format}" in
         default ) awk '{ printf "%s -> %s %s abi=%s headers=%s\n", $1, $2, $3, $4, $5 }' ;;
@@ -469,8 +456,7 @@ render(){
     [ -z "${libraries}" ] || render_libraries <<< "${libraries}"
 
     # The blank line and the label separate two views sharing one stream, so they belong to
-    # --view=all alone, and there only to the format a reader reads: 'fields' tags every line
-    # with its own view instead, and a single view has nothing to be told apart from.
+    # --view=all alone, and there only to the format a reader reads: 'fields' tags every line itself.
     if [ -n "${compilers}" ]; then
         [ "${arg_format}" != 'default' ] || [ "${arg_view}" != 'all' ] \
           || printf '\n%s\n' 'compilers:'
@@ -509,8 +495,7 @@ case "${arg_format}" in
     default | fields ) render ;;
     # A narrowed line keeps one field and drops whatever else made two rows distinct, so the
     # survivors are deduplicated: three libstdc++ runtimes built for three architectures are one
-    # answer to --format=version, and eight clang++ reaching one header tree are one answer to it
-    # too. Within a single view only - which is all these formats are ever asked of.
+    # answer to --format=version. Within a single view only, which is all these formats are asked of.
     * ) render | awk '!seen[$0]++' ;;
 esac
 

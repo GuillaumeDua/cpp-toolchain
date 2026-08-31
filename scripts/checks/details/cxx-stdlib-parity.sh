@@ -17,8 +17,8 @@ pass() { echo "[${this_script_name}] ok:   $*"; }
 # What this image has, as '<impl> <soname> <version> <abi>', one line per distinct SONAME.
 #   The SONAME is the key rather than the package or the path: it is what the linker writes into a
 #   binary and the only name the loader looks up, so it is the field that decides whether a binary loads.
-#   Two consequences the callers below rely on - side-by-side libc++ releases, and multilib collapsing
-#   into one row - are explained in docs/IMAGES_VALIDATION.md.
+#   Two consequences the callers below rely on: side-by-side libc++ releases, covered in
+#   scripts/checks/README.md, and multilib collapsing into one row, covered in docs/IMAGES_VALIDATION.md.
 current_rows(){
     bash "${stdlibs_script}" --view=library --format=fields 2>/dev/null                     \
       | awk '{
@@ -35,15 +35,7 @@ current_rows(){
 # One SONAME answered by two releases is reported, not resolved:
 #   which of them a binary gets is the loader's decision, not this image's,
 #   so neither side of the comparison below would mean anything.
-#
-# It arises in an image without binutils, which is the kind `verify` runs in:
-#   cxx-stdlibs.sh then approximates the SONAME from the file name,
-#   and the name alone cannot tell apt.llvm.org's libc++.so.1.0.20 from libc++.so.1.
-#   These images carry one libc++ and never meet the case, but a check that guessed
-#   would be wrong silently rather than loudly.
-#
-# Multilib does not trip it: the 32-bit and x32 libstdc++ agree with the 64-bit one on all
-# four fields, so `sort -u` above has already made them one row.
+# Where that can arise, and why multilib does not trip it, is in docs/IMAGES_VALIDATION.md.
 check_unambiguous(){
     local rows="$1"
     local duplicated impl soname releases
@@ -110,14 +102,14 @@ do_verify(){
     while read -r impl soname version abi; do
         [ -n "${impl}" ] || continue
 
-        # NOTE: `read` leaves its variables untouched when it is fed nothing,
-        # so a library missing here would otherwise be compared against the previous row's values.
         here=$(awk -v impl="${impl}" -v soname="${soname}" \
             '$1 == impl && $2 == soname { print $3, $4; exit }' <<< "${rows}")
         if [ -z "${here}" ]; then
             fail "[${impl}] ${soname} was recorded but this image has no such library - it cannot run what was built against it"
             continue
         fi
+        # NOTE: `read` leaves its variables untouched when it is fed nothing, which is what the
+        # guard above prevents: a library missing here would be compared against the previous row.
         read -r found_version found_abi <<< "${here}"
 
         if [ "${found_version}" != "${version}" ]; then

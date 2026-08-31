@@ -8,7 +8,7 @@ name: ubuntu-snapshot
 # Between bumps they are frozen, which is what makes two builds of the same commit produce the same image.
 on:
   schedule:
-    - cron: "0 3 25 * *" # 25th, so the PR can be reviewed and merged before the monthly minor on the 1st
+    - cron: "0 3 25 * *" # 25th, so the PR lands before the next rc on the 8th
   workflow_dispatch: {}
 
 permissions:

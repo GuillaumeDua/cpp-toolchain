@@ -72,7 +72,7 @@ The other route to a major, when no rc was built at the commit you want, is in [
 The promotion guarantee, stated precisely:
 
 - **a release is byte-identical to the rc** it came from,
-- because promotion re-tags a digest recorded in git and refuses to proceed if that digest moved**,  
+- because promotion re-tags a digest recorded in git and refuses to proceed if that digest moved,  
   not merely because it re-tags rather than rebuilds.
 
 Every moving part lives in two workflows and one schema:
