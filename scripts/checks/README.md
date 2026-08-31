@@ -112,7 +112,7 @@ The two implementations answer in different currencies, because only one of them
 | `libstdc++` | greatest `GLIBCXX_` in the ELF<br>ex: `GLIBCXX_3.4.35` | greatest `CXXABI_` in that same ELF<br>ex: `CXXABI_1.3.17` - its C++ ABI lives inside `libstdc++.so` |
 | `libc++` | the `std::__N` inline namespace in the ELF<br>ex: `LIBCPP_ABI_1` | the `SONAME` of the C++ ABI library it keeps apart<br>ex: `libc++abi.so.1` |
 
-*Unversioned* is not the same as *unstated*. libc++ has no GNU symbol versions, but it puts its ABI in an inline namespace, `std::__1`, that every mangled name in the library repeats - so the binary does say which ABI it is.
+libc++ has no GNU symbol versions, but it puts its ABI in an inline namespace, `std::__1`, that every mangled name in the library repeats - so the binary does say which ABI it is.
 Mangling is length-prefixed, which is what makes it readable: `St3__1` is the substitution for `std::` followed by a *three-character* identifier, so the digits after it belong to the next component's length and not to the namespace.
 
 `_LIBCPP_ABI_VERSION` in the headers says the same thing and is kept as the fallback, for a build whose namespace was renamed - the Android NDK's `__ndk1`, say - or an ABI numbered past a single digit.
@@ -215,5 +215,5 @@ Both `package-origins.sh` and `cxx-stdlib-parity.sh` build on `cxx-stdlibs.sh` a
 Implementation details of this gate, in the C++ sense of a nested `detail` namespace: they know this repo's expected package origins, and they ask [`scripts/install/`](../install/) which compilers are installed rather than guessing.
 That reach is why the validate stages copy `scripts/` whole - a layout that separates the two fails loudly rather than silently finding no compilers.
 
-Both report **every** failure before exiting, so one run tells you everything that is wrong.
-Both also run against a plain checkout, which is the quickest way to iterate on them; they discover whatever the host has, so expect a wider matrix than an image produces.
+Each reports **every** failure before exiting, so one run tells you everything that is wrong.
+They also run against a plain checkout, which is the quickest way to iterate on them; they discover whatever the host has, so expect a wider matrix than an image produces.

@@ -10,7 +10,7 @@ Two things can quietly take that away, and neither shows up as a failed build:
 | [`Dockerfile`](../Dockerfile) - the runtime cleanup | `apt-get purge --auto-remove` can take more than it was asked to |
 | [`scripts/install/binutils.sh`](../scripts/install/binutils.sh) | cross packages install best-effort, and the log that says so is silenced by `--silent=yes` |
 
-The last one is the sharpest: without this gate, a `-cross` image that installed **zero** cross toolchains builds green and says nothing.
+Without this gate, a `-cross` image that installed **zero** cross toolchains builds green and says nothing.
 
 ## The two rules
 
@@ -81,8 +81,7 @@ graph LR
     class vb,vr gate
 ```
 
-The dotted edge is what the design turns on.  
-Binaries are compiled in `build` and executed in `runtime`, the only arrangement that proves what `runtime` ships can still run what `build` produces.  
+The dotted edge compiles binaries in `build` and executes them in `runtime`, the only arrangement that proves what `runtime` ships can still run what `build` produces.  
 `COPY --from` is a native BuildKit cross-stage copy, so this costs one compile and one exec - no image is loaded onto the host, nothing is pulled from a registry.
 
 ## What is checked
@@ -149,8 +148,7 @@ $ cxx-stdlib-parity.sh record /validate/stdlib.expected
 ```
 
 The `SONAME` is the key, because it carries the whole contract: it is what the linker writes into a binary and the only name the loader ever looks up.
-Two libc++ releases coexist exactly when their SONAMEs differ - apt.llvm.org gives its versioned runtimes one of their own, `libc++.so.1.0.20` against `libc++.so.1` - and a binary needing one is then untouched by the other.
-Counting installed libraries would call that a problem; the `SONAME` does not.
+Two libc++ releases coexist exactly when their SONAMEs differ, so counting installed libraries would report a conflict where the `SONAME` reports none - [`scripts/checks/README.md`](../scripts/checks/README.md) covers how apt.llvm.org arranges that.
 It also collapses multilib for free: the 32-bit and x32 libstdc++ share a `SONAME` with the 64-bit one, so `build`'s three rows and `runtime`'s one are the same single line.
 
 The two implementations are then compared differently, because only one of them is ordered:
@@ -294,7 +292,6 @@ To narrow the matrix, copy `scripts/` elsewhere and stub `gcc.sh`/`llvm.sh` `--l
 
 ## Proving the gate can fail
 
-A gate nobody has seen fail is a gate nobody should trust.
 Each fault below must turn the corresponding check red:
 
 | Inject | Caught by |

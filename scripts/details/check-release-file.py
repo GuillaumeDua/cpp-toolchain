@@ -21,7 +21,8 @@ Usage, from the repository root - the git checks and the bumps recompute both re
     python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-digest dev   # one recorded digest
     python3 scripts/details/check-release-file.py --print-stages normal|cross             # canonical stage lists
 
-Exits non-zero and reports every violation it found, rather than only the first.
+Exits non-zero and reports every schema violation it found, not only the first.
+The supersession, git and bumps checks run only once the schema is sound.
 """
 
 import argparse
