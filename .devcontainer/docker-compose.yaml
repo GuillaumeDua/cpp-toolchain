@@ -7,10 +7,6 @@ services:
       dockerfile: Dockerfile
       target: dev # multi-stage: full dev image (runtime ⊂ build ⊂ dev)
       args:
-        BASE_IMAGE: 'ubuntu:latest'
-        CMAKE_VERSION: 'latest'
-        GCC_VERSIONS: 'latest-stable'
-        LLVM_VERSIONS: 'latest-stable'
         # Cross-arch toolchains, off by default (normal/lean image).
         # For a local cross-arch build, set a space-separated triplet list, e.g. 'aarch64-linux-gnu arm-linux-gnueabihf riscv64-linux-gnu'.
         BINUTILS_TARGETS: ''

@@ -10,7 +10,7 @@
         // see https://github.com/devcontainers/features/tree/main/src
         // SSH is intentionally not added here: it's provided by the opt-in
         // ssh_support.dockerfile stage, which also works for non-VS Code
-        // consumers of the published image (see README > Remote access).
+        // consumers of the published image (see docs/DEVCONTAINER.md > Remote SSH).
         "ghcr.io/devcontainers/features/git:1": {},
         "ghcr.io/devcontainers/features/github-cli:1": {}
     },
@@ -32,10 +32,7 @@
                 "terminal.integrated.defaultProfile.linux": "zsh",
                 "terminal.integrated.profiles.linux": {
                     "bash": { "path": "bash", "icon": "terminal-bash" },
-                    "zsh": { "path": "/bin/zsh" },
-                    "fish": { "path": "fish" },
-                    "tmux": { "path": "tmux", "icon": "terminal-tmux" },
-                    "pwsh": { "path": "pwsh", "icon": "terminal-powershell" }
+                    "zsh": { "path": "/bin/zsh" }
                 },
                 "remote.SSH.showLoginTerminal": true,
                 "files.associations": {
@@ -102,9 +99,6 @@
                 "cschlosser.doxdocgen",
                 "bierner.markdown-mermaid"
             ]
-        },
-        "postCreateCommand": {
-            "git-safe-dir-workspace": "git config --global --add safe.directory /workspace"
         }
     }
 }
