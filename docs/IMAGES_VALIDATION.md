@@ -8,7 +8,7 @@ Two things can quietly take that away, and neither shows up as a failed build:
 | --- | --- |
 | [`Dockerfile`](../Dockerfile) - the snapshot realignment | `apt-get dist-upgrade --allow-downgrades` can hand a package back to the Ubuntu archive, replacing a PPA version with a much older one |
 | [`Dockerfile`](../Dockerfile) - the runtime cleanup | `apt-get purge --auto-remove` can take more than it was asked to |
-| [`scripts/install/binutils.sh`](../scripts/install/binutils.sh) | cross packages install best-effort, and the log that says so is silenced by `--silent=yes` |
+| [`scripts/install/binutils.sh`](../scripts/install/binutils.sh) | cross packages install best-effort: a package that does not install warns and the build still succeeds |
 
 Without this gate, a `-cross` image that installed **zero** cross toolchains builds green and says nothing.
 

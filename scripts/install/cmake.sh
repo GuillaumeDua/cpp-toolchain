@@ -20,6 +20,9 @@ internal_script_path='impl.sh'
 # How many times a network-facing step is attempted
 max_attempts=3
 
+# apt.kitware.com has no published throttling window; this is a plain transient-failure backoff.
+retry_backoff_seconds=5
+
 help(){
     echo "Usage: ${this_script_name}" 1>&2
     echo "
@@ -73,31 +76,61 @@ log(){
     echo -e "[${this_script_name}]: $@"
     return 0
 }
-# apt.kitware.com is a third-party host: a transient refusal should not sink a whole image build.
-# Only the last attempt reports.
-retry(){
+# Runs a command quietly, replaying its output only if it fails.
+run(){
+    local what="$1"; shift
+    local output streamed=0 status=0
+
+    output=$(mktemp)
+    if [[ "${arg_silent}" == 0 ]]; then
+        # stderr, because stdout carries the result to the caller.
+        streamed=1
+        "$@" 2>&1 | tee "${output}" >&2
+        status=${PIPESTATUS[0]}
+    else
+        "$@" > "${output}" 2>&1 || status=$?
+    fi
+
+    if [ "${status}" -eq 0 ]; then
+        rm -f "${output}"
+        return 0
+    fi
+
+    {
+        echo -e "[${this_script_name}]: ${what} failed - exit status [${status}]"
+        echo -e "[${this_script_name}]: command: [$*]"
+        if [ "${streamed}" -eq 0 ]; then
+            echo -e "[${this_script_name}]: --- output ---"
+            cat "${output}"
+            echo -e "[${this_script_name}]: --- end of output ---"
+        fi
+    } >> /dev/stderr
+    rm -f "${output}"
+    return "${status}"
+}
+# A third-party host can refuse a request transiently; that should not sink a whole image build.
+# Every step retried here is idempotent, and only the last attempt reports.
+run_with_retries(){
     local attempts="$1" what="$2"; shift 2
     local attempt=1
 
     while [ "${attempt}" -lt "${attempts}" ]; do
         "$@" > /dev/null 2>&1 && return 0
-        warning "${what} failed - retrying in $(( attempt * 5 ))s (attempt $(( attempt + 1 ))/${attempts})"
-        sleep $(( attempt * 5 ))
+        warning "${what} failed - retrying in $(( attempt * retry_backoff_seconds ))s (attempt $(( attempt + 1 ))/${attempts})"
+        sleep $(( attempt * retry_backoff_seconds ))
         attempt=$(( attempt + 1 ))
     done
-    "$@"
+    run "${what}" "$@"
 }
 to_boolean(){
     if [[ $# != 1 ]]; then
         error "$0: missing argument"
-        exit 1
     fi
     case "$1" in
         [Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee]) echo 1;;
         [Nn]|[Nn][Oo]|0|[Ff][Aa][Ll][Ss][Ee]) echo 0;;
         *)
             error "to_boolean: invalid conversion from [$1] to boolean"
-            exit 1
             ;;
     esac
 }
@@ -156,19 +189,10 @@ do
 done
 
 arg_silent=$(to_boolean "${arg_silent}")
-if [ "$arg_silent" == '' ] ; then
-    exit 1;
-fi
 
 arg_list_available=$(to_boolean "${arg_list_available}")
-if [ "$arg_list_available" == '' ] ; then
-    exit 1;
-fi
 
 arg_rc=$(to_boolean "${arg_rc}")
-if [ "$arg_rc" == '' ] ; then
-    exit 1;
-fi
 
 log "arguments - versions:          [${arg_versions}]"
 log "arguments - silent:            [${arg_silent}]"
@@ -188,7 +212,7 @@ external_script_url='https://apt.kitware.com/kitware-archive.sh'
 codename=$(lsb_release -cs)
 
 # wget's own --tries exhausts all three attempts within about three seconds, too short to outlast a refusal from a third-party host.
-retry "${max_attempts}" "fetching [${external_script_url}]" \
+run_with_retries "${max_attempts}" "fetching [${external_script_url}]" \
     wget --no-verbose --tries=${max_attempts} --retry-connrefused --timeout=30 -O "${internal_script_path}" "${external_script_url}" \
 || error "fetching [${external_script_url}] failed"
 
@@ -196,12 +220,12 @@ retry "${max_attempts}" "fetching [${external_script_url}]" \
 chmod +x "${internal_script_path}"
 
 rc_option=$([[ "${arg_rc}" == 1 ]] && echo '--rc' || echo '')
-retry "${max_attempts}" "running [${external_script_url} --release ${codename} ${rc_option}]" \
+run_with_retries "${max_attempts}" "running [${external_script_url} --release ${codename} ${rc_option}]" \
     ./${internal_script_path} --release ${codename} ${rc_option} \
 || error "running [${external_script_url} --release ${codename} ${rc_option}] failed"
 clean
 
-retry "${max_attempts}" "refreshing the apt index" apt update -qqy -o Acquire::Retries=${max_attempts} \
+run_with_retries "${max_attempts}" "refreshing the apt index" apt update -qqy -o Acquire::Retries=${max_attempts} \
 || error "refreshing the apt index failed"
 
 # --- list versions ---
@@ -254,9 +278,6 @@ echo -e "${cmake_version}" # result for the caller
 
 # --- Create aliases ---
 arg_alias=$(to_boolean "${arg_alias}")
-if [ "$arg_alias" == '' ] ; then
-    exit 1;
-fi
 
 if [[ "${arg_alias}" == 1 ]]; then
     log "alias: adding aliases for [bash zsh]"
