@@ -175,10 +175,7 @@ jobs:
           RC_COMMIT: ${{ steps.record.outputs.commit }}
         run: |
           set -euo pipefail
-          previous=$(git tag -l 'v*.*' | grep -vE -- '-rc\.' | grep -vx "${VERSION}" | sort -V | tail -1 || true)
-          args=(--tag "${VERSION}" --ref "${RC_COMMIT}")
-          [ -n "${previous}" ] && args+=(--previous-ref "${previous}")
-          python3 scripts/details/render-manifest.py "${args[@]}" > note.md
+          python3 scripts/details/render-manifest.py --tag "${VERSION}" --ref "${RC_COMMIT}" > note.md
           cat note.md >> "$GITHUB_STEP_SUMMARY"
 
       # The human's action was the merge, so no release exists yet - this job creates it, at the recorded commit (the exact tree the image was built from).
@@ -314,7 +311,6 @@ jobs:
             version="${RELEASE_TAG}"
             primary="${RELEASE_TAG}"
             tags="${RELEASE_TAG} latest"
-            previous=$(echo "${releases}" | sed '/^$/d' | grep -v "^${RELEASE_TAG}$" | sort -V | tail -1 || true)
           else
             mode=rc
             # rc counter is per target minor, and resets when that minor ships.
@@ -322,7 +318,6 @@ jobs:
             version="${next}"
             primary="${next}-rc.$(( ${last_rc:-0} + 1 ))"
             tags="${primary}" # a pre-release never moves `latest`
-            previous="${newest}"
           fi
 
           {
@@ -330,10 +325,9 @@ jobs:
             echo "version=${version}"
             echo "primary=${primary}"
             echo "tags=${tags}"
-            echo "previous=${previous}"
           } >> "$GITHUB_OUTPUT"
 
-          echo "mode=[${mode}] version=[${version}] primary=[${primary}] tags=[${tags}] previous=[${previous}]"
+          echo "mode=[${mode}] version=[${version}] primary=[${primary}] tags=[${tags}]"
 
       # Nothing to publish if the image inputs have not moved since the last tag:
       # every version is pinned, so the rebuild would be identical to what is already published.
@@ -478,12 +472,9 @@ jobs:
         if: steps.changed.outputs.skip != 'true'
         env:
           PRIMARY: ${{ steps.meta.outputs.primary }}
-          PREVIOUS: ${{ steps.meta.outputs.previous }}
         run: |
           set -euo pipefail
-          args=(--tag "${PRIMARY}")
-          [ -n "${PREVIOUS}" ] && args+=(--previous-ref "${PREVIOUS}")
-          python3 scripts/details/render-manifest.py "${args[@]}" > note.md
+          python3 scripts/details/render-manifest.py --tag "${PRIMARY}" > note.md
           cat note.md >> "$GITHUB_STEP_SUMMARY"
 
       # The rc pre-release is what mints the v1.2-rc.N git tag:
@@ -527,7 +518,6 @@ jobs:
           MODE: ${{ steps.meta.outputs.mode }}
           VERSION: ${{ steps.meta.outputs.version }}
           PRIMARY: ${{ steps.meta.outputs.primary }}
-          PREVIOUS: ${{ steps.meta.outputs.previous }}
         run: |
           set -euo pipefail
           mkdir -p releases
@@ -548,9 +538,7 @@ jobs:
             for stage in $(python3 scripts/details/check-release-file.py --print-stages cross); do
               echo "  ${stage}-cross: \"$(digest_of "${stage}-cross")\""
             done
-            bumps_args=(--tag "${VERSION}" --bumps-yaml)
-            [ -n "${PREVIOUS}" ] && bumps_args+=(--previous-ref "${PREVIOUS}")
-            python3 scripts/details/render-manifest.py "${bumps_args[@]}"
+            python3 scripts/details/render-manifest.py --tag "${VERSION}" --bumps-yaml
           } > "releases/${VERSION}.yaml"
 
           cat "releases/${VERSION}.yaml"

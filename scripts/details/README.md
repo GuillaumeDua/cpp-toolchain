@@ -13,9 +13,9 @@ The three Python scripts run from the **repository root** - their default paths 
 `smoke-test.sh` is the exception: it runs inside the image under test, not here.
 
 ```bash
-python3 scripts/details/check-dependencies-pins.py                 # exits non-zero and reports every violation
-python3 scripts/details/render-manifest.py --tag v1.2 --previous-ref v1.1
-python3 scripts/details/check-release-file.py releases/v1.2.yaml   # schema only, offline
+python3 scripts/details/check-dependencies-pins.py               # exits non-zero and reports every violation
+python3 scripts/details/render-manifest.py --tag v1.2            # diffed against the newest release before it
+python3 scripts/details/check-release-file.py releases/v1.2.yaml # schema only, offline
 ```
 
 `check-dependencies-pins.py` is the [build gate](../../.github/workflows/docker-build.yml)'s first step, so running it before pushing saves a round trip.
