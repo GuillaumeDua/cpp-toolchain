@@ -195,8 +195,8 @@ Quick start</h1>
 <br  />
  Both registries carry the same images - prefer <a href="https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain">GHCR</a> for CI, public images there have no anonymous pull rate limit. <br  />
  Working in <a href="https://code.visualstudio.com/">VS Code</a> ? Open the repo and <b>Reopen in Container</b> - see <a class="el" href="#as-a-dev-environment" title="As a dev environment">As a dev environment</a>As a dev environment.</dd></dl>
-<h1 class="doxsection"><a class="anchor" id="autotoc_md-key-features"></a>
-🌟 Key features</h1>
+<h1 class="doxsection"><a class="anchor" id="key-features"></a>
+Key features</h1>
 <ul>
 <li><b>Five stages</b>, from a minimal runtime to a full dev environment - so you pull only what you need (<a class="el" href="#pick-your-image-one-per-stage" title="Pick your image (one per stage)">Pick your image/stage</a>Pick your image/stage</li>
 </ul>
@@ -223,7 +223,7 @@ What's inside</h1>
 <p>The stages form a diamond: <span class="tt">static-analysis</span> and <span class="tt">documentation</span> both build on <span class="tt">build</span>; <span class="tt">dev</span> inherits <span class="tt">static-analysis</span> and re-adds the documentation tools.</p>
 <details >
 <summary >
-<b>📦 Full package matrix</b> - what lands in which stage</summary>
+<b>Full package matrix</b> - what lands in which stage</summary>
 <p></p>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -344,7 +344,7 @@ Build it yourself</h1>
 </div><!-- fragment --><p>Adding <span class="tt">--build-arg BINUTILS_TARGETS='&lt;triplets&gt;'</span> to any <span class="tt">--target</span> build produces the cross-arch flavor of that stage - see <a class="el" href="md_docs_2CROSS-COMPILATION.html" title="Cross-architecture compilation &amp; multilib">Cross-compilation</a>.</p>
 <details >
 <summary >
-<b>All build arguments</b></summary>
+<b>Common build arguments</b></summary>
 <p></p>
 <table class="markdownTable">
 <tr class="markdownTableHead">

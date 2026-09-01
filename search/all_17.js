@@ -12,7 +12,7 @@ var searchData=
   ['when_20something_20is_20wrong_9',['When something is wrong',['../md_docs_2details_2README.html#when-something-is-wrong',1,'']]],
   ['where_20it_20runs_10',['Where it runs',['../md_docs_2IMAGES__VALIDATION.html#where-it-runs',1,'']]],
   ['where_20the_20site_20differs_20from_20github_11',['Where the site differs from GitHub',['../md_docs_2details_2README.html#where-the-site-differs-from-github',1,'']]],
-  ['workflows_12',['The two workflows',['../md_HOW__TO__CONTRIBUTE.html#the-two-workflows',1,'']]],
+  ['workflows_12',['The workflows',['../md_HOW__TO__CONTRIBUTE.html#the-workflows',1,'']]],
   ['written_20down_13',['1 - No version number is written down',['../md_docs_2IMAGES__VALIDATION.html#autotoc_md1---no-version-number-is-written-down',1,'']]],
   ['wrong_14',['When something is wrong',['../md_docs_2details_2README.html#when-something-is-wrong',1,'']]]
 ];

@@ -146,9 +146,9 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('md_docs_2IMAGE
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/Dockerfile"><span class="tt">Dockerfile</span></a> - the runtime cleanup  </td><td class="markdownTableBodyNone"><span class="tt">apt-get purge --auto-remove</span> can take more than it was asked to  </td></tr>
 <tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/install/binutils.sh"><span class="tt">scripts/install/binutils.sh</span></a>  </td><td class="markdownTableBodyNone">cross packages install best-effort, and the log that says so is silenced by <span class="tt">--silent=yes</span>  </td></tr>
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/install/binutils.sh"><span class="tt">scripts/install/binutils.sh</span></a>  </td><td class="markdownTableBodyNone">cross packages install best-effort: a package that does not install warns and the build still succeeds  </td></tr>
 </table>
-<p>The last one is the sharpest: without this gate, a <span class="tt">-cross</span> image that installed <b>zero</b> cross toolchains builds green and says nothing.</p>
+<p>Without this gate, a <span class="tt">-cross</span> image that installed <b>zero</b> cross toolchains builds green and says nothing.</p>
 <h1 class="doxsection"><a class="anchor" id="the-two-rules"></a>
 The two rules</h1>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md1---no-version-number-is-written-down"></a>
@@ -196,8 +196,7 @@ graph LR
     classDef gate fill:#2d6a4f,stroke:#95d5b2,color:#ffffff
     class vb,vr gate</pre>
 </div>
-<p>The dotted edge is what the design turns on. <br  />
- Binaries are compiled in <span class="tt">build</span> and executed in <span class="tt">runtime</span>, the only arrangement that proves what <span class="tt">runtime</span> ships can still run what <span class="tt">build</span> produces. <br  />
+<p>The dotted edge compiles binaries in <span class="tt">build</span> and executes them in <span class="tt">runtime</span>, the only arrangement that proves what <span class="tt">runtime</span> ships can still run what <span class="tt">build</span> produces. <br  />
  <span class="tt">COPY --from</span> is a native BuildKit cross-stage copy, so this costs one compile and one exec - no image is loaded onto the host, nothing is pulled from a registry.</p>
 <h1 class="doxsection"><a class="anchor" id="what-is-checked"></a>
 What is checked</h1>
@@ -254,7 +253,7 @@ Parity: the same library on both sides</h2>
 <div class="fragment"><div class="line">$ cxx-stdlib-parity.sh record /validate/stdlib.expected</div>
 <div class="line">  libc++ libc++.so.1 22.1.8 LIBCPP_ABI_1</div>
 <div class="line">  libstdc++ libstdc++.so.6 16 GLIBCXX_3.4.35</div>
-</div><!-- fragment --><p>The <span class="tt">SONAME</span> is the key, because it carries the whole contract: it is what the linker writes into a binary and the only name the loader ever looks up. Two libc++ releases coexist exactly when their SONAMEs differ - apt.llvm.org gives its versioned runtimes one of their own, <span class="tt">libc++.so.1.0.20</span> against <span class="tt">libc++.so.1</span> - and a binary needing one is then untouched by the other. Counting installed libraries would call that a problem; the <span class="tt">SONAME</span> does not. It also collapses multilib for free: the 32-bit and x32 libstdc++ share a <span class="tt">SONAME</span> with the 64-bit one, so <span class="tt">build</span>'s three rows and <span class="tt">runtime</span>'s one are the same single line.</p>
+</div><!-- fragment --><p>The <span class="tt">SONAME</span> is the key, because it carries the whole contract: it is what the linker writes into a binary and the only name the loader ever looks up. Two libc++ releases coexist exactly when their SONAMEs differ, so counting installed libraries would report a conflict where the <span class="tt">SONAME</span> reports none - <a class="el" href="md_scripts_2checks_2README.html" title="Check scripts"><span class="tt">scripts/checks/README.md</span></a> covers how apt.llvm.org arranges that. It also collapses multilib for free: the 32-bit and x32 libstdc++ share a <span class="tt">SONAME</span> with the 64-bit one, so <span class="tt">build</span>'s three rows and <span class="tt">runtime</span>'s one are the same single line.</p>
 <p>The two implementations are then compared differently, because only one of them is ordered:</p>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -364,7 +363,7 @@ Running it locally</h1>
 <p>To narrow the matrix, copy <span class="tt">scripts/</span> elsewhere and stub <span class="tt">gcc.sh</span>/<span class="tt">llvm.sh</span> <span class="tt">--list-installed</span> to return only the majors you care about.</p>
 <h1 class="doxsection"><a class="anchor" id="proving-the-gate-can-fail"></a>
 Proving the gate can fail</h1>
-<p>A gate nobody has seen fail is a gate nobody should trust. Each fault below must turn the corresponding check red:</p>
+<p>Each fault below must turn the corresponding check red:</p>
 <table class="markdownTable">
 <tr class="markdownTableHead">
 <th class="markdownTableHeadNone">Inject  </th><th class="markdownTableHeadNone">Caught by  </th></tr>

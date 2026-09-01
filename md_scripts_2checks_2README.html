@@ -219,7 +219,7 @@ ex: <span class="tt">CXXABI_1.3.17</span> - its C++ ABI lives inside <span class
 ex: <span class="tt">LIBCPP_ABI_1</span>  </td><td class="markdownTableBodyNone">the <span class="tt">SONAME</span> of the C++ ABI library it keeps apart<br  />
 ex: <span class="tt">libc++abi.so.1</span>  </td></tr>
 </table>
-<p><em>Unversioned</em> is not the same as <em>unstated</em>. libc++ has no GNU symbol versions, but it puts its ABI in an inline namespace, <span class="tt">std::__1</span>, that every mangled name in the library repeats - so the binary does say which ABI it is. Mangling is length-prefixed, which is what makes it readable: <span class="tt">St3__1</span> is the substitution for <span class="tt">std::</span> followed by a <em>three-character</em> identifier, so the digits after it belong to the next component's length and not to the namespace.</p>
+<p>libc++ has no GNU symbol versions, but it puts its ABI in an inline namespace, <span class="tt">std::__1</span>, that every mangled name in the library repeats - so the binary does say which ABI it is. Mangling is length-prefixed, which is what makes it readable: <span class="tt">St3__1</span> is the substitution for <span class="tt">std::</span> followed by a <em>three-character</em> identifier, so the digits after it belong to the next component's length and not to the namespace.</p>
 <p><span class="tt">_LIBCPP_ABI_VERSION</span> in the headers says the same thing and is kept as the fallback, for a build whose namespace was renamed - the Android NDK's <span class="tt">__ndk1</span>, say - or an ABI numbered past a single digit.</p>
 <h3 class="doxsection"><a class="anchor" id="the-two-views"></a>
 The two views</h3>
@@ -285,7 +285,7 @@ The two views</h3>
 </table>
 <p>Both <span class="tt">package-origins.sh</span> and <span class="tt">cxx-stdlib-parity.sh</span> build on <span class="tt">cxx-stdlibs.sh</span> above: one to discover which package owns the installed libc++ - a name apt.llvm.org has changed twice - and the other to compare <span class="tt">SONAME</span>, version and ABI either side of a <span class="tt">COPY --from</span>.</p>
 <p>Implementation details of this gate, in the C++ sense of a nested <span class="tt">detail</span> namespace: they know this repo's expected package origins, and they ask <a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts/install"><span class="tt">scripts/install/</span></a> which compilers are installed rather than guessing. That reach is why the validate stages copy <span class="tt">scripts/</span> whole - a layout that separates the two fails loudly rather than silently finding no compilers.</p>
-<p>Both report <b>every</b> failure before exiting, so one run tells you everything that is wrong. Both also run against a plain checkout, which is the quickest way to iterate on them; they discover whatever the host has, so expect a wider matrix than an image produces. </p>
+<p>Each reports <b>every</b> failure before exiting, so one run tells you everything that is wrong. They also run against a plain checkout, which is the quickest way to iterate on them; they discover whatever the host has, so expect a wider matrix than an image produces. </p>
 </div></div><!-- contents -->
 </div><!-- PageDoc -->
 </div><!-- doc-content -->

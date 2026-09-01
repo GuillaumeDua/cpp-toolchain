@@ -145,16 +145,19 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('md_scripts_2de
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">render-manifest.py</span>  </td><td class="markdownTableBodyNone">Renders those pins as the markdown "what's inside" table used for the GitHub release description, or (<span class="tt">--bumps-yaml</span>) as the <span class="tt">bumps:</span> mapping of a promotion record  </td></tr>
 <tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone"><span class="tt">check-release-file.py</span>  </td><td class="markdownTableBodyNone">The single definition of the <span class="tt">releases/v*.yaml</span> schema, of the canonical stage lists, and of the promotion plan derived from a record  </td></tr>
+<td class="markdownTableBodyNone"><span class="tt">check-install-script-parity.py</span>  </td><td class="markdownTableBodyNone">Asserts the helper functions copied between <a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts/install"><span class="tt">scripts/install/</span></a> scripts are byte-identical, so the standalone guarantee does not cost silent divergence  </td></tr>
 <tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">check-release-file.py</span>  </td><td class="markdownTableBodyNone">The single definition of the <span class="tt">releases/v*.yaml</span> schema, of the canonical stage lists, and of the promotion plan derived from a record  </td></tr>
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">smoke-test.sh</span>  </td><td class="markdownTableBodyNone">Runs <em>inside</em> a candidate image - compiles and runs a C++23 hello world with both default compilers. Bind-mounted and executed by <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/release-candidate-check.yml">release-candidate-check.yml</a>  </td></tr>
 </table>
-<p>The three Python scripts run from the <b>repository root</b> - their default paths are relative to the working directory. <span class="tt">smoke-test.sh</span> is the exception: it runs inside the image under test, not here.</p>
-<div class="fragment"><div class="line">python3 scripts/details/check-dependencies-pins.py                 # exits non-zero and reports every violation</div>
-<div class="line">python3 scripts/details/render-manifest.py --tag v1.2 --previous-ref v1.1</div>
-<div class="line">python3 scripts/details/check-release-file.py releases/v1.2.yaml   # schema only, offline</div>
-</div><!-- fragment --><p><span class="tt">check-dependencies-pins.py</span> is the <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-build.yml">build gate</a>'s first step, so running it before pushing saves a round trip. <span class="tt">check-release-file.py</span> backs the <a class="el" href="md_docs_2RELEASE__PROCESS.html" title="Release process">release process</a> - see it for what a promotion record is.</p>
-<p>The first two read the manager regexes out of <span class="tt">renovate.json</span> rather than restating them, <br  />
+<p>The four Python scripts run from the <b>repository root</b> - their default paths are relative to the working directory. <span class="tt">smoke-test.sh</span> is the exception: it runs inside the image under test, not here.</p>
+<div class="fragment"><div class="line">python3 scripts/details/check-dependencies-pins.py               # exits non-zero and reports every violation</div>
+<div class="line">python3 scripts/details/check-install-script-parity.py           # shared helpers, byte for byte</div>
+<div class="line">python3 scripts/details/render-manifest.py --tag v1.2            # diffed against the newest release before it</div>
+<div class="line">python3 scripts/details/check-release-file.py releases/v1.2.yaml # schema only, offline</div>
+</div><!-- fragment --><p><span class="tt">check-dependencies-pins.py</span> and <span class="tt">check-install-script-parity.py</span> are the <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-build.yml">build gate</a>'s first two steps, so running them before pushing saves a round trip. <span class="tt">check-release-file.py</span> backs the <a class="el" href="md_docs_2RELEASE__PROCESS.html" title="Release process">release process</a> - see it for what a promotion record is.</p>
+<p><span class="tt">check-dependencies-pins.py</span> and <span class="tt">render-manifest.py</span> read the manager regexes out of <span class="tt">renovate.json</span> rather than restating them, <br  />
  so what Renovate tracks, what the guard enforces, and what the release note lists cannot drift apart. <br  />
  <span class="tt">UBUNTU_SNAPSHOT</span> is the single exempt pin - no datasource can enumerate snapshot timestamps, so <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/ubuntu-snapshot.yml">ubuntu-snapshot.yml</a> bumps it instead. </p>
 </div></div><!-- contents -->

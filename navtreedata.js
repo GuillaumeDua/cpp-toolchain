@@ -27,7 +27,7 @@ var NAVTREE =
   [ "cpp-toolchain", "index.html", [
     [ "Pick your image (one per stage)", "index.html#pick-your-image-one-per-stage", null ],
     [ "Quick start", "index.html#quick-start", null ],
-    [ "🌟 Key features", "index.html#autotoc_md-key-features", null ],
+    [ "Key features", "index.html#key-features", null ],
     [ "What's inside", "index.html#whats-inside", null ],
     [ "Tags &amp; versioning", "index.html#tags--versioning", [
       [ "What's inside a given tag", "index.html#whats-inside-a-given-tag", null ]
@@ -101,7 +101,7 @@ var NAVTREE =
       [ "Failure modes", "md_docs_2RELEASE__PROCESS.html#failure-modes", null ]
     ] ],
     [ "How to contribute", "md_HOW__TO__CONTRIBUTE.html", [
-      [ "The two workflows", "md_HOW__TO__CONTRIBUTE.html#the-two-workflows", null ],
+      [ "The workflows", "md_HOW__TO__CONTRIBUTE.html#the-workflows", null ],
       [ "Opening a pull request", "md_HOW__TO__CONTRIBUTE.html#opening-a-pull-request", null ],
       [ "What the build gate checks", "md_HOW__TO__CONTRIBUTE.html#what-the-build-gate-checks", null ],
       [ "How images get published", "md_HOW__TO__CONTRIBUTE.html#how-images-get-published", null ],

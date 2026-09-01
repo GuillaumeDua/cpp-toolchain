@@ -16,7 +16,7 @@ var searchData=
   ['the_20ssh_20service_13',['1. Build and start the SSH service',['../md_docs_2DEVCONTAINER.html#autotoc_md1-build-and-start-the-ssh-service',1,'']]],
   ['the_20two_20rules_14',['The two rules',['../md_docs_2IMAGES__VALIDATION.html#the-two-rules',1,'']]],
   ['the_20two_20views_15',['The two views',['../md_scripts_2checks_2README.html#the-two-views',1,'']]],
-  ['the_20two_20workflows_16',['The two workflows',['../md_HOW__TO__CONTRIBUTE.html#the-two-workflows',1,'']]],
+  ['the_20workflows_16',['The workflows',['../md_HOW__TO__CONTRIBUTE.html#the-workflows',1,'']]],
   ['this_20deliberately_20does_20not_20check_17',['What this deliberately does not check',['../md_docs_2IMAGES__VALIDATION.html#what-this-deliberately-does-not-check',1,'']]],
   ['to_20contribute_18',['How to contribute',['../md_HOW__TO__CONTRIBUTE.html',1,'']]],
   ['toolchain_19',['cpp-toolchain',['../index.html',1,'']]],
@@ -24,6 +24,5 @@ var searchData=
   ['toolchain_20installation_20scripts_21',['Toolchain installation scripts',['../md_scripts_2install_2README.html',1,'']]],
   ['tooling_22',['Repository tooling',['../md_scripts_2details_2README.html',1,'']]],
   ['two_20rules_23',['The two rules',['../md_docs_2IMAGES__VALIDATION.html#the-two-rules',1,'']]],
-  ['two_20views_24',['The two views',['../md_scripts_2checks_2README.html#the-two-views',1,'']]],
-  ['two_20workflows_25',['The two workflows',['../md_HOW__TO__CONTRIBUTE.html#the-two-workflows',1,'']]]
+  ['two_20views_24',['The two views',['../md_scripts_2checks_2README.html#the-two-views',1,'']]]
 ];
