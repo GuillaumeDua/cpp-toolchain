@@ -171,6 +171,8 @@ ENV TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
 # Basics / installation prerequisites
 #   openssh-client (not the `ssh` metapackage) so no SSH server is shipped here:
 #   remote access is an opt-in layer (see ssh_support.dockerfile).
+#   sudo serves that same layer and has no caller in any published image:
+#   it backs the sudoer `vscodeuser` that ssh_support.dockerfile adds.
 RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         ca-certificates debian-keyring                      \
         gpg gpg-agent gnupg                                 \

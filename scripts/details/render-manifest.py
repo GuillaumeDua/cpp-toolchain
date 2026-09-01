@@ -13,9 +13,14 @@ so it is matched separately here and bumped by .github/workflows/ubuntu-snapshot
 
 Usage, from the repository root - `--dockerfile` and `--renovate` default to paths relative to it:
     python3 scripts/details/render-manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
+    python3 scripts/details/render-manifest.py --print-newest-release   # the newest release tag, nothing else
 
 `--previous-ref` defaults to the newest release before `--tag`, which is the base every caller
 wants, so no caller computes one. Pass `--previous-ref ''` for a manifest with no diff column.
+
+Which tags count as releases and how they order is defined here and nowhere else:
+docker-publish.yml reads `--print-newest-release` to derive the next minor, so the tag it
+publishes and the base this manifest diffs against cannot disagree.
 
 `--ref` reads the Dockerfile and renovate.json from a git ref instead of the worktree,
 so the manifest can be rendered for the exact commit an image was built from,
@@ -161,16 +166,25 @@ def bumps_yaml(current, previous, diffing):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tag", required=True, help="tag being released, e.g. v1.2")
+    parser.add_argument("--tag", help="tag being released, e.g. v1.2")
     parser.add_argument("--previous-ref", default=None,
                         help="git ref to diff against (default: the newest release before --tag; '' for no diff)")
     parser.add_argument("--ref", default="",
                         help="git ref to read the Dockerfile and renovate.json from (default: the worktree)")
     parser.add_argument("--bumps-yaml", action="store_true",
                         help="emit the moved pins as a YAML `bumps:` mapping instead of the markdown manifest")
+    parser.add_argument("--print-newest-release", action="store_true",
+                        help="print the newest release tag by version order and exit (no --tag needed)")
     parser.add_argument("--dockerfile", default="Dockerfile")
     parser.add_argument("--renovate", default="renovate.json")
     args = parser.parse_args()
+
+    if args.print_newest_release:
+        print(newest_release_before(args.tag or ""))
+        return
+
+    if not args.tag:
+        parser.error("--tag is required")
 
     if args.ref:
         renovate_config = git_show(args.ref, args.renovate)

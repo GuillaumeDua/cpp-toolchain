@@ -290,12 +290,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Newest existing *release* tag, by version order.
-          #   `sort -V` orders v1.2 BEFORE v1.2-rc.1, so pre-releases must be filtered out here or a
-          #   pre-release would be read as the newest release and the next minor computed from it.
-          #   The version sort also matters on its own: lexically, v1.10 sorts below v1.9.
-          releases=$(git tag -l 'v*.*' | grep -vE -- '-rc\.' || true)
-          newest=$(echo "${releases}" | sed '/^$/d' | sort -V | tail -1)
+          # Newest existing release tag. render-manifest.py owns the rule - which tags count as
+          # releases, and how they order - so the minor derived here and the base the release note
+          # diffs against are the same answer rather than two spellings of it.
+          newest=$(python3 scripts/details/render-manifest.py --print-newest-release)
 
           # Next minor: bump the newest release's minor, or start the line at v1.0.
           if [ -z "${newest}" ]; then
