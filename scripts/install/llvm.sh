@@ -475,6 +475,7 @@ add_apt_llvm_repository(){
     || error "adding the apt.llvm.org repository for [${version}] failed"
 }
 
+registered_alternatives=()
 mapfile -t llvm_versions_to_install < <(echo -n "$llvm_versions")
 for version in "${llvm_versions_to_install[@]}"; do
 
@@ -517,39 +518,41 @@ for version in "${llvm_versions_to_install[@]}"; do
     #   `--no-remove` cannot be used to prevent it.
     update_alternative_priority="${version}"
 
-    if [[ "${arg_mode}" == 'minimalistic' ]]; then
-        update-alternatives --quiet                                                                                             \
-            --install /usr/bin/clang clang /usr/bin/clang-${version} ${update_alternative_priority}                             \
-            --slave /usr/bin/clang++                  clang++                   /usr/bin/clang++-${version}                     \
-        || error "update-alternatives of [${version}] failed"
-    elif [[ "${arg_mode}" == 'coverage' ]]; then
-        update-alternatives --quiet                                                                                             \
-            --install /usr/bin/clang clang /usr/bin/clang-${version} ${update_alternative_priority}                             \
-            --slave /usr/bin/clang++                  clang++                   /usr/bin/clang++-${version}                     \
-            --slave /usr/bin/llvm-cov                 llvm-cov                  /usr/bin/llvm-cov-${version}                    \
-            --slave /usr/bin/llvm-profdata            llvm-profdata             /usr/bin/llvm-profdata-${version}               \
-        || error "update-alternatives of [${version}] failed"
-    else
-        update-alternatives --quiet                                                                                             \
-            --install /usr/bin/clang clang /usr/bin/clang-${version} ${update_alternative_priority}                             \
-            --slave /usr/bin/clang++                  clang++                   /usr/bin/clang++-${version}                     \
-            --slave /usr/bin/clang-format             clang-format              /usr/bin/clang-format-${version}                \
-            --slave /usr/bin/clang-tidy               clang-tidy                /usr/bin/clang-tidy-${version}                  \
-            --slave /usr/bin/clangd                   clangd                    /usr/bin/clangd-${version}                      \
-            --slave /usr/bin/clang-check              clang-check               /usr/bin/clang-check-${version}                 \
-            --slave /usr/bin/clang-query              clang-query               /usr/bin/clang-query-${version}                 \
-            --slave /usr/bin/clang-apply-replacements clang-apply-replacements  /usr/bin/clang-apply-replacements-${version}    \
-            --slave /usr/bin/llvm-cov                 llvm-cov                  /usr/bin/llvm-cov-${version}                    \
-            --slave /usr/bin/llvm-profdata            llvm-profdata             /usr/bin/llvm-profdata-${version}               \
-            --slave /usr/bin/sancov                   sancov                    /usr/bin/sancov-${version}                      \
-            --slave /usr/bin/scan-build               scan-build                /usr/bin/scan-build-${version}                  \
-            --slave /usr/bin/scan-view                scan-view                 /usr/bin/scan-view-${version}                   \
-            --slave /usr/bin/llvm-symbolizer          llvm-symbolizer           /usr/bin/llvm-symbolizer-${version}             \
-            --slave /usr/bin/lldb                     lldb                      /usr/bin/lldb-${version}                        \
-        || error "update-alternatives of [${version}] failed"
-    fi
+    # Every slave has the same shape, /usr/bin/<name> -> /usr/bin/<name>-<version>,
+    # so a mode only names the tools it registers.
+    alternatives_slaves=('clang++')
+    case "${arg_mode}" in
+        minimalistic ) ;;
+        coverage )     alternatives_slaves+=('llvm-cov' 'llvm-profdata') ;;
+        * )            alternatives_slaves+=('clang-format' 'clang-tidy' 'clangd' 'clang-check'  \
+                                             'clang-query' 'clang-apply-replacements'            \
+                                             'llvm-cov' 'llvm-profdata' 'sancov'                 \
+                                             'scan-build' 'scan-view' 'llvm-symbolizer' 'lldb') ;;
+    esac
+
+    alternatives_arguments=()
+    for slave in "${alternatives_slaves[@]}"; do
+        alternatives_arguments+=(--slave "/usr/bin/${slave}" "${slave}" "/usr/bin/${slave}-${version}")
+        registered_alternatives+=("${slave} ${version}")
+    done
+
+    update-alternatives --quiet                                                                     \
+        --install /usr/bin/clang clang "/usr/bin/clang-${version}" "${update_alternative_priority}"  \
+        "${alternatives_arguments[@]}"                                                              \
+    || error "update-alternatives of [${version}] failed"
 
 done
+
+# `update-alternatives --install` accepts a slave whose target does not exist, so a tool renamed or dropped upstream registers as a link the image then ships dangling.
+# Checked once every version is in, not per version: the lldb warning above is a link that only the next major invalidates.
+dangling=''
+for registered in ${registered_alternatives[@]+"${registered_alternatives[@]}"}; do
+    slave="${registered%% *}"
+    slave_version="${registered##* }"
+    [ -e "/usr/bin/${slave}-${slave_version}" ] || dangling+=" /usr/bin/${slave} -> /usr/bin/${slave}-${slave_version}"
+done
+[ -z "${dangling}" ] || error "update-alternatives registered links whose target does not exist:${dangling}"
+
 clean;
 
 # --- summary ---
