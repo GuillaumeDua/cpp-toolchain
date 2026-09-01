@@ -322,7 +322,7 @@ if [[ "${arg_mode}" == 'runtime' ]]; then
 fi
 
 # --- list versions ---
-gcc_version_available_regex='^gcc-\K([0-9]{2})(?=/)'
+gcc_version_available_regex='^gcc-\K([0-9]{1,2})(?=/)'
 
 # --- which versions ---
 # The one `apt` left in this script: apt-get has no `list` subcommand.
