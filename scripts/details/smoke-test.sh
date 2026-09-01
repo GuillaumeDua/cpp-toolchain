@@ -6,8 +6,12 @@
 # std::print rather than iostream on purpose: it is a C++23 library feature, so this fails when
 # -std=c++23 is accepted but the standard library behind it is not what the manifest claims.
 #
-# TODO: widen the matrix - per-compiler-version coverage, the cross triplets, cmake, clang-tidy
-#   and the vcpkg/conan paths are all unexercised here.
+# The compiler matrix belongs to the build gate: cxx-runtime.sh covers every installed major against
+# every standard it exposes, plus the cross triplets. What this adds is the dev stage, which no
+# validate stage derives from, reached by digest once it is published.
+#
+# TODO: cmake, clang-tidy and the vcpkg/conan paths are unexercised anywhere. A validate stage is the
+#   place for them, so a pull request fails before an rc exists.
 set -euo pipefail
 
 tmp=$(mktemp -d)
