@@ -339,7 +339,7 @@ COPY ./test/cxx_runtime.cpp /opt/cpp-toolchain-scripts/checks/details/
 #   Every tree it produces is either run in `runtime`, the only place that proves anything, or not runnable (`cross`).
 #   It leaves the standard libraries it compiled against behind,
 #   so the stage that runs the binaries can name the missing library rather than only an unresolved symbol.
-RUN apt-get update -qqy                                                                                     \
+RUN apt-get update -qqy --error-on=any -o Acquire::Retries=3                                                \
     && bash /opt/cpp-toolchain-scripts/checks/details/package-origins.sh build                              \
     && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh compile /validate                      \
     && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh inspect /validate                      \
@@ -361,7 +361,7 @@ COPY ./scripts/ /opt/cpp-toolchain-scripts/
 # Parity first:
 #   it names a version or ABI that drifted,
 #   while the runs below would only report the same drift as a symbol that failed to resolve.
-RUN apt-get update -qqy                                                                                     \
+RUN apt-get update -qqy --error-on=any -o Acquire::Retries=3                                                \
     && bash /opt/cpp-toolchain-scripts/checks/details/package-origins.sh runtime                            \
     && bash /opt/cpp-toolchain-scripts/checks/details/cxx-stdlib-parity.sh verify /validate/stdlib.expected \
     && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh run /validate/libstdcxx                \

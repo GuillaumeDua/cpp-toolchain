@@ -16,6 +16,11 @@ origin_toolchain_ppa='ppa.launchpadcontent.net/ubuntu-toolchain-r'
 origin_llvm='apt.llvm.org'
 origin_kitware='apt.kitware.com'
 
+# The repositories apt holds an index for.
+# An expected origin absent from this list is one apt-get update never fetched,
+#   which reaches check_origin indistinguishable from a version its repository dropped.
+apt_indexed_sources=$(apt-cache policy 2>/dev/null)
+
 failures=0
 
 die()  { echo "[${this_script_name}] error: $*" >&2; exit 1; }
@@ -59,6 +64,10 @@ check_origin(){
     #   apt.llvm.org publishes rolling snapshots and drops superseded ones,
     #   so a long-cached layer can hold a version its own repository does not serve.
     if [[ "${origin}" == *'/var/lib/dpkg/status'* ]]; then
+        if [[ "${apt_indexed_sources}" != *"${expected}"* ]]; then
+            fail "[${package}] cannot be checked: apt holds no index for [${expected}] - apt-get update did not fetch it"
+            return
+        fi
         fail "[${package}] is installed at a version [${expected}] does not publish - a stale cached layer, rebuild it without cache"
         return
     fi
