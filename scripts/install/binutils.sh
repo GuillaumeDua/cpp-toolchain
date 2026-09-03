@@ -196,7 +196,8 @@ target_triplets(){
 }
 
 list_available_targets(){
-    run "refreshing the apt index" apt-get update -q -y -o Acquire::Retries=${max_attempts} \
+    run_with_retries "${max_attempts}" "refreshing the apt index" \
+        apt-get update -q -y -o Acquire::Retries=${max_attempts} \
     || warning "refreshing the apt index failed - the target list below may be incomplete or empty"
     apt-cache search --names-only '^binutils-.*-linux-gnu' | awk '{print $1}' | target_triplets
 }
@@ -344,7 +345,8 @@ fi
 if [ "${arg_targets}" = 'all' ]; then
     arg_targets=$(list_available_targets | tr '\n' ' ')
 fi
-run "refreshing the apt index" apt-get update -q -y -o Acquire::Retries=${max_attempts} \
+run_with_retries "${max_attempts}" "refreshing the apt index" \
+    apt-get update -q -y -o Acquire::Retries=${max_attempts} \
 || error "refreshing the apt index failed"
 
 for target in ${arg_targets}; do
@@ -365,7 +367,7 @@ for target in ${arg_targets}; do
     #   Enough to compile to objects and inspect/strip; NOT to link a full executable (no target libgcc / libstdc++).
     pkg_binutils="binutils-${target}"
     log "installing [${pkg_binutils}] ..."
-    run "installing [${pkg_binutils}]" \
+    run_with_retries "${max_attempts}" "installing [${pkg_binutils}]" \
         apt-get install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_binutils}" \
         || warning "[${pkg_binutils}] not installed, skipping"
 
@@ -376,7 +378,7 @@ for target in ${arg_targets}; do
     fi
     pkg_libc="libc6-dev-${debarch}-cross"
     log "installing [${pkg_libc}] ..."
-    run "installing [${pkg_libc}]" \
+    run_with_retries "${max_attempts}" "installing [${pkg_libc}]" \
         apt-get install -qq -y --no-install-recommends -o Acquire::Retries=${max_attempts} "${pkg_libc}" \
         || warning "[${pkg_libc}] not installed, skipping"
 
