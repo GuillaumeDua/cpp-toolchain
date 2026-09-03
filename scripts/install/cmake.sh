@@ -108,7 +108,7 @@ run(){
     rm -f "${output}"
     return "${status}"
 }
-# A third-party host can refuse a request transiently; that should not sink a whole image build.
+# A third-party host can refuse a request transiently - that should not sink a whole image build.
 # Every step retried here is idempotent, and only the last attempt reports.
 run_with_retries(){
     local attempts="$1" what="$2"; shift 2

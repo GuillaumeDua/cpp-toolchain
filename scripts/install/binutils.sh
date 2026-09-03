@@ -50,6 +50,9 @@ arg_silent=1
 # How many times a network-facing step is attempted - through apt.
 max_attempts=3
 
+# The Ubuntu snapshot service has no published throttling window; this is a plain transient-failure backoff.
+retry_backoff_seconds=5
+
 help(){
     echo "Usage: ${this_script_name}" 1>&2
     echo "
@@ -132,6 +135,20 @@ run(){
     } >> /dev/stderr
     rm -f "${output}"
     return "${status}"
+}
+# A third-party host can refuse a request transiently - that should not sink a whole image build.
+# Every step retried here is idempotent, and only the last attempt reports.
+run_with_retries(){
+    local attempts="$1" what="$2"; shift 2
+    local attempt=1
+
+    while [ "${attempt}" -lt "${attempts}" ]; do
+        "$@" > /dev/null 2>&1 && return 0
+        warning "${what} failed - retrying in $(( attempt * retry_backoff_seconds ))s (attempt $(( attempt + 1 ))/${attempts})"
+        sleep $(( attempt * retry_backoff_seconds ))
+        attempt=$(( attempt + 1 ))
+    done
+    run "${what}" "$@"
 }
 to_boolean(){
     if [[ $# != 1 ]]; then
