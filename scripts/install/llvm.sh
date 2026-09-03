@@ -489,7 +489,7 @@ for version in "${llvm_versions_to_install[@]}"; do
         run_with_retries "${max_attempts}" "refreshing the apt index" \
             apt-get update -q -y -o Acquire::Retries=${max_attempts} \
         || error "refreshing the apt index failed"
-        run "installing [${runtime_packages}]" \
+        run_with_retries "${max_attempts}" "installing [${runtime_packages}]" \
             apt-get install -q -y --no-install-recommends -o Acquire::Retries=${max_attempts} ${runtime_packages} \
         || error "installing [${runtime_packages}] failed"
         continue
@@ -508,7 +508,7 @@ for version in "${llvm_versions_to_install[@]}"; do
     esac
     if [ -n "${extra_packages}" ]; then
         # The upstream installer has just run `apt-get update`, so the lists are populated here.
-        run "installing [${extra_packages}]" \
+        run_with_retries "${max_attempts}" "installing [${extra_packages}]" \
             apt-get install -q -y --no-install-recommends -o Acquire::Retries=${max_attempts} ${extra_packages} \
         || error "installing [${extra_packages}] failed"
     fi

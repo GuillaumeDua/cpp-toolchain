@@ -39,6 +39,7 @@ permissions:
   contents: write # create/edit releases
   packages: write # GHCR
   pull-requests: write # close superseded candidate PRs (creation uses RELEASE_PR_TOKEN)
+  issues: write # opens, updates and closes the build failure issue
 
 # Two paths mutate `latest` (a promotion and a major build), and runs can overlap - a cron while a promotion is in flight.
 # Queue, never cancel: cancelling mid-push manufactures exactly the partial-registry state the digest assertions exist to catch.
@@ -394,6 +395,9 @@ jobs:
           
           CROSS_TARGETS="common"
 
+          # How many times the whole build is attempted - the upstream apt hosts are why.
+          MAX_BUILD_ATTEMPTS=3
+
           # Run the image validation gate for one variant. $1=BINUTILS_TARGETS build-arg, $2.. = stages.
           #   `cacheonly` because only the exit status matters here - nothing is loaded or pushed,
           #   and the layers these solves build are the very ones the pushes below reuse from the local cache.
@@ -408,7 +412,7 @@ jobs:
                 --build-arg "BINUTILS_TARGETS=${targets}" \
                 --cache-from type=gha,scope=cpp-toolchain \
                 --output type=cacheonly \
-                .
+                 || return 1
               echo "::endgroup::"
             done
           }
@@ -442,7 +446,7 @@ jobs:
                 --sbom=false \
                 --metadata-file "build-metadata/${target}${infix:+-cross}.json" \
                 --push \
-                .
+                 || return 1
               echo "::endgroup::"
             done
           }
@@ -455,13 +459,30 @@ jobs:
           # Validate before publishing, so a stage that lost a package never reaches a registry.
           #   Deliberately not part of NORMAL_STAGES/CROSS_STAGES: those name what gets published and recorded as a digest, and the validate stages are neither.
           #   The cross variant has no `runtime`, hence no validate-runtime.
-          validate_variant ""                 validate-build validate-runtime
-          validate_variant "${CROSS_TARGETS}" validate-build
-
+          #
           # Normal variant first, so its shared toolchain layers populate the gha cache the cross pass reuses.
           #   `runtime` carries no toolchain, so it gets no cross variant (a cross runtime would be byte-identical).
-          build_variant ""                 ""        ${NORMAL_STAGES}
-          build_variant "${CROSS_TARGETS}" "cross-"  ${CROSS_STAGES}
+          publish_all_stages() {
+            validate_variant ""                 validate-build validate-runtime || return 1
+            validate_variant "${CROSS_TARGETS}" validate-build                  || return 1
+            build_variant ""                 ""        ${NORMAL_STAGES}         || return 1
+            build_variant "${CROSS_TARGETS}" "cross-"  ${CROSS_STAGES}          || return 1
+          }
+
+          # apt.llvm.org and snapshot.ubuntu.com both fail intermittently,
+          #   and a fetch that fails twenty minutes in would otherwise cost the whole window until the next cron.
+          #   A retry resumes at the failing layer: everything already solved is in the builder's local cache.
+          #   The backoff outlasts the throttling window apt.llvm.org applies (scripts/install/llvm.sh).
+          attempt=1
+          until publish_all_stages; do
+            if [ "${attempt}" -ge "${MAX_BUILD_ATTEMPTS}" ]; then
+              echo "::error::every one of the ${MAX_BUILD_ATTEMPTS} build attempts failed"
+              exit 1
+            fi
+            echo "::warning::build attempt ${attempt}/${MAX_BUILD_ATTEMPTS} failed - retrying in $(( attempt * 60 ))s"
+            sleep $(( attempt * 60 ))
+            attempt=$(( attempt + 1 ))
+          done
 
       # Read straight from the Dockerfile:
       #   the pins are the manifest, so there is nothing to extract from a built image.
@@ -629,3 +650,57 @@ jobs:
           package-type: container
           delete-only-untagged-versions: true
           min-versions-to-keep: 0
+
+      # A failed build leaves no pre-release and no candidate PR, so it reads as a quiet fortnight
+      #   rather than as a failure - see the failure modes table in docs/RELEASE_PROCESS.md.
+      # One issue holding the current state, rewritten on each run rather than commented on,
+      #   and closed again by the first run that succeeds.
+      - name: Report a failed build
+        if: always() && job.status != 'cancelled'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+        run: |
+          set -euo pipefail
+
+          title='release: the image build is failing'
+
+          # Matched on the full title rather than on the search, which tokenizes and would also return near misses.
+          existing=$(gh issue list --state open --search 'in:title the image build is failing' --json number,title \
+                     --jq "map(select(.title == \"${title}\")) | .[0].number // empty")
+
+          if [[ "${JOB_STATUS}" == "success" ]]; then
+              if [[ -n "${existing}" ]]; then
+                  gh issue close "${existing}" --comment "Green again at ${GITHUB_SHA}${PRIMARY:+ (${PRIMARY})}."
+              fi
+              echo "nothing to report"
+              exit 0
+          fi
+
+          body=$(mktemp)
+          {
+              echo "The image build failed, so no pre-release and no candidate pull request were produced."
+              echo
+              echo "- commit: ${GITHUB_SHA}"
+              echo "- trigger: ${GITHUB_EVENT_NAME}"
+              echo "- intended tag: ${PRIMARY:-(not resolved - the run failed before the tag was computed)}"
+              echo "- run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              echo
+              echo "The build is attempted three times with a backoff before this fires, so a single"
+              echo "upstream blip does not reach here: read the log before re-running."
+              echo
+              echo "Re-run it with:"
+              echo
+              echo '```bash'
+              echo "gh run rerun ${GITHUB_RUN_ID} --failed"
+              echo '```'
+              echo
+              echo "Opened by .github/workflows/docker-publish.yml, rewritten on every run, and closed once a build succeeds."
+          } > "${body}"
+
+          if [[ -n "${existing}" ]]; then
+              gh issue edit "${existing}" --body-file "${body}"
+          else
+              gh issue create --title "${title}" --body-file "${body}"
+          fi
