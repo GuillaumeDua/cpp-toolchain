@@ -1,0 +1,15 @@
+version: "v1.2"
+candidate: "v1.2-rc.2"
+commit: "50bb7c400eb0c816c429f2ecea5807e0e910f560"
+digests:
+  runtime: "sha256:bf1323a1431ecbdd359356880472437c6fdad7e9b71e6f15419586e51a659fa2"
+  build: "sha256:a63850895fec6bccfec4ad89f0558af74ade193f0ae969b834f987d0de58d846"
+  static-analysis: "sha256:8cc212bebab733ba2fe13edec491bb07334d692e0ead69db56b54e7eb683fa78"
+  documentation: "sha256:bd8dc712eb68b8a113aaa3cb68d2fb1aff888e2f4626f476da441142653df7bd"
+  dev: "sha256:b70e796c94466ee661333e67e0e478a57c5bcb72e722459084053a969542d9b4"
+  build-cross: "sha256:13af535b56c551a8957a00a1e4dcc46a74b60c0fbf55d37be5eb6e117d27cc75"
+  static-analysis-cross: "sha256:348d5931af6046bab4ac2d00a3623e7d15b6050fa329c1fe1b5667210b3ada51"
+  documentation-cross: "sha256:7a3ed6b00702c651e2b035e55f3c26526930066386433f91e1dbe48687791832"
+  dev-cross: "sha256:90816e4e1b4f0d03a023f6a9fca023806f9afe86bfa5b84f0bc9e8e1f44dafb5"
+bumps:
+  "UBUNTU_SNAPSHOT": { "from": "20260720T000000Z", "to": "20260825T000000Z" }
