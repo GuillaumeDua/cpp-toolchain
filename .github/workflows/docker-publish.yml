@@ -248,6 +248,10 @@ jobs:
   build-and-push:
     if: github.event_name != 'push'
     runs-on: ubuntu-24.04
+    # How many times the whole build is attempted - the upstream apt hosts are why.
+    # Job-level so the retry loop and the failure issue quote one number.
+    env:
+      MAX_BUILD_ATTEMPTS: 3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -392,11 +396,7 @@ jobs:
 
           # Cross-arch target triplets for the `-cross` image variant.
           # `common` is an alias resolved by scripts/install/binutils.sh, which is where the triplets are listed.
-          
           CROSS_TARGETS="common"
-
-          # How many times the whole build is attempted - the upstream apt hosts are why.
-          MAX_BUILD_ATTEMPTS=3
 
           # Run the image validation gate for one variant. $1=BINUTILS_TARGETS build-arg, $2.. = stages.
           #   `cacheonly` because only the exit status matters here - nothing is loaded or pushed,
@@ -687,8 +687,8 @@ jobs:
               echo "- intended tag: ${PRIMARY:-(not resolved - the run failed before the tag was computed)}"
               echo "- run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
               echo
-              echo "The build is attempted three times with a backoff before this fires, so a single"
-              echo "upstream blip does not reach here: read the log before re-running."
+              echo "The build is attempted ${MAX_BUILD_ATTEMPTS} times with a backoff before this fires,"
+              echo "so a single upstream blip does not reach here: read the log before re-running."
               echo
               echo "Re-run it with:"
               echo
