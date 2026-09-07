@@ -1,4 +1,4 @@
-# releases/
+# Release records
 
 > [!CAUTION]
 > **Generated promotion records** - do not hand-edit.

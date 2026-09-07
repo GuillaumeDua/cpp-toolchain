@@ -202,13 +202,15 @@ Narrow to a view, and `--stdlib` narrows the rest of the way:
 
 `--help` is the full reference.
 
-## [details/](details/)
+## Gate scripts
+
+The image validation gate, in [`details/`](details/):
 
 | Script                                               | Purpose                                                                                                  |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `package-origins.sh <build\|runtime>`                | Every toolchain package comes from the repository that owns it, not from the Ubuntu archive              |
-| `cxx-runtime.sh <compile\|inspect\|run> <directory>` | Compiles the payload for every standard, proves it links against the expected C++ runtime dynamically, then runs it |
-| `cxx-stdlib-parity.sh <record\|verify> <file>`       | The image that runs the binaries carries the same standard libraries the image that built them used      |
+| <code>package-origins.sh &lt;build\|runtime&gt;</code> | Every toolchain package comes from the repository that owns it, not from the Ubuntu archive              |
+| <code>cxx-runtime.sh &lt;compile\|inspect\|run&gt; &lt;directory&gt;</code> | Compiles the payload for every standard, proves it links against the expected C++ runtime dynamically, then runs it |
+| <code>cxx-stdlib-parity.sh &lt;record\|verify&gt; &lt;file&gt;</code> | The image that runs the binaries carries the same standard libraries the image that built them used      |
 
 Both `package-origins.sh` and `cxx-stdlib-parity.sh` build on `cxx-stdlibs.sh` above: one to discover which package owns the installed libc++ - a name apt.llvm.org has changed twice - and the other to compare `SONAME`, version and ABI either side of a `COPY --from`.
 

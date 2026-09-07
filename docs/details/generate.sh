@@ -33,8 +33,9 @@ readonly DOXYGEN_PIN_SOURCE="Dockerfile"
 # renovate: datasource=github-releases depName=jothepro/doxygen-awesome-css
 readonly DOXYGEN_AWESOME_PIN=v2.4.2
 
-# ```mermaid fences are rendered from doxygen 1.17.0 on (doxygen PR #12069); before that they come out as code blocks.
-readonly DOXYGEN_MINIMUM_VERSION="1.17.0"
+# doxygen 1.17.0 renders the text of every link carrying a #fragment twice (doxygen issue #12155, fixed in 1.18.0).
+# ```mermaid fences come out as diagrams rather than code blocks from 1.17.0 on (doxygen PR #12069).
+readonly DOXYGEN_MINIMUM_VERSION="1.18.0"
 
 # Matches the retry count scripts/install/doxygen.sh applies to its own download.
 readonly MAX_ATTEMPTS=3
@@ -115,7 +116,7 @@ fi
 doxygen_awesome_version="${doxygen_awesome_version#v}"
 
 if [[ "$(lowest_version "${doxygen_version}" "${DOXYGEN_MINIMUM_VERSION}")" != "${DOXYGEN_MINIMUM_VERSION}" ]]; then
-    echo "doxygen ${doxygen_version} is below the required ${DOXYGEN_MINIMUM_VERSION}: mermaid diagrams would not render." >&2
+    echo "doxygen ${doxygen_version} is below the required ${DOXYGEN_MINIMUM_VERSION}: links and mermaid diagrams would not render correctly." >&2
     exit 1
 fi
 
@@ -241,5 +242,19 @@ if [[ ! -s "${OUTPUT_DIR}/index.html" || "${page_count}" -eq 0 ]]; then
     echo "the render produced ${page_count} pages: doxygen read the input and wrote nothing from it, which is what a failed INPUT_FILTER looks like." >&2
     exit 1
 fi
+
+# Doxygen titles every page "<project>: <page>". On the main page both halves are the project name,
+# because README.md's heading is what USE_MDFILE_AS_MAINPAGE promotes to the page title.
+sed -i 's|<title>\(.*\): \1</title>|<title>\1</title>|' "${OUTPUT_DIR}"/*.html
+
+# GitHub labels these two alerts Tip and Caution; doxygen maps them onto its own remark and attention
+# sections and prints those names. Nothing else here produces either section.
+sed -i -e 's|\(<dl class="section remark"><dt>\)Remarks\(</dt>\)|\1Tip\2|g' \
+       -e 's|\(<dl class="section attention"><dt>\)Attention\(</dt>\)|\1Caution\2|g' "${OUTPUT_DIR}"/*.html
+
+# Doxygen writes a page per input directory whatever SHOW_FILES says, carrying a title and a breadcrumb and
+# nothing else. Nothing on the site links to them; the crawler helper is the one file that does.
+rm -f "${OUTPUT_DIR}"/dir_*.html
+sed -i '/<a href="dir_[0-9a-f]*\.html"\/>/d' "${OUTPUT_DIR}/doxygen_crawl.html"
 
 echo "Done: ${OUTPUT_DIR}/ (${page_count} pages beside the main page)"

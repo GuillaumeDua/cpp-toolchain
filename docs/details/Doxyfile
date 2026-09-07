@@ -8,6 +8,7 @@
 
 PROJECT_NAME           = cpp-toolchain
 PROJECT_BRIEF          = "Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side"
+
 OUTPUT_DIRECTORY       = docs/output
 HTML_OUTPUT            = .
 
@@ -56,8 +57,12 @@ TREEVIEW_WIDTH         = 335
 HTML_HEADER            = docs/details/.cache/header.html
 HTML_EXTRA_STYLESHEET  = docs/details/.cache/doxygen-awesome/doxygen-awesome.css \
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-sidebar-only.css \
-                         docs/details/.cache/doxygen-awesome/doxygen-awesome-sidebar-only-darkmode-toggle.css
-HTML_EXTRA_FILES       = docs/details/.cache/doxygen-awesome/doxygen-awesome-darkmode-toggle.js \
+                         docs/details/.cache/doxygen-awesome/doxygen-awesome-sidebar-only-darkmode-toggle.css \
+                         docs/details/site.css
+# PROJECT_ICON would carry the icon here too, but the header template it feeds declares every icon
+# image/x-icon, so the link tag is written in theme-scripts.html instead and the file only shipped.
+HTML_EXTRA_FILES       = docs/details/favicon.svg \
+                         docs/details/.cache/doxygen-awesome/doxygen-awesome-darkmode-toggle.js \
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-paragraph-link.js \
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-interactive-toc.js
 

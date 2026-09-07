@@ -5,6 +5,7 @@ The markdown under version control is written for GitHub, where a link reaches a
 The published site holds only the pages doxygen renders, so a relative link to anything else -
 the Dockerfile, an install script, a workflow, a directory - resolves to nothing and 404s.
 Those become absolute GitHub URLs, `blob` or `tree` according to what the path actually is.
+An image needs the bytes rather than a page around them, so it points at `raw.githubusercontent.com` instead.
 
 Links to another markdown file are left alone: doxygen resolves those to the page it generated for them.
 
@@ -16,14 +17,16 @@ import re
 import sys
 
 REPOSITORY_URL = "https://github.com/GuillaumeDua/cpp-toolchain"
+RAW_URL = "https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain"
 
 # The site is published from main, so that is the ref its links point into.
 REF = "main"
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
-# The target of a markdown link or image, split from the optional #fragment that follows it.
-LINK_TARGET = re.compile(r"(?<=\]\()(?P<target>[^)\s#]+)(?P<fragment>#[^)\s]*)?(?=\))")
+# A markdown link or image, split into the leading `!` that tells the two apart, the label, the target
+# and the optional #fragment that follows it.
+LINK = re.compile(r"(?P<image>!?)\[(?P<label>[^\]]*)\]\((?P<target>[^)\s#]+)(?P<fragment>#[^)\s]*)?\)")
 
 # A fenced block, whether at the top level or nested in a blockquote.
 # The marker is captured because CommonMark closes a block only on the character it opened with,
@@ -33,8 +36,8 @@ FENCE = re.compile(r"^\s*(?:>\s*)*(?P<marker>`{3,}|~{3,})")
 EXTERNAL_SCHEMES = ("http://", "https://", "mailto:", "ftp://")
 
 
-def github_url(target: str, source_directory: pathlib.Path) -> str | None:
-    """The GitHub URL for a repository-relative link target, or None when the link is left as written."""
+def github_url(target: str, source_directory: pathlib.Path, is_image: bool) -> str | None:
+    """The GitHub URL for a repository-relative target, or None when the link is left as written."""
 
     if target.startswith(EXTERNAL_SCHEMES) or target.startswith("/"):
         return None
@@ -47,17 +50,20 @@ def github_url(target: str, source_directory: pathlib.Path) -> str | None:
     if path.is_file() and path.suffix == ".md":
         return None
 
+    if is_image:
+        return f"{RAW_URL}/{REF}/{relative_path}"
+
     return f"{REPOSITORY_URL}/{'tree' if path.is_dir() else 'blob'}/{REF}/{relative_path}"
 
 
 def rewrite(line: str, source_directory: pathlib.Path) -> str:
     def replace(match: re.Match[str]) -> str:
-        url = github_url(match["target"], source_directory)
+        url = github_url(match["target"], source_directory, bool(match["image"]))
         if url is None:
             return match[0]
-        return url + (match["fragment"] or "")
+        return f"{match['image']}[{match['label']}]({url}{match['fragment'] or ''})"
 
-    return LINK_TARGET.sub(replace, line)
+    return LINK.sub(replace, line)
 
 
 def main() -> int:

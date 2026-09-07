@@ -14,7 +14,7 @@ Without this gate, a `-cross` image that installed **zero** cross toolchains bui
 
 ## The two rules
 
-### 1 - No version number is written down
+### Rule 1 - No version number is written down
 
 `Renovate` owns every version, through the annotated `ARG` block at the top of the [`Dockerfile`](../Dockerfile).  
 A validation suite that repeated those versions would be a second source of truth to keep in step, so this one never states a version.  
@@ -33,7 +33,7 @@ $ apt-cache policy libstdc++6
 
 Letting the archive win here swaps the PPA's libstdc++ for the archive's much older one in `runtime`, silently, while `build` still compiles against the newer one.
 
-### 2 - What is installed is discovered, not declared
+### Rule 2 - What is installed is discovered, not declared
 
 The compilers to exercise are obtained by asking the installers that put them there:
 
@@ -180,16 +180,16 @@ Two of them are implementation details of this repository - they know its packag
 
 | Script in [`details/`](../scripts/checks/details/) | Purpose |
 | --- | --- |
-| `package-origins.sh <build\|runtime>` | every toolchain package comes from the repository that owns it |
-| `cxx-runtime.sh <compile\|inspect\|run> <directory>` | build the payload, prove it links dynamically, prove it runs |
-| `cxx-stdlib-parity.sh <record\|verify> <file>` | the stage that runs the binaries has the libraries the stage that built them used |
+| <code>package-origins.sh &lt;build\|runtime&gt;</code> | every toolchain package comes from the repository that owns it |
+| <code>cxx-runtime.sh &lt;compile\|inspect\|run&gt; &lt;directory&gt;</code> | build the payload, prove it links dynamically, prove it runs |
+| <code>cxx-stdlib-parity.sh &lt;record\|verify&gt; &lt;file&gt;</code> | the stage that runs the binaries has the libraries the stage that built them used |
 
 One level up sit the two that depend on nothing here.
 The gate uses both, but they answer on any machine, checkout or not:
 
 | Script in [`checks/`](../scripts/checks/) | Purpose | Used by |
 | --- | --- | --- |
-| `cxx-standards.sh [--stable] [--greatest] [--format=<default\|std\|cplusplus>] [compiler]` | which C++ standards a compiler accepts | `cxx-runtime.sh compile` |
+| <code>cxx-standards.sh [\-\-stable] [\-\-greatest] [\-\-format=&lt;default\|std\|cplusplus&gt;] [compiler]</code> | which C++ standards a compiler accepts | `cxx-runtime.sh compile` |
 | `cxx-stdlibs.sh [--view] [--stdlib] [--compilers] [--format]` | which standard libraries are installed, and what ABI they expose | `cxx-stdlib-parity.sh`, `package-origins.sh` |
 
 `package-origins.sh` uses it for the one thing it cannot write down: apt.llvm.org has spelled the libc++ runtime three ways - `libc++1-17t64`, `libc++1-18`, then plain `libc++1` from LLVM 20, where the major left the name altogether.
