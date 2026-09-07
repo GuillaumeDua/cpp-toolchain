@@ -1,0 +1,16 @@
+/*
+ * Overrides on top of doxygen-awesome, injected as the last HTML_EXTRA_STYLESHEET so it wins the cascade.
+ * The theme's own files are fetched at a pinned version by docs/details/generate.sh and never edited.
+ */
+
+@media screen and (min-width: 768px) {
+    /*
+     * The sidebar-only variant hides the top menu by setting --menu-display to none, which doxygen-awesome applies to every `.sm-dox li`.
+     * Doxygen puts the search box in one of those, so it goes with the menu,
+     * while the variant still sizes #MSearchBox to the sidebar width and expects it on screen.
+     * The override is scoped to the search box: the Main Page / Related Pages entries have to stay hidden.
+     */
+    #main-menu > li#searchBoxPos2 {
+        display: block;
+    }
+}

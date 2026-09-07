@@ -72,9 +72,9 @@ ARG VCPKG_VERSION=2026.06.24
 # renovate: datasource=pypi depName=conan
 ARG CONAN_VERSION=2.31.1
 
-# Doxygen tags use underscores (Release_1_17_0) while the download asset uses dots - doxygen.sh derives both.
+# Doxygen tags use underscores (Release_1_18_0) while the download asset uses dots - doxygen.sh derives both.
 # renovate: datasource=github-releases depName=doxygen/doxygen versioning=regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$
-ARG DOXYGEN_RELEASE=Release_1_17_0
+ARG DOXYGEN_RELEASE=Release_1_18_0
 
 # The install script is verified against build2's per-release `.sha256` sidecar rather than a hash pinned here, so a version bump stays a one-line change.
 # renovate: datasource=github-tags depName=build2/build2-toolchain extractVersion=^v(?<version>.+)$
