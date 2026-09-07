@@ -14,3 +14,28 @@
         display: block;
     }
 }
+
+/*
+ * doxygen-awesome styles every alert box by name and its list predates doxygen's `important` section,
+ * which is left with doxygen's own pale pink under both color schemes.
+ * The theme's `todo` palette is the purple triple it already defines for light and dark, unused here
+ * because the input carries no code, and the color GitHub gives the alert.
+ */
+dl.important {
+    padding: var(--spacing-medium);
+    margin: var(--spacing-medium) 0;
+    overflow: hidden;
+    border-radius: var(--border-radius-small);
+    background: var(--todo-color);
+    border-left: 8px solid var(--todo-color-dark);
+    color: var(--todo-color-darker);
+}
+
+dl.important dt {
+    color: var(--todo-color-dark);
+}
+
+dl.important code, dl.important span.tt {
+    background: var(--section-code-background);
+    border: 1px solid var(--section-code-border);
+}
