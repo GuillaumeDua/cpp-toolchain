@@ -6,18 +6,22 @@
 # Paths are relative to the repository root, which is where docs/details/generate.sh invokes doxygen.
 # Run that script rather than doxygen directly: it fetches the doxygen version and the theme this file expects.
 
-PROJECT_NAME           = cpp-toolchain
+# Doxygen merges the main page into the root of the navigation tree when this matches the main page's
+# title, and README.md's sections then sit at the top level beside the groups. Kept distinct, the README
+# is a node of its own with its sections under it.
+PROJECT_NAME           = "cpp-toolchain documentation"
 PROJECT_BRIEF          = "Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side"
 
 OUTPUT_DIRECTORY       = docs/output
 HTML_OUTPUT            = .
 
 # Every markdown file in the tree is a page, so a new document is published by existing.
+# The *.dox pattern is docs/details/hierarchy.dox, which arranges those pages into the page tree.
 # docs/output is the site itself, the dot-directories hold the theme cache, and .claude and a root
 # CLAUDE.md are a contributor's own assistant context, gitignored rather than part of the documentation.
 INPUT                  = .
 RECURSIVE              = YES
-FILE_PATTERNS          = *.md
+FILE_PATTERNS          = *.md *.dox
 EXCLUDE                = docs/output    \
                          .claude        \
                          CLAUDE.md
@@ -28,7 +32,7 @@ USE_MDFILE_AS_MAINPAGE = README.md
 # and the site shows no directory tree for those pages to hang off.
 IMPLICIT_DIR_DOCS      = NO
 
-# The page tree and the absolute GitHub URLs are injected here,
+# The page labels and the absolute GitHub URLs are injected here,
 # so that the markdown under version control carries no doxygen markup.
 INPUT_FILTER           = "python3 docs/details/doxygen-filter.py"
 

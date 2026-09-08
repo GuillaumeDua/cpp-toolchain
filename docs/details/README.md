@@ -44,32 +44,26 @@ The page renders correctly, and escaping the backtick is not an option - CommonM
 | ---- | ---- |
 | [generate.sh](generate.sh) | Fetches doxygen and the theme, builds the HTML header, renders `docs/output/` |
 | [Doxyfile](Doxyfile) | The settings that differ from doxygen's defaults, each with the reason it is set |
-| [doxygen-filter.py](doxygen-filter.py) | `INPUT_FILTER`: injects the page tree, and rewrites links to non-markdown files as absolute GitHub URLs, images as `raw` ones |
-| [prune-navtree.py](prune-navtree.py) | Rebuilds the generated sidebar as the page tree below |
+| [hierarchy.dox](hierarchy.dox) | The page tree, in `@page` and `@subpage` |
+| [doxygen-filter.py](doxygen-filter.py) | `INPUT_FILTER`: names each page, and rewrites links to non-markdown files as absolute GitHub URLs, images as `raw` ones |
 | [theme-scripts.html](theme-scripts.html) | The theme's script tags, injected into the generated header |
 | [site.css](site.css) | Overrides on top of doxygen-awesome, loaded last |
 | [logo.svg](logo.svg) | The mark [README.md](../../README.md) opens with, and the browser-tab icon: shipped by `HTML_EXTRA_FILES` and linked from `theme-scripts.html` |
 
 ## The page tree
 
-The sidebar is a map of the site: pages, and the groups they sit in.
-Sections belong to the page being read, where doxygen's own outline panel lists them, on the right.
-The main page is the exception, being the root of the tree rather than a node in it: doxygen writes its sections beside the groups, and *README* is the node they move under.
+[hierarchy.dox](hierarchy.dox) declares the tree, and the sidebar doxygen builds from it groups the pages under *Guides*, *Standalone scripts* and *How to contribute*, with the README a node of its own.
+Under each page sit its own headings, which doxygen puts there because `MARKDOWN_ID_STYLE = GITHUB` gives every heading an id.
 
-`HIERARCHY` in [doxygen-filter.py](doxygen-filter.py) is where the tree is declared, one row per page: the file, the label and the parent it hangs under.
-Reading order is the order the sidebar shows.
-The label is also the page's file name, so changing one changes a published URL.
-
-Neither half of this is something doxygen offers.
-It builds a tree from `@subpage` and takes a page's label from a `{#label}` on its title, both of which GitHub would print as literal text, so the filter injects them into what doxygen reads.
-And no setting keeps headings out of the sidebar, `MARKDOWN_ID_STYLE = GITHUB` giving each one an id that puts it there, so [prune-navtree.py](prune-navtree.py) rewrites the rendered tree.
+A page is named there by its label, which [doxygen-filter.py](doxygen-filter.py) assigns and doxygen also uses as the page's file name, so renaming a label changes a published URL.
+The label goes in through the filter rather than into the markdown: written there as `{#label}`, GitHub prints it in the heading and shifts that heading's anchor, `#guides` becoming `#guides-guides`.
 
 ## Where the site differs from GitHub
 
 A link to the Dockerfile, to an install script or to a directory leaves the site for GitHub, because the site holds rendered pages and nothing else.
 Links between markdown files stay inside it.
 
-The site also groups its pages, which a repository of markdown files cannot do, and each parent page gains an *In this section* list the files do not carry.
+The site also groups its pages, which a repository of markdown files cannot do, and a parent page opens with a list of the pages under it that the file does not carry.
 
 Three things do not carry over:
 

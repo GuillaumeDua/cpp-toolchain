@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Doxygen INPUT_FILTER preparing the repository's markdown for the documentation site.
 
-The markdown under version control is written for GitHub, and two things it cannot carry are added here,
+The markdown under version control is written for GitHub, and three things it cannot carry are added here,
 in the stream doxygen reads rather than in the files themselves.
 
-- The page tree, which doxygen builds from `@subpage` and names from a `{#label}` on a page's title.
-  GitHub would print both as literal text.
+- A `{#label}` on each page's title, which is the page's name in hierarchy.dox and its file name in the
+  output. Without one a page lands at `md_docs_2IMAGES__VALIDATION.html`; GitHub prints the label as
+  literal text and shifts the heading's own anchor, so it cannot live in the file.
+- `[TOC]` on the main page. Doxygen gives an ordinary page its outline panel unprompted and the main page
+  one only where the source asks for it.
 - Absolute GitHub URLs for relative links. The site holds only the pages doxygen renders, so a link to
   anything else - the Dockerfile, an install script, a workflow, a directory - resolves to nothing and 404s.
   Those become `blob` or `tree` URLs according to what the path actually is, and an image needs the bytes
@@ -30,35 +33,28 @@ REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 MAIN_PAGE = "README.md"
 
-# The site's page tree: every published markdown file, the label naming its page and its output file,
-# and the page it hangs under. Reading order is tree order, which is what doxygen shows in the sidebar.
-# The main page owns index.html and needs no label of its own.
-# A markdown file absent from here is still published, as a page of its own at the top level.
-HIERARCHY = (
-    ("docs/README.md",              "guides",              MAIN_PAGE),
-    ("docs/DEVCONTAINER.md",        "dev-environment",     "docs/README.md"),
-    ("docs/CROSS-COMPILATION.md",   "cross-compilation",   "docs/README.md"),
-    ("docs/COVERAGE.md",            "coverage",            "docs/README.md"),
+# The label naming each published page, and with it the page's file in the output.
+# hierarchy.dox arranges these labels into the tree; the main page owns index.html and needs no label.
+# A markdown file absent from here is still published, under the name doxygen derives from its path.
+LABEL_OF = {
+    "docs/README.md":            "guides",
+    "docs/DEVCONTAINER.md":      "dev-environment",
+    "docs/CROSS-COMPILATION.md": "cross-compilation",
+    "docs/COVERAGE.md":          "coverage",
 
-    ("scripts/README.md",           "standalone-scripts",  MAIN_PAGE),
-    ("scripts/install/README.md",   "install-scripts",     "scripts/README.md"),
-    ("scripts/checks/README.md",    "check-scripts",       "scripts/README.md"),
+    "scripts/README.md":         "standalone-scripts",
+    "scripts/install/README.md": "install-scripts",
+    "scripts/checks/README.md":  "check-scripts",
 
     # `contributing` would collide with README.md's own "Contributing" heading, which doxygen would then
     # renumber to `contributing-1`, breaking the GitHub anchor that section is reached by.
-    ("HOW_TO_CONTRIBUTE.md",        "how-to-contribute",   MAIN_PAGE),
-    ("docs/IMAGES_VALIDATION.md",   "images-validation",   "HOW_TO_CONTRIBUTE.md"),
-    ("docs/RELEASE_PROCESS.md",     "release-process",     "HOW_TO_CONTRIBUTE.md"),
-    ("releases/README.md",          "release-records",     "HOW_TO_CONTRIBUTE.md"),
-    ("scripts/details/README.md",   "repository-tooling",  "HOW_TO_CONTRIBUTE.md"),
-    ("docs/details/README.md",      "documentation-site",  "HOW_TO_CONTRIBUTE.md"),
-)
-
-LABEL_OF = {path: label for path, label, _ in HIERARCHY}
-
-CHILDREN_OF: dict[str, list[str]] = {}
-for _path, _label, _parent in HIERARCHY:
-    CHILDREN_OF.setdefault(_parent, []).append(_label)
+    "HOW_TO_CONTRIBUTE.md":      "how-to-contribute",
+    "docs/IMAGES_VALIDATION.md": "images-validation",
+    "docs/RELEASE_PROCESS.md":   "release-process",
+    "releases/README.md":        "release-records",
+    "scripts/details/README.md": "repository-tooling",
+    "docs/details/README.md":    "documentation-site",
+}
 
 # A markdown link or image, split into the leading `!` that tells the two apart, the label, the target
 # and the optional #fragment that follows it.
@@ -113,7 +109,6 @@ def main() -> int:
     relative_source = source.relative_to(REPOSITORY_ROOT).as_posix()
 
     label = LABEL_OF.get(relative_source)
-    children = CHILDREN_OF.get(relative_source, ())
 
     open_marker = None
     title_seen = False
@@ -138,20 +133,11 @@ def main() -> int:
             if label:
                 title_line = f"# {TITLE.match(title_line)['text']} {{#{label}}}\n"
             if relative_source == MAIN_PAGE:
-                # Doxygen gives an ordinary page its outline panel unprompted, and the main page one only
-                # where the source asks for it.
                 title_line += "\n[TOC]\n"
             sys.stdout.write(title_line)
             continue
 
         sys.stdout.write(rewrite(line, source_directory))
-
-    # A heading rather than a paragraph: doxygen scopes what follows to the last heading it saw, so a
-    # bare paragraph lands inside whatever section the file happens to end on.
-    if children:
-        sys.stdout.write("\n## In this section\n\n")
-        for child in children:
-            sys.stdout.write(f"- @subpage {child}\n")
 
     return 0
 

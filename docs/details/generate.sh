@@ -244,10 +244,6 @@ if [[ ! -s "${OUTPUT_DIR}/index.html" || "${page_count}" -eq 0 ]]; then
     exit 1
 fi
 
-# Doxygen titles every page "<project>: <page>". On the main page both halves are the project name,
-# because README.md's heading is what USE_MDFILE_AS_MAINPAGE promotes to the page title.
-sed -i 's|<title>\(.*\): \1</title>|<title>\1</title>|' "${OUTPUT_DIR}"/*.html
-
 # GitHub labels these two alerts Tip and Caution; doxygen maps them onto its own remark and attention
 # sections and prints those names. Nothing else here produces either section.
 sed -i -e 's|\(<dl class="section remark"><dt>\)Remarks\(</dt>\)|\1Tip\2|g' \
@@ -257,7 +253,5 @@ sed -i -e 's|\(<dl class="section remark"><dt>\)Remarks\(</dt>\)|\1Tip\2|g' \
 # nothing else. Nothing on the site links to them; the crawler helper is the one file that does.
 rm -f "${OUTPUT_DIR}"/dir_*.html
 sed -i '/<a href="dir_[0-9a-f]*\.html"\/>/d' "${OUTPUT_DIR}/doxygen_crawl.html"
-
-python3 docs/details/prune-navtree.py "${OUTPUT_DIR}"
 
 echo "Done: ${OUTPUT_DIR}/ (${page_count} pages beside the main page)"

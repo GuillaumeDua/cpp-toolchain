@@ -1,0 +1,31 @@
+// The site's page tree. Doxygen builds it from @subpage, and a page is named here by the label
+// doxygen-filter.py gives it, so a label renamed there is renamed here too.
+// The order of the blocks is the order of the sidebar; a page named in none of them is published at
+// the top level.
+//
+// The list carries no heading: a heading in one of these blocks becomes a section that doxygen files
+// in the sidebar under the first child page, pointing back at the parent.
+// It renders at the top of the parent page rather than the foot, doxygen reading this file before the
+// markdown it adds to. Input order is what decides that, and nothing here can set it.
+
+/**
+@page guides
+- @subpage dev-environment
+- @subpage cross-compilation
+- @subpage coverage
+*/
+
+/**
+@page standalone-scripts
+- @subpage install-scripts
+- @subpage check-scripts
+*/
+
+/**
+@page how-to-contribute
+- @subpage images-validation
+- @subpage release-process
+- @subpage release-records
+- @subpage repository-tooling
+- @subpage documentation-site
+*/
