@@ -10,7 +10,7 @@ name: documentation
 # Doxygen's warnings, and a render that fails outright, are reported as a dedicated issue that this
 # workflow closes again once a run comes back clean.
 #
-# Deliberately not path-filtered. github-links.py rewrites a link according to whether its target exists,
+# Deliberately not path-filtered. doxygen-filter.py rewrites a link according to whether its target exists,
 # so renaming the Dockerfile or a script under scripts/install/ changes what the site should contain
 # while touching no markdown at all. A render costs far less than a broken link on the published site.
 on:
