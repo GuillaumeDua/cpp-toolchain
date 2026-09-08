@@ -28,13 +28,15 @@ USE_MDFILE_AS_MAINPAGE = README.md
 # and the site shows no directory tree for those pages to hang off.
 IMPLICIT_DIR_DOCS      = NO
 
-# The site holds rendered pages only, so a link to anything else is rewritten to an absolute GitHub URL.
-INPUT_FILTER           = "python3 docs/details/github-links.py"
+# The page tree and the absolute GitHub URLs are injected here,
+# so that the markdown under version control carries no doxygen markup.
+INPUT_FILTER           = "python3 docs/details/doxygen-filter.py"
 
 # GITHUB ids make a heading anchor match the fragment GitHub would produce,
 # so a cross-document `...md#section` link written for GitHub resolves here too.
+# It also settles TOC_INCLUDE_HEADINGS, which only reaches headings carrying no id of their own:
+# whatever that is set to, the render is identical, so it is left at its default.
 MARKDOWN_ID_STYLE      = GITHUB
-TOC_INCLUDE_HEADINGS   = 3
 
 # Prose about C++ toolchains is full of words doxygen would happily turn into dangling code links.
 AUTOLINK_SUPPORT       = NO
@@ -42,6 +44,12 @@ AUTOLINK_SUPPORT       = NO
 # ```mermaid fences need doxygen 1.17.0 or newer (doxygen PR #12069).
 # CLIENT_SIDE renders them in the browser from MERMAID_JS_URL, so no Node.js or mmdc is needed to build the site.
 MERMAID_RENDER_MODE    = CLIENT_SIDE
+
+# Set here rather than left to its default, which is this same URL, because theme-scripts.html imports the
+# module a second time to theme it: the browser reuses doxygen's import only for a URL matching character
+# for character, and a doxygen bump moving the default would otherwise leave two configured instances,
+# doxygen's LIGHT one winning the first render.
+MERMAID_JS_URL         = https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs
 
 # Sidebar-only doxygen-awesome layout - the theme requires all four together, and a LIGHT base it can restyle.
 GENERATE_TREEVIEW      = YES
@@ -61,7 +69,7 @@ HTML_EXTRA_STYLESHEET  = docs/details/.cache/doxygen-awesome/doxygen-awesome.css
                          docs/details/site.css
 # PROJECT_ICON would carry the icon here too, but the header template it feeds declares every icon
 # image/x-icon, so the link tag is written in theme-scripts.html instead and the file only shipped.
-HTML_EXTRA_FILES       = docs/details/favicon.svg \
+HTML_EXTRA_FILES       = docs/details/logo.svg \
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-darkmode-toggle.js \
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-paragraph-link.js \
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-interactive-toc.js

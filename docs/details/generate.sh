@@ -237,7 +237,8 @@ fi
 
 # Doxygen exits 0 when its INPUT_FILTER cannot run, having read every input and written nothing from any of them.
 # Publishing that empties the site, so it is a failure here rather than a green run.
-page_count=$(find "${OUTPUT_DIR}" -maxdepth 1 -name 'md_*.html' | wc -l)
+page_count=$(find "${OUTPUT_DIR}" -maxdepth 1 -name '*.html' \
+    -not -name 'index.html' -not -name 'dir_*.html' -not -name 'pages.html' -not -name 'doxygen_crawl.html' | wc -l)
 if [[ ! -s "${OUTPUT_DIR}/index.html" || "${page_count}" -eq 0 ]]; then
     echo "the render produced ${page_count} pages: doxygen read the input and wrote nothing from it, which is what a failed INPUT_FILTER looks like." >&2
     exit 1
@@ -256,5 +257,7 @@ sed -i -e 's|\(<dl class="section remark"><dt>\)Remarks\(</dt>\)|\1Tip\2|g' \
 # nothing else. Nothing on the site links to them; the crawler helper is the one file that does.
 rm -f "${OUTPUT_DIR}"/dir_*.html
 sed -i '/<a href="dir_[0-9a-f]*\.html"\/>/d' "${OUTPUT_DIR}/doxygen_crawl.html"
+
+python3 docs/details/prune-navtree.py "${OUTPUT_DIR}"
 
 echo "Done: ${OUTPUT_DIR}/ (${page_count} pages beside the main page)"

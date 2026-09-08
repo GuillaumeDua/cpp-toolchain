@@ -1,9 +1,7 @@
-# Scripts
+# Standalone scripts
 
-About encapsulation/scope:
-
-- **Public**: standalone and reusable as-is on any `Debian`/`Ubuntu`-based system, with no dependency on this repository - copy the file out and it works.  
-- **Details/internal**: it probes or parses this repo and only makes sense here.
+`install/` and `checks/` are the standalone ones, a single file each.
+The other two are internal, in that they probe or parse this repo and only make sense here.
 
 | Directory | Scope | What lives there |
 | --------- | ----- | ---------------- |

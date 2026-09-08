@@ -39,3 +39,12 @@ dl.important code, dl.important span.tt {
     background: var(--section-code-background);
     border: 1px solid var(--section-code-border);
 }
+
+/*
+ * doxygen-awesome keeps the sidebar's expand arrows at zero opacity until the row is hovered, which suits
+ * the flat page list it was written for. The tree here is three collapsed groups, so that arrow is the
+ * affordance the whole sidebar is used through and has to be visible without hunting for it.
+ */
+:root {
+    --side-nav-arrow-opacity: 0.5;
+}
