@@ -48,7 +48,7 @@ The page renders correctly, and escaping the backtick is not an option - CommonM
 | [doxygen-filter.py](doxygen-filter.py) | `INPUT_FILTER`: names each page, and rewrites links to non-markdown files as absolute GitHub URLs, images as `raw` ones |
 | [theme-scripts.html](theme-scripts.html) | The theme's script tags, injected into the generated header |
 | [site.css](site.css) | Overrides on top of doxygen-awesome, loaded last |
-| [logo.svg](logo.svg) | The mark [README.md](../../README.md) opens with, and the browser-tab icon: shipped by `HTML_EXTRA_FILES` and linked from `theme-scripts.html` |
+| [logo.svg](logo.svg) | The mark [README.md](../../README.md) opens with. `PROJECT_LOGO` puts it in the site header and copies it into the output, where `theme-scripts.html` links it again as the browser-tab icon |
 
 ## The page tree
 

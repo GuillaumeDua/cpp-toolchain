@@ -286,8 +286,8 @@ That has two consequences worth knowing:
 > [!NOTE]
 > **On reproducibility**
 >
-> Two builds of the same commit produce the same image.
-> Rebuilding a *years-old* tag is a weaker promise: GCC, Clang and CMake come from a PPA and two third-party apt repositories, none of which keep superseded versions.
+> Two builds of the same commit produce the same image.  
+> Rebuilding a *years-old* tag is a weaker promise: GCC, Clang and CMake come from a PPA and two third-party apt repositories, none of which keep superseded versions.  
 > The published image is the durable artifact, not the ability to recreate it.
 
 ## Contributing
