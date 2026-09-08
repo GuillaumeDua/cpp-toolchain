@@ -11,6 +11,7 @@
 # is a node of its own with its sections under it.
 PROJECT_NAME           = "cpp-toolchain documentation"
 PROJECT_BRIEF          = "Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side"
+PROJECT_LOGO           = docs/details/logo.svg
 
 OUTPUT_DIRECTORY       = docs/output
 HTML_OUTPUT            = .
@@ -71,10 +72,10 @@ HTML_EXTRA_STYLESHEET  = docs/details/.cache/doxygen-awesome/doxygen-awesome.css
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-sidebar-only.css \
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-sidebar-only-darkmode-toggle.css \
                          docs/details/site.css
-# PROJECT_ICON would carry the icon here too, but the header template it feeds declares every icon
-# image/x-icon, so the link tag is written in theme-scripts.html instead and the file only shipped.
-HTML_EXTRA_FILES       = docs/details/logo.svg \
-                         docs/details/.cache/doxygen-awesome/doxygen-awesome-darkmode-toggle.js \
+# The browser-tab icon is the same file, which PROJECT_LOGO already copies into the output.
+# PROJECT_ICON would declare it here too, but the header template it feeds calls every icon
+# image/x-icon, so the link tag is written in theme-scripts.html instead.
+HTML_EXTRA_FILES       = docs/details/.cache/doxygen-awesome/doxygen-awesome-darkmode-toggle.js \
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-paragraph-link.js \
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-interactive-toc.js
 
