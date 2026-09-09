@@ -412,7 +412,7 @@ jobs:
                 --build-arg "BINUTILS_TARGETS=${targets}" \
                 --cache-from type=gha,scope=cpp-toolchain \
                 --output type=cacheonly \
-                 || return 1
+                . || return 1
               echo "::endgroup::"
             done
           }
@@ -446,7 +446,7 @@ jobs:
                 --sbom=false \
                 --metadata-file "build-metadata/${target}${infix:+-cross}.json" \
                 --push \
-                 || return 1
+                . || return 1
               echo "::endgroup::"
             done
           }
