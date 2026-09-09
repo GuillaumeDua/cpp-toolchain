@@ -1,0 +1,84 @@
+/*
+ * Overrides on top of doxygen-awesome, injected as the last HTML_EXTRA_STYLESHEET so it wins the cascade.
+ * The theme's own files are fetched at a pinned version by docs/details/generate.sh and never edited.
+ */
+
+@media screen and (min-width: 768px) {
+    /*
+     * The sidebar-only variant hides the top menu by setting --menu-display to none, which doxygen-awesome applies to every `.sm-dox li`.
+     * Doxygen puts the search box in one of those, so it goes with the menu,
+     * while the variant still sizes #MSearchBox to the sidebar width and expects it on screen.
+     * The override is scoped to the search box: the Main Page / Related Pages entries have to stay hidden.
+     */
+    #main-menu > li#searchBoxPos2 {
+        display: block;
+    }
+}
+
+/*
+ * doxygen-awesome styles every alert box by name and its list predates doxygen's `important` section,
+ * which is left with doxygen's own pale pink under both color schemes.
+ * The theme's `todo` palette stands in: it is defined for both schemes, no `@todo` in this input claims
+ * it, and purple is the color GitHub gives the alert.
+ */
+dl.important {
+    padding: var(--spacing-medium);
+    margin: var(--spacing-medium) 0;
+    overflow: hidden;
+    border-radius: var(--border-radius-small);
+    background: var(--todo-color);
+    border-left: 8px solid var(--todo-color-dark);
+    color: var(--todo-color-darker);
+}
+
+dl.important dt {
+    color: var(--todo-color-dark);
+}
+
+dl.important code, dl.important span.tt {
+    background: var(--section-code-background);
+    border: 1px solid var(--section-code-border);
+}
+
+/*
+ * doxygen-awesome keeps the sidebar's expand arrows at zero opacity until the row is hovered, which suits
+ * the flat page list it was written for. The tree here is collapsed groups, so an arrow has to be visible
+ * before the pointer reaches its row.
+ */
+:root {
+    --side-nav-arrow-opacity: 0.5;
+}
+
+/*
+ * doxygen-awesome-sidebar-only.css pins #projectname to `nowrap`, which fits the short names it was
+ * written for. This one is wider than the sidebar, so the table doxygen lays the header out in grows with
+ * it and carries the name and the brief over the page.
+ */
+#projectname {
+    white-space: normal;
+}
+
+/*
+ * The main page's title carries the mark README.md sets beside its own, which doxygen-filter.py strips on
+ * the way in: a title's markup reaches the navigation tree, where an `<img>` tag shows as text in the
+ * sidebar label. The file is the copy PROJECT_LOGO leaves in the output.
+ * `md_README` is the anchor doxygen gives README.md, and no other page carries it.
+ */
+body:has(#md_README) .title::before {
+    content: "";
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin-right: 0.25em;
+    vertical-align: -0.15em;
+    background: url("logo.svg") no-repeat center / contain;
+}
+
+/*
+ * doxygen-awesome caps the header logo rather than sizing it, which held it at the cap while the file was
+ * larger. logo.svg is 32px so that GitHub draws it at the size of the title text it sits in, below that
+ * cap, so the height is set here to keep the header as it was.
+ */
+#projectlogo img {
+    height: calc(var(--title-font-size) * 2);
+}

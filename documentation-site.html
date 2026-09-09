@@ -1,0 +1,253 @@
+<!-- HTML header for doxygen 1.18.0-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.18.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>cpp-toolchain documentation: Documentation site</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="codefolding.js"></script>
+<script type="text/javascript" src="clipboard.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<script type="text/javascript" src="cookie.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const theme = 'default';
+mermaid.initialize({ startOnLoad: true, theme: theme });
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="doxygen-awesome-sidebar-only.css" rel="stylesheet" type="text/css"/>
+<link href="doxygen-awesome-sidebar-only-darkmode-toggle.css" rel="stylesheet" type="text/css"/>
+<link href="site.css" rel="stylesheet" type="text/css"/>
+<!--
+  doxygen-awesome extensions, injected into the generated HTML header by docs/details/generate.sh.
+  Code folding and copy-to-clipboard are left to doxygen's own implementations (HTML_CODE_FOLDING, HTML_COPY_CLIPBOARD).
+-->
+<!--
+  PROJECT_LOGO copies logo.svg into the output, and the tab icon is that same file.
+  PROJECT_ICON would declare it, but the header template it feeds calls every icon image/x-icon.
+-->
+<link rel="icon" href="logo.svg" type="image/svg+xml"/>
+<!-- Doxygen writes no meta description of its own; Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side keeps the Doxyfile the only place it is spelled. -->
+<meta name="description" content="Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side"/>
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    DoxygenAwesomeDarkModeToggle.init()
+    DoxygenAwesomeParagraphLink.init()
+    DoxygenAwesomeInteractiveToc.init()
+</script>
+<script type="module">
+    // doxygen writes its own mermaid bootstrap from HTML_COLORSTYLE, which is LIGHT here because the theme
+    // requires it, so every diagram would stay light under the theme's dark mode.
+    // The URL has to match the Doxyfile's MERMAID_JS_URL character for character, for the reason given there.
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    const diagrams = () => document.querySelectorAll('pre.mermaid');
+    const themeFor = enabled => enabled ? 'dark' : 'default';
+    // Module scripts run once the document is parsed and before doxygen's startOnLoad render,
+    // so the source is captured while it is still the fence's text and the first render already uses the right theme.
+    for (const diagram of diagrams()) {
+        diagram.dataset.mermaidSource = diagram.innerHTML;
+    }
+    mermaid.initialize({ startOnLoad: true, theme: themeFor(DoxygenAwesomeDarkModeToggle.darkModeEnabled) });
+    const enableDarkMode = DoxygenAwesomeDarkModeToggle.enableDarkMode.bind(DoxygenAwesomeDarkModeToggle);
+    DoxygenAwesomeDarkModeToggle.enableDarkMode = enable => {
+        enableDarkMode(enable);
+        for (const diagram of diagrams()) {
+            diagram.removeAttribute('data-processed');
+            diagram.innerHTML = diagram.dataset.mermaidSource;
+        }
+        mermaid.initialize({ theme: themeFor(enable) });
+        mermaid.run({ nodes: diagrams() });
+    };
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="logo.svg"/></td>
+  <td id="projectalign">
+   <div id="projectname">cpp-toolchain documentation
+   </div>
+   <div id="projectbrief">Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side</div>
+  </td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.18.0 -->
+<script type="text/javascript">
+let searchBox = new SearchBox("searchBox", "search/",'.html');
+</script>
+<script type="text/javascript">
+document.addEventListener('DOMContentLoaded', codefold.init);
+</script>
+<script type="application/json" id="doxygen-config">
+{
+  "relPath": "",
+  "generateTreeView": true,
+  "searchEngine": true,
+  "serverBasedSearch": false,
+  "disableIndex": false,
+  "dynamicMenus": true,
+  "fullSidebar": false
+}
+</script>
+<script type="text/javascript" src="menudata.js"></script>
+<script type="text/javascript" src="menu.js"></script>
+<div id="main-nav-mobile">
+<div class="sm sm-dox"><input id="main-menu-state" type="checkbox"/>
+<label class="main-menu-btn" for="main-menu-state">
+<span class="main-menu-btn-icon"></span> Toggle main menu visibility</label>
+<span id="searchBoxPos1"></span>
+</div>
+</div><!-- main-nav-mobile -->
+<div id="main-nav">
+  <ul class="sm sm-dox" id="main-menu">
+    <li id="searchBoxPos2">
+        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect" class="search-icon"><span class="search-icon-dropdown"></span></span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><div id="MSearchCloseImg" class="close-icon"></div></a>
+          </span>
+        </div>
+    </li>
+  </ul>
+</div><!-- main-nav -->
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+document.addEventListener('DOMContentLoaded',() => { initNavTree('documentation-site.html','',''); });
+</script>
+<div id="container">
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div><div class="header">
+  <div class="headertitle"><div class="title">Documentation site </div></div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><p><a class="anchor" id="md_docs_2details_2README"></a></p>
+<p>Every markdown file in the repository - <a class="el" href="index.html#md_README" title="cpp-toolchain">README.md</a>, <a class="el" href="how-to-contribute.html#md_HOW__TO__CONTRIBUTE" title="HOW_TO_CONTRIBUTE.md">HOW_TO_CONTRIBUTE.md</a>, <a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/docs">docs/</a> and each directory's own <span class="tt">README.md</span> - is rendered by <a href="https://www.doxygen.nl">doxygen</a> and published to <a href="https://guillaumedua.github.io/cpp-toolchain">https://guillaumedua.github.io/cpp-toolchain</a>. A new document is published by existing, and lands at the top level until <a class="el" href="#the-page-tree" title="The page tree">the tree</a> places it.</p>
+<p><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/documentation.yml">.github/workflows/documentation.yml</a> publishes it on every push to <span class="tt">main</span>, and on manual dispatch. It never runs on a pull request: documentation does not gate a merge. GitHub serves the <span class="tt">gh-pages</span> branch the workflow pushes to, which is a repository setting (<em>Settings</em> -&gt; <em>Pages</em> -&gt; <em>Source</em>) and not something the workflow can establish for itself.</p>
+<h1 class="doxsection"><a class="anchor" id="rendering-it-locally"></a>
+Rendering it locally</h1>
+<div class="fragment"><div class="line">bash docs/details/generate.sh   # -&gt; docs/output/index.html</div>
+</div><!-- fragment --><p>Prerequisites are <span class="tt">curl</span>, <span class="tt">tar</span>, <span class="tt">awk</span>, and <span class="tt">python3</span> for the link filter. Doxygen and the <a href="https://github.com/jothepro/doxygen-awesome-css">doxygen-awesome-css</a> theme are downloaded on first run and cached in <span class="tt">.cache/</span>, which CI restores between runs, so neither is committed and neither has to be installed. Doxygen comes from <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/install/doxygen.sh">scripts/install/doxygen.sh</a>, the same installer the images use, pointed at <span class="tt">.cache/</span> with <span class="tt">--prefix</span>. A doxygen already on <span class="tt">PATH</span> is used as it is when it is exactly the pinned version, and ignored otherwise.</p>
+<p>Both versions are pinned, and <span class="tt">--doxygen-version</span> / <span class="tt">--doxygen-awesome-version</span> override either one:</p>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Pin  </th><th class="markdownTableHeadNone">Where  </th><th class="markdownTableHeadNone">Why there  </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone">doxygen  </td><td class="markdownTableBodyNone"><span class="tt">ARG DOXYGEN_RELEASE</span> in the <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/Dockerfile">Dockerfile</a>  </td><td class="markdownTableBodyNone">The site renders with the doxygen the <span class="tt">documentation</span> image ships, so there is one version rather than two  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone">doxygen-awesome-css  </td><td class="markdownTableBodyNone"><span class="tt">DOXYGEN_AWESOME_PIN</span> in <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/generate.sh">generate.sh</a>  </td><td class="markdownTableBodyNone">The theme is installed in no image, so it has no <span class="tt">ARG</span> to hang off  </td></tr>
+</table>
+<p>Doxygen <b>1.18.0</b> is the minimum, and the script refuses to run below it: 1.17.0 renders the text of every link to a heading twice (<a href="https://github.com/doxygen/doxygen/issues/12155">doxygen issue #12155</a>), and releases before it render a <span class="tt">mermaid</span> fence as a plain code block rather than a diagram (<a href="https://github.com/doxygen/doxygen/pull/12069">doxygen PR #12069</a>).</p>
+<h1 class="doxsection"><a class="anchor" id="when-something-is-wrong"></a>
+When something is wrong</h1>
+<p>Doxygen exits 0 on almost everything, including a dead link and an <span class="tt">INPUT_FILTER</span> that cannot run, so neither the script nor the workflow trusts its exit status alone.</p>
+<ul>
+<li><b>A render that produced no pages fails the script.</b> That is what a broken link filter looks like, and publishing it would empty the site.</li>
+<li><b>Everything doxygen reports goes to one issue</b>, titled <em>documentation: doxygen diagnostics</em>, rewritten on each run and closed again once a render comes back clean. <span class="tt">--diagnostics &lt;file&gt;</span> is how the workflow collects them; without it they go to stderr.</li>
+</ul>
+<p>One warning is subtracted before any of that: doxygen cannot pair the backtick opening the linker error quoted in <a class="el" href="check-scripts.html#md_scripts_2checks_2README" title="scripts/checks/README.md">scripts/checks/README.md</a>, because its pre-scanner does not recognize a fence nested in a blockquote. The page renders correctly, and escaping the backtick is not an option - CommonMark does not process escapes inside a code block, so GitHub would show the backslash.</p>
+<h1 class="doxsection"><a class="anchor" id="the-pieces"></a>
+The pieces</h1>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">File  </th><th class="markdownTableHeadNone">Role  </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/generate.sh">generate.sh</a>  </td><td class="markdownTableBodyNone">Fetches doxygen and the theme, builds the HTML header, renders <span class="tt">docs/output/</span>  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/Doxyfile">Doxyfile</a>  </td><td class="markdownTableBodyNone">The settings that differ from doxygen's defaults, each with the reason it is set  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/hierarchy.dox">hierarchy.dox</a>  </td><td class="markdownTableBodyNone">The page tree, in <span class="tt">@page</span> and <span class="tt">@subpage</span>  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/doxygen-filter.py">doxygen-filter.py</a>  </td><td class="markdownTableBodyNone"><span class="tt">INPUT_FILTER</span>: names each page, and rewrites links to non-markdown files as absolute GitHub URLs, images as <span class="tt">raw</span> ones  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/theme-scripts.html">theme-scripts.html</a>  </td><td class="markdownTableBodyNone">The theme's script tags, injected into the generated header  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/site.css">site.css</a>  </td><td class="markdownTableBodyNone">Overrides on top of doxygen-awesome, loaded last  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/logo.svg">logo.svg</a>  </td><td class="markdownTableBodyNone">The mark beside <a class="el" href="index.html#md_README" title="cpp-toolchain">README.md</a>'s title, reused as the site's header logo and browser-tab icon. Its 32px size is what renders it at the size of the title text it sits in  </td></tr>
+</table>
+<h1 class="doxsection"><a class="anchor" id="the-page-tree"></a>
+The page tree</h1>
+<p><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/hierarchy.dox">hierarchy.dox</a> declares the tree, and the sidebar doxygen builds from it groups the pages under <em>Guides</em>, <em>Standalone scripts</em> and <em>How to contribute</em>, with the README a node of its own. Under each page sit its own headings, which doxygen puts there because <span class="tt">MARKDOWN_ID_STYLE = GITHUB</span> gives every heading an id.</p>
+<p>A page is named there by its label, which <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/doxygen-filter.py">doxygen-filter.py</a> assigns and doxygen also uses as the page's file name, so renaming a label changes a published URL. The label goes in through the filter rather than into the markdown: written there as <span class="tt">{#label}</span>, GitHub prints it in the heading and shifts that heading's anchor, <span class="tt">#guides</span> becoming <span class="tt">#guides-guides</span>.</p>
+<h1 class="doxsection"><a class="anchor" id="where-the-site-differs-from-github"></a>
+Where the site differs from GitHub</h1>
+<p>A link to the Dockerfile, to an install script or to a directory leaves the site for GitHub, because the site holds rendered pages and nothing else. Links between markdown files stay inside it.</p>
+<p>The site also groups its pages, which a repository of markdown files cannot do, and a parent page opens with a list of the pages under it - a list its own markdown does not carry. The logo beside <a class="el" href="index.html#md_README" title="cpp-toolchain">README.md</a>'s title is drawn on the landing page by <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/site.css">site.css</a>, doxygen carrying a title's markup into the sidebar label, where an <span class="tt">&lt;img&gt;</span> tag shows as text.</p>
+<p>Four things do not carry over:</p>
+<ul>
+<li><b>A pipe inside a table cell</b> is written <span class="tt">&lt;code&gt;a\|b&lt;/code&gt;</span>, not <span class="tt"> `a\|b` </span>. <br  />
+ Doxygen leaves the backslash visible inside a code span, so the cell has to be a raw <span class="tt">&lt;code&gt;</span>, where angle brackets in turn need <span class="tt">&amp;lt;</span> and <span class="tt">&amp;gt;</span>: GitHub reads <span class="tt">&lt;directory&gt;</span> as a tag and drops it. <br  />
+ A double dash inside that <span class="tt">&lt;code&gt;</span> is written <span class="tt">\-\-</span>, because doxygen turns a bare <span class="tt">--</span> there into an en-dash.</li>
+<li><b>A heading repeated across two pages</b> gets a numbered anchor here, <span class="tt">see-also-1</span> against GitHub's <span class="tt">see-also</span>, because doxygen scopes section labels to the whole project rather than to a page. <br  />
+ The number follows render order, so nothing should deep-link to a repeated heading.</li>
+<li><b>A heading whose text starts with a digit or a dash</b> carries doxygen's <span class="tt">autotoc_md</span> prefix on its anchor, <span class="tt">autotoc_md1---rule</span> against GitHub's <span class="tt">1---rule</span>. <br  />
+ Opening the text with a letter, <em>Rule 1</em> rather than <em>1</em>, keeps the two the same.</li>
+<li><b>The search box covers titles only.</b> Doxygen indexes page and section titles for markdown input, not body text.</li>
+</ul>
+<p>An image is the one relative target that reaches GitHub as <span class="tt">raw.githubusercontent.com</span> rather than <span class="tt">blob</span>, since a page wrapped around the bytes is not what an <span class="tt">&lt;img&gt;</span> can use. </p>
+</div></div><!-- contents -->
+</div><!-- PageDoc -->
+</div><!-- doc-content -->
+<div id="page-nav" class="page-nav-panel">
+<div id="page-nav-resize-handle"></div>
+<div id="page-nav-tree">
+<div id="page-nav-contents">
+</div><!-- page-nav-contents -->
+</div><!-- page-nav-tree -->
+</div><!-- page-nav -->
+</div><!-- container -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="navelem"><a href="how-to-contribute.html">How to contribute</a></li>
+    <li class="footer">Generated by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.18.0 </li>
+  </ul>
+</div>
+</body>
+</html>
