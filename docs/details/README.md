@@ -48,7 +48,7 @@ The page renders correctly, and escaping the backtick is not an option - CommonM
 | [doxygen-filter.py](doxygen-filter.py) | `INPUT_FILTER`: names each page, and rewrites links to non-markdown files as absolute GitHub URLs, images as `raw` ones |
 | [theme-scripts.html](theme-scripts.html) | The theme's script tags, injected into the generated header |
 | [site.css](site.css) | Overrides on top of doxygen-awesome, loaded last |
-| [logo.svg](logo.svg) | The mark [README.md](../../README.md) opens with, reused as the site's header logo and browser-tab icon |
+| [logo.svg](logo.svg) | The mark beside [README.md](../../README.md)'s title, reused as the site's header logo and browser-tab icon. Its 32px size is what renders it at the size of the title text it sits in |
 
 ## The page tree
 
@@ -64,6 +64,7 @@ A link to the Dockerfile, to an install script or to a directory leaves the site
 Links between markdown files stay inside it.
 
 The site also groups its pages, which a repository of markdown files cannot do, and a parent page opens with a list of the pages under it - a list its own markdown does not carry.
+The logo beside [README.md](../../README.md)'s title is drawn on the landing page by [site.css](site.css), doxygen carrying a title's markup into the sidebar label, where an `<img>` tag shows as text.
 
 Four things do not carry over:
 

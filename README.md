@@ -1,6 +1,4 @@
-# cpp-toolchain
-
-![cpp-toolchain](docs/details/logo.svg)
+# ![cpp-toolchain](docs/details/logo.svg) cpp-toolchain
 
 [![pulls](https://img.shields.io/docker/pulls/guillaumedua/cpp-toolchain)](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain/general)
 [![docker-build](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml/badge.svg)](https://github.com/GuillaumeDua/cpp-toolchain/actions/workflows/docker-build.yml)

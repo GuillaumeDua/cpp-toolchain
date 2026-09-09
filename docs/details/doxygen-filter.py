@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Doxygen INPUT_FILTER preparing the repository's markdown for the documentation site.
 
-The markdown under version control is written for GitHub, and three things it cannot carry are added here,
-in the stream doxygen reads rather than in the files themselves.
+The markdown under version control is written for GitHub. What the site needs on top of that is settled
+here, in the stream doxygen reads rather than in the files themselves.
 
 - A `{#label}` on each page's title, which is the page's name in hierarchy.dox and its file name in the
   output. Without one a page lands at `md_docs_2IMAGES__VALIDATION.html`; GitHub prints the label as
   literal text and shifts the heading's own anchor, so it cannot live in the file.
 - `[TOC]` on the main page. Doxygen gives an ordinary page its outline panel unprompted and the main page
   one only where the source asks for it.
+- A title cleared of the image README.md sets beside its own. Doxygen carries a title's markup into the
+  navigation tree, where the `<img>` tag lands as text in the sidebar label. site.css draws the logo beside
+  the main page's title instead, from the copy PROJECT_LOGO leaves in the output.
 - Absolute GitHub URLs for relative links. The site holds only the pages doxygen renders, so a link to
   anything else - the Dockerfile, an install script, a workflow, a directory - resolves to nothing and 404s.
   Those become `blob` or `tree` URLs according to what the path actually is, and an image needs the bytes
@@ -69,6 +72,8 @@ FENCE = re.compile(r"^\s*(?:>\s*)*(?P<marker>`{3,}|~{3,})")
 
 TITLE = re.compile(r"^#\s+(?P<text>.*?)\s*$")
 
+IMAGE = re.compile(r"!\[[^\]]*\]\([^)\s]+\)")
+
 EXTERNAL_SCHEMES = ("http://", "https://", "mailto:", "ftp://")
 
 
@@ -128,9 +133,8 @@ def main() -> int:
         title = TITLE.match(line)
         if title and not title_seen:
             title_seen = True
-            title_line = rewrite(line, source_directory)
-            if label:
-                title_line = f"# {TITLE.match(title_line)['text']} {{#{label}}}\n"
+            text = rewrite(IMAGE.sub("", title["text"]).strip(), source_directory)
+            title_line = f"# {text} {{#{label}}}\n" if label else f"# {text}\n"
             if relative_source == MAIN_PAGE:
                 title_line += "\n[TOC]\n"
             sys.stdout.write(title_line)
