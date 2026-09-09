@@ -1,7 +1,7 @@
 # Documentation site
 
 Every markdown file in the repository - [README.md](../../README.md), [HOW_TO_CONTRIBUTE.md](../../HOW_TO_CONTRIBUTE.md), [docs/](..) and each directory's own `README.md` - is rendered by [doxygen](https://www.doxygen.nl) and published to <https://guillaumedua.github.io/cpp-toolchain>.
-A new document is published by existing, and lands at the top level until [the tree](#the-page-tree) is told where it belongs.
+A new document is published by existing, and lands at the top level until [the tree](#the-page-tree) places it.
 
 [.github/workflows/documentation.yml](../../.github/workflows/documentation.yml) publishes it on every push to `main`, and on manual dispatch.
 It never runs on a pull request: documentation does not gate a merge.
@@ -25,7 +25,7 @@ Both versions are pinned, and `--doxygen-version` / `--doxygen-awesome-version` 
 | doxygen | `ARG DOXYGEN_RELEASE` in the [Dockerfile](../../Dockerfile) | The site renders with the doxygen the `documentation` image ships, so there is one version rather than two |
 | doxygen-awesome-css | `DOXYGEN_AWESOME_PIN` in [generate.sh](generate.sh) | The theme is installed in no image, so it has no `ARG` to hang off |
 
-Doxygen **1.18.0** is the minimum, and the script refuses to run below it: 1.17.0 renders the text of every link carrying a `#fragment` twice ([doxygen issue #12155](https://github.com/doxygen/doxygen/issues/12155)), and releases before it render a `mermaid` fence as a plain code block rather than a diagram ([doxygen PR #12069](https://github.com/doxygen/doxygen/pull/12069)).
+Doxygen **1.18.0** is the minimum, and the script refuses to run below it: 1.17.0 renders the text of every link to a heading twice ([doxygen issue #12155](https://github.com/doxygen/doxygen/issues/12155)), and releases before it render a `mermaid` fence as a plain code block rather than a diagram ([doxygen PR #12069](https://github.com/doxygen/doxygen/pull/12069)).
 
 ## When something is wrong
 
@@ -48,7 +48,7 @@ The page renders correctly, and escaping the backtick is not an option - CommonM
 | [doxygen-filter.py](doxygen-filter.py) | `INPUT_FILTER`: names each page, and rewrites links to non-markdown files as absolute GitHub URLs, images as `raw` ones |
 | [theme-scripts.html](theme-scripts.html) | The theme's script tags, injected into the generated header |
 | [site.css](site.css) | Overrides on top of doxygen-awesome, loaded last |
-| [logo.svg](logo.svg) | The mark [README.md](../../README.md) opens with. `PROJECT_LOGO` puts it in the site header and copies it into the output, where `theme-scripts.html` links it again as the browser-tab icon |
+| [logo.svg](logo.svg) | The mark [README.md](../../README.md) opens with, reused as the site's header logo and browser-tab icon |
 
 ## The page tree
 
@@ -63,15 +63,17 @@ The label goes in through the filter rather than into the markdown: written ther
 A link to the Dockerfile, to an install script or to a directory leaves the site for GitHub, because the site holds rendered pages and nothing else.
 Links between markdown files stay inside it.
 
-The site also groups its pages, which a repository of markdown files cannot do, and a parent page opens with a list of the pages under it that the file does not carry.
+The site also groups its pages, which a repository of markdown files cannot do, and a parent page opens with a list of the pages under it - a list its own markdown does not carry.
 
-Three things do not carry over:
+Four things do not carry over:
 
 - **A pipe inside a table cell** is written `<code>a\|b</code>`, not `` `a\|b` ``.  
   Doxygen leaves the backslash visible inside a code span, so the cell has to be a raw `<code>`, where angle brackets in turn need `&lt;` and `&gt;`: GitHub reads `<directory>` as a tag and drops it.  
   A double dash inside that `<code>` is written `\-\-`, because doxygen turns a bare `--` there into an en-dash.
 - **A heading repeated across two pages** gets a numbered anchor here, `see-also-1` against GitHub's `see-also`, because doxygen scopes section labels to the whole project rather than to a page.  
   The number follows render order, so nothing should deep-link to a repeated heading.
+- **A heading whose text starts with a digit or a dash** carries doxygen's `autotoc_md` prefix on its anchor, `autotoc_md1---rule` against GitHub's `1---rule`.  
+  Opening the text with a letter, *Rule 1* rather than *1*, keeps the two the same.
 - **The search box covers titles only.** Doxygen indexes page and section titles for markdown input, not body text.
 
 An image is the one relative target that reaches GitHub as `raw.githubusercontent.com` rather than `blob`, since a page wrapped around the bytes is not what an `<img>` can use.

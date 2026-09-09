@@ -18,8 +18,8 @@
 /*
  * doxygen-awesome styles every alert box by name and its list predates doxygen's `important` section,
  * which is left with doxygen's own pale pink under both color schemes.
- * The theme's `todo` palette is the purple triple it already defines for light and dark, unused here
- * because the input carries no code, and the color GitHub gives the alert.
+ * The theme's `todo` palette stands in: it is defined for both schemes, no `@todo` in this input claims
+ * it, and purple is the color GitHub gives the alert.
  */
 dl.important {
     padding: var(--spacing-medium);
@@ -42,17 +42,17 @@ dl.important code, dl.important span.tt {
 
 /*
  * doxygen-awesome keeps the sidebar's expand arrows at zero opacity until the row is hovered, which suits
- * the flat page list it was written for. The tree here is a handful of collapsed groups, so that arrow is
- * the affordance the whole sidebar is used through and has to be visible without hunting for it.
+ * the flat page list it was written for. The tree here is collapsed groups, so an arrow has to be visible
+ * before the pointer reaches its row.
  */
 :root {
     --side-nav-arrow-opacity: 0.5;
 }
 
 /*
- * The sidebar-only theme keeps the project name on one line, which fits the short names it was written
- * for. This one is wider than the sidebar, and the table doxygen lays the header out in grows with it,
- * carrying the name and the brief past the sidebar edge and over the page.
+ * doxygen-awesome-sidebar-only.css pins #projectname to `nowrap`, which fits the short names it was
+ * written for. This one is wider than the sidebar, so the table doxygen lays the header out in grows with
+ * it and carries the name and the brief over the page.
  */
 #projectname {
     white-space: normal;

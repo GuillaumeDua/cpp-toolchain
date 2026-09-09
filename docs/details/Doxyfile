@@ -39,8 +39,6 @@ INPUT_FILTER           = "python3 docs/details/doxygen-filter.py"
 
 # GITHUB ids make a heading anchor match the fragment GitHub would produce,
 # so a cross-document `...md#section` link written for GitHub resolves here too.
-# It also settles TOC_INCLUDE_HEADINGS, which only reaches headings carrying no id of their own:
-# whatever that is set to, the render is identical, so it is left at its default.
 MARKDOWN_ID_STYLE      = GITHUB
 
 # Prose about C++ toolchains is full of words doxygen would happily turn into dangling code links.
@@ -72,9 +70,6 @@ HTML_EXTRA_STYLESHEET  = docs/details/.cache/doxygen-awesome/doxygen-awesome.css
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-sidebar-only.css \
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-sidebar-only-darkmode-toggle.css \
                          docs/details/site.css
-# The browser-tab icon is the same file, which PROJECT_LOGO already copies into the output.
-# PROJECT_ICON would declare it here too, but the header template it feeds calls every icon
-# image/x-icon, so the link tag is written in theme-scripts.html instead.
 HTML_EXTRA_FILES       = docs/details/.cache/doxygen-awesome/doxygen-awesome-darkmode-toggle.js \
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-paragraph-link.js \
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-interactive-toc.js

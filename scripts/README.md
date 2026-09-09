@@ -1,8 +1,5 @@
 # Standalone scripts
 
-`install/` and `checks/` are the standalone ones, a single file each.
-The other two are internal, in that they probe or parse this repo and only make sense here.
-
 | Directory | Scope | What lives there |
 | --------- | ----- | ---------------- |
 | [install/](install/) | **Public** - standalone | Toolchain installers - `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh`, `doxygen.sh`. Reusable on any Debian/Ubuntu-based system, with no dependency on this repository. See [install/README.md](install/README.md) for the full option reference. |
