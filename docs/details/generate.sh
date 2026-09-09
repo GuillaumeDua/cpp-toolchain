@@ -33,7 +33,7 @@ readonly DOXYGEN_PIN_SOURCE="Dockerfile"
 # renovate: datasource=github-releases depName=jothepro/doxygen-awesome-css
 readonly DOXYGEN_AWESOME_PIN=v2.4.2
 
-# doxygen 1.17.0 renders the text of every link carrying a #fragment twice (doxygen issue #12155, fixed in 1.18.0).
+# doxygen 1.17.0 prints the text of every link to a heading twice (doxygen issue #12155, fixed in 1.18.0).
 # ```mermaid fences come out as diagrams rather than code blocks from 1.17.0 on (doxygen PR #12069).
 readonly DOXYGEN_MINIMUM_VERSION="1.18.0"
 
@@ -250,7 +250,7 @@ sed -i -e 's|\(<dl class="section remark"><dt>\)Remarks\(</dt>\)|\1Tip\2|g' \
        -e 's|\(<dl class="section attention"><dt>\)Attention\(</dt>\)|\1Caution\2|g' "${OUTPUT_DIR}"/*.html
 
 # Doxygen writes a page per input directory whatever SHOW_FILES says, carrying a title and a breadcrumb and
-# nothing else. Nothing on the site links to them; the crawler helper is the one file that does.
+# nothing else. The crawler helper is the only file linking to them.
 rm -f "${OUTPUT_DIR}"/dir_*.html
 sed -i '/<a href="dir_[0-9a-f]*\.html"\/>/d' "${OUTPUT_DIR}/doxygen_crawl.html"
 

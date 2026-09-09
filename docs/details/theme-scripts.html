@@ -2,6 +2,10 @@
   doxygen-awesome extensions, injected into the generated HTML header by docs/details/generate.sh.
   Code folding and copy-to-clipboard are left to doxygen's own implementations (HTML_CODE_FOLDING, HTML_COPY_CLIPBOARD).
 -->
+<!--
+  PROJECT_LOGO copies logo.svg into the output, and the tab icon is that same file.
+  PROJECT_ICON would declare it, but the header template it feeds calls every icon image/x-icon.
+-->
 <link rel="icon" href="$relpath^logo.svg" type="image/svg+xml"/>
 <!-- Doxygen writes no meta description of its own; $projectbrief keeps the Doxyfile the only place it is spelled. -->
 <meta name="description" content="$projectbrief"/>
@@ -16,8 +20,7 @@
 <script type="module">
     // doxygen writes its own mermaid bootstrap from HTML_COLORSTYLE, which is LIGHT here because the theme
     // requires it, so every diagram would stay light under the theme's dark mode.
-    // The URL has to match the Doxyfile's MERMAID_JS_URL for the browser to hand back the module doxygen
-    // already imported rather than a second, separately configured instance.
+    // The URL has to match the Doxyfile's MERMAID_JS_URL character for character, for the reason given there.
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 
     const diagrams = () => document.querySelectorAll('pre.mermaid');

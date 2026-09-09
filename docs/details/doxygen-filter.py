@@ -33,7 +33,6 @@ REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 MAIN_PAGE = "README.md"
 
-# The label naming each published page, and with it the page's file in the output.
 # hierarchy.dox arranges these labels into the tree; the main page owns index.html and needs no label.
 # A markdown file absent from here is still published, under the name doxygen derives from its path.
 LABEL_OF = {
