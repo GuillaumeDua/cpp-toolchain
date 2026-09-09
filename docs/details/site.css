@@ -57,3 +57,28 @@ dl.important code, dl.important span.tt {
 #projectname {
     white-space: normal;
 }
+
+/*
+ * The main page's title carries the mark README.md sets beside its own, which doxygen-filter.py strips on
+ * the way in: a title's markup reaches the navigation tree, where an `<img>` tag shows as text in the
+ * sidebar label. The file is the copy PROJECT_LOGO leaves in the output.
+ * `md_README` is the anchor doxygen gives README.md, and no other page carries it.
+ */
+body:has(#md_README) .title::before {
+    content: "";
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin-right: 0.25em;
+    vertical-align: -0.15em;
+    background: url("logo.svg") no-repeat center / contain;
+}
+
+/*
+ * doxygen-awesome caps the header logo rather than sizing it, which held it at the cap while the file was
+ * larger. logo.svg is 32px so that GitHub draws it at the size of the title text it sits in, below that
+ * cap, so the height is set here to keep the header as it was.
+ */
+#projectlogo img {
+    height: calc(var(--title-font-size) * 2);
+}
