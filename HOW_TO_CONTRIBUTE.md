@@ -10,7 +10,7 @@ There is a hard split between **building** (gate, runs on every PR) and **publis
 
 | Workflow | Trigger | What it does | Pushes? |
 | -------- | ------- | ------------ | :-----: |
-| [docker-build](.github/workflows/docker-build.yml) | every PR to `main`, every push to `main` | builds all stages in both variants, then runs the [images validation gate](docs/IMAGES_VALIDATION.md) | ❌ |
+| [docker-build](.github/workflows/docker-build.yml) | every PR to `main`, every push to `main` | builds the normal variant in full and the cross-arch `build`, then runs the [images validation gate](docs/IMAGES_VALIDATION.md); a push to `main` also builds the cross-arch `static-analysis` / `documentation` / `dev` | ❌ |
 | [docker-publish](.github/workflows/docker-publish.yml) | GitHub **release** (major), merged **candidate PR** (minor), twice-monthly rc schedule, manual dispatch | builds rcs/majors, promotes minors, pushes tags to Docker Hub + GHCR | ✅ |
 | [release-candidate-check](.github/workflows/release-candidate-check.yml) | every PR to `main` (no-op unless a promotion record is touched) | validates the promotion record and smoke-tests the candidate image by digest | ❌ |
 | [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) | monthly schedule (25th), manual dispatch | opens a PR moving the Ubuntu archive snapshot forward | ❌ |
@@ -18,7 +18,7 @@ There is a hard split between **building** (gate, runs on every PR) and **publis
 > [!IMPORTANT]
 > **PR validation**
 >
-> Every PR to `main` must still build all stages in both the normal and cross-arch variants ([docker-build](.github/workflows/docker-build.yml)); publishing is a separate workflow that refuses to push anything whose commit is not contained in `main`.
+> Every PR to `main` must still build all five stages of the normal variant, plus the cross-arch toolchain and its validation ([docker-build](.github/workflows/docker-build.yml)); publishing is a separate workflow that refuses to push anything whose commit is not contained in `main`.
 
 ## Opening a pull request
 
@@ -28,21 +28,26 @@ There is a hard split between **building** (gate, runs on every PR) and **publis
    build the affected stages locally first (see below) - a broken layer fails the gate for everyone.
 3. Open a PR against `main`.
    The [docker-build](.github/workflows/docker-build.yml) gate runs automatically.
-4. Keep the PR green: **all** stages must build in **both** variants before it can merge.
+4. Keep the PR green: every stage the gate builds must build before it can merge.
 
 The gate is deliberately **not** path-filtered - it is a required status check, so it runs on every PR (a path-filtered workflow that never runs would leave the PR waiting forever on a check that never reports).  
 When the Dockerfile and scripts are untouched the GitHub Actions cache makes it a near-no-op.  
+Only a push to `main` writes that cache, so a PR replays the layers the last merge exported, and the first PR after a snapshot bump pays for a cold build.  
 Nothing is pushed, no registry credentials are needed, and the gate therefore also works for PRs coming from forks (which have no access to secrets).
 
 ## What the build gate checks
 
-[docker-build](.github/workflows/docker-build.yml) builds, in dependency order on a single buildx builder, every stage in **both** image variants:
+[docker-build](.github/workflows/docker-build.yml) builds, in dependency order on a single buildx builder, both image variants:
 
 - **normal / lean** (`BINUTILS_TARGETS=''`): `runtime`, `build`, `static-analysis`, `documentation`, `dev`
-- **cross-arch** (`BINUTILS_TARGETS='common'`, the triplets listed in [binutils.sh](scripts/install/binutils.sh)): `build`, `static-analysis`, `documentation`, `dev`
+- **cross-arch** (`BINUTILS_TARGETS='common'`, the triplets listed in [binutils.sh](scripts/install/binutils.sh)): `build` on a PR, and `static-analysis`, `documentation`, `dev` as well on a push to `main`
 
 `runtime` carries no toolchain, so it has no cross variant.
 A break in either variant fails the gate.
+
+`BINUTILS_TARGETS` is consumed at the tail of `build`, so changing it re-parents every stage below it: the cross-arch `static-analysis` / `documentation` / `dev` can hit no cache and reinstall their packages from scratch, around 17 minutes, to exercise package sets the normal variant has already built.
+A PR therefore gates the cross toolchain itself, through `build` and `validate-build`.
+Build the three locally, as below, when you change what they install.
 
 It then runs the **images validation gate** - the `validate-build` and `validate-runtime` stages, which assert that every toolchain package still comes from the repository that owns it, and that a binary compiled in `build` still runs on `runtime`.  
 Both are throwaway stages built on layers the job already has, so they cost a cache hit plus their own `RUN`.
