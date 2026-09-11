@@ -1,14 +1,9 @@
 name: docker-build
 
-# Gate: every PR to main (and every push to main) must still produce (not publish !) all five images,
-# and the cross-arch variant of `build`.
-#
-# Deliberately NOT path-filtered: this is meant to be a required status check,
-# and a path-filtered workflow that never runs leaves the PR waiting forever on a check that never reports.
-# When the Dockerfile/scripts are untouched, a PR replays the layers a merge to main exported, and the run is a near-no-op.
-#
-# Nothing is pushed here, so no registry credentials are needed,
-# and the gate also works for pull requests coming from forks (which have no access to secrets).
+# Gate: every PR to main, and every push to main, must still produce (not publish !) all five images and the cross-arch toolchain.
+#   Deliberately NOT path-filtered: a required status check that never runs leaves the PR waiting forever on a status that never reports.
+#   Nothing is pushed, so no registry credentials are needed and the gate works for PRs from forks, which have no access to secrets.
+#   An untouched Dockerfile and scripts make the run a near-no-op, on the layer cache below.
 on:
   pull_request:
     branches: [main]
@@ -45,9 +40,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Built in dependency order on a single buildx builder:
-      #   the heavy `build` layer is produced once and reused by static-analysis / documentation / dev.
-      # Both image variants are gated: normal/lean (BINUTILS_TARGETS='') and cross-arch (a triplet list), so a break in either is caught.
+      # Built in dependency order on a single buildx builder, so each stage reuses its parent's layers.
       - name: Build all stages (no push)
         run: |
           set -euo pipefail
@@ -56,17 +49,28 @@ jobs:
           #   `common` is an alias resolved by scripts/install/binutils.sh, which is where the triplets are listed
           CROSS_TARGETS="common"
 
-          # A PR reads the shared cache; only a merge to main writes it.
-          #   `dev` covers runtime -> build -> static-analysis -> dev and `documentation` covers its own branch off
-          #   `build`, so exporting from those two carries every publishable layer.
-          #   validate-build / validate-runtime are left out for the reason docker-publish.yml gives:
-          #   throwaway layers have no reason to occupy the shared cache.
+          # Layer cache, shared across runs.
+          #   A merge to main is the only writer: a cache written from a PR is scoped to that PR and serves nothing but its own re-runs.
+          #   One scope per exporting build - a second export to a scope replaces it, "leaving only the final cache" (https://docs.docker.com/build/cache/backends/gha/).
+          #   Scopes are cheap: blobs are keyed by digest and only the index is scoped, so what the scopes share is stored once.
+          #   Between them these three carry every layer a PR builds:
+          #     dev            runtime -> build -> static-analysis -> dev
+          #     documentation  its own branch off build
+          #     build-cross    the binutils tail
+          CACHE_SCOPES=(cpp-toolchain-documentation cpp-toolchain-dev cpp-toolchain-build-cross)
+
           cache_args() {
-            printf '%s\n' --cache-from type=gha,scope=cpp-toolchain
-            if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
-              case "$1" in
-                documentation|dev) printf '%s\n' --cache-to type=gha,mode=max,scope=cpp-toolchain ;;
+            local targets="$1" target="$2" scope
+            for scope in "${CACHE_SCOPES[@]}"; do
+              printf '%s\n' --cache-from "type=gha,scope=${scope}"
+            done
+            [[ "${GITHUB_EVENT_NAME}" == "push" ]] || return 0
+            if [[ -z "${targets}" ]]; then
+              case "${target}" in
+                documentation|dev) printf '%s\n' --cache-to "type=gha,mode=max,scope=cpp-toolchain-${target}" ;;
               esac
+            elif [[ "${target}" == "build" ]]; then
+              printf '%s\n' --cache-to "type=gha,mode=max,scope=cpp-toolchain-build-cross"
             fi
           }
 
@@ -76,7 +80,7 @@ jobs:
             local target
             local -a cache
             for target in "$@"; do
-              mapfile -t cache < <(cache_args "${target}")
+              mapfile -t cache < <(cache_args "${targets}" "${target}")
               echo "::group::build cpp-toolchain:${target} [BINUTILS_TARGETS='${targets}']"
               docker buildx build \
                 --file Dockerfile \
@@ -88,16 +92,12 @@ jobs:
             done
           }
 
-          # Normal variant first (populates the builder's local cache); `runtime` has no cross variant.
-          # validate-build / validate-runtime are the image validation gate:
-          # throwaway stages on top of layers this job already built, so they cost a cache hit plus their own RUN (see docs/IMAGES_VALIDATION.md).
+          # validate-build / validate-runtime are the image validation gate (docs/IMAGES_VALIDATION.md).
           build_variant ""         runtime build validate-build validate-runtime static-analysis documentation dev
 
           # The cross variant has no `runtime`, hence no validate-runtime.
-          #   BINUTILS_TARGETS is consumed at the tail of `build`, so changing it re-parents every stage below:
-          #   the leaves cannot hit any cache and re-run their apt installs in full, ~17 min, to prove nothing the
-          #   normal variant has not already proven. A PR therefore gates the cross toolchain and its validation,
-          #   and the full cross matrix runs on the merge to main.
+          #   BINUTILS_TARGETS is consumed at the tail of `build`, so cross `build` reuses everything below it from the builder's local cache.
+          #   Every stage above is re-parented and rebuilds in full, for package sets the normal variant has already built.
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
             build_variant "${CROSS_TARGETS}" build validate-build                  static-analysis documentation dev
           else
