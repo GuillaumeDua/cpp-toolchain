@@ -45,7 +45,7 @@ Nothing is pushed, no registry credentials are needed, and the gate therefore al
 `runtime` carries no toolchain, so it has no cross variant.
 A break in either variant fails the gate.
 
-`BINUTILS_TARGETS` is consumed at the tail of `build`, so changing it re-parents every stage below it: the cross-arch `static-analysis` / `documentation` / `dev` can hit no cache and reinstall their packages from scratch, around 17 minutes, to exercise package sets the normal variant has already built.
+`BINUTILS_TARGETS` is consumed at the tail of `build`, so changing it re-parents every stage above it: the cross-arch `static-analysis` / `documentation` / `dev` can hit no cache and reinstall their packages in full, for package sets the normal variant has already built.
 A PR therefore gates the cross toolchain itself, through `build` and `validate-build`.
 Build the three locally, as below, when you change what they install.
 
