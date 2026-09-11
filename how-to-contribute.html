@@ -184,7 +184,7 @@ The workflows</h1>
 <tr class="markdownTableHead">
 <th class="markdownTableHeadNone">Workflow  </th><th class="markdownTableHeadNone">Trigger  </th><th class="markdownTableHeadNone">What it does  </th><th class="markdownTableHeadCenter">Pushes?  </th></tr>
 <tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-build.yml">docker-build</a>  </td><td class="markdownTableBodyNone">every PR to <span class="tt">main</span>, every push to <span class="tt">main</span>  </td><td class="markdownTableBodyNone">builds all stages in both variants, then runs the <a class="el" href="images-validation.html#md_docs_2IMAGES__VALIDATION" title="docs/IMAGES_VALIDATION.md">images validation gate</a>  </td><td class="markdownTableBodyCenter">❌  </td></tr>
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-build.yml">docker-build</a>  </td><td class="markdownTableBodyNone">every PR to <span class="tt">main</span>, every push to <span class="tt">main</span>  </td><td class="markdownTableBodyNone">builds the normal variant in full and the cross-arch <span class="tt">build</span>, then runs the <a class="el" href="images-validation.html#md_docs_2IMAGES__VALIDATION" title="docs/IMAGES_VALIDATION.md">images validation gate</a>; a push to <span class="tt">main</span> also builds the cross-arch <span class="tt">static-analysis</span> / <span class="tt">documentation</span> / <span class="tt">dev</span>  </td><td class="markdownTableBodyCenter">❌  </td></tr>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-publish.yml">docker-publish</a>  </td><td class="markdownTableBodyNone">GitHub <b>release</b> (major), merged <b>candidate PR</b> (minor), twice-monthly rc schedule, manual dispatch  </td><td class="markdownTableBodyNone">builds rcs/majors, promotes minors, pushes tags to Docker Hub + GHCR  </td><td class="markdownTableBodyCenter">✅  </td></tr>
 <tr class="markdownTableRowOdd">
@@ -194,7 +194,7 @@ The workflows</h1>
 </table>
 <dl class="section important"><dt>Important</dt><dd><b>PR validation</b> <br  />
 <br  />
- Every PR to <span class="tt">main</span> must still build all stages in both the normal and cross-arch variants (<a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-build.yml">docker-build</a>); publishing is a separate workflow that refuses to push anything whose commit is not contained in <span class="tt">main</span>.</dd></dl>
+ Every PR to <span class="tt">main</span> must still build all five stages of the normal variant, plus the cross-arch toolchain and its validation (<a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-build.yml">docker-build</a>); publishing is a separate workflow that refuses to push anything whose commit is not contained in <span class="tt">main</span>.</dd></dl>
 <h1 class="doxsection"><a class="anchor" id="opening-a-pull-request"></a>
 Opening a pull request</h1>
 <ol type="1">
@@ -202,19 +202,21 @@ Opening a pull request</h1>
 <li>Make your change. If you touch the <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/Dockerfile">Dockerfile</a> or the <a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts">scripts</a>, <br  />
  build the affected stages locally first (see below) - a broken layer fails the gate for everyone.</li>
 <li>Open a PR against <span class="tt">main</span>. The <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-build.yml">docker-build</a> gate runs automatically.</li>
-<li>Keep the PR green: <b>all</b> stages must build in <b>both</b> variants before it can merge.</li>
+<li>Keep the PR green: every stage the gate builds must build before it can merge.</li>
 </ol>
 <p>The gate is deliberately <b>not</b> path-filtered - it is a required status check, so it runs on every PR (a path-filtered workflow that never runs would leave the PR waiting forever on a check that never reports). <br  />
  When the Dockerfile and scripts are untouched the GitHub Actions cache makes it a near-no-op. <br  />
+ Only a push to <span class="tt">main</span> writes that cache, so a PR replays the layers the last merge exported, and the first PR after a snapshot bump pays for a cold build. <br  />
  Nothing is pushed, no registry credentials are needed, and the gate therefore also works for PRs coming from forks (which have no access to secrets).</p>
 <h1 class="doxsection"><a class="anchor" id="what-the-build-gate-checks"></a>
 What the build gate checks</h1>
-<p><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-build.yml">docker-build</a> builds, in dependency order on a single buildx builder, every stage in <b>both</b> image variants:</p>
+<p><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-build.yml">docker-build</a> builds, in dependency order on a single buildx builder, both image variants:</p>
 <ul>
 <li><b>normal / lean</b> (<span class="tt">BINUTILS_TARGETS=''</span>): <span class="tt">runtime</span>, <span class="tt">build</span>, <span class="tt">static-analysis</span>, <span class="tt">documentation</span>, <span class="tt">dev</span></li>
-<li><b>cross-arch</b> (<span class="tt">BINUTILS_TARGETS='common'</span>, the triplets listed in <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/install/binutils.sh">binutils.sh</a>): <span class="tt">build</span>, <span class="tt">static-analysis</span>, <span class="tt">documentation</span>, <span class="tt">dev</span></li>
+<li><b>cross-arch</b> (<span class="tt">BINUTILS_TARGETS='common'</span>, the triplets listed in <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/install/binutils.sh">binutils.sh</a>): <span class="tt">build</span> on a PR, and <span class="tt">static-analysis</span>, <span class="tt">documentation</span>, <span class="tt">dev</span> as well on a push to <span class="tt">main</span></li>
 </ul>
 <p><span class="tt">runtime</span> carries no toolchain, so it has no cross variant. A break in either variant fails the gate.</p>
+<p><span class="tt">BINUTILS_TARGETS</span> is consumed at the tail of <span class="tt">build</span>, so changing it re-parents every stage above it: the cross-arch <span class="tt">static-analysis</span> / <span class="tt">documentation</span> / <span class="tt">dev</span> can hit no cache and reinstall their packages in full, for package sets the normal variant has already built. A PR therefore gates the cross toolchain itself, through <span class="tt">build</span> and <span class="tt">validate-build</span>. Build the three locally, as below, when you change what they install.</p>
 <p>It then runs the <b>images validation gate</b> - the <span class="tt">validate-build</span> and <span class="tt">validate-runtime</span> stages, which assert that every toolchain package still comes from the repository that owns it, and that a binary compiled in <span class="tt">build</span> still runs on <span class="tt">runtime</span>. <br  />
  Both are throwaway stages built on layers the job already has, so they cost a cache hit plus their own <span class="tt">RUN</span>. See <a class="el" href="images-validation.html#md_docs_2IMAGES__VALIDATION" title="docs/IMAGES_VALIDATION.md">docs/IMAGES_VALIDATION.md</a>.</p>
 <p>Reproduce it locally before pushing (context is the repo root):</p>
