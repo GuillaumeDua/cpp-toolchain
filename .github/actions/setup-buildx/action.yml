@@ -1,0 +1,21 @@
+name: Set up Docker Buildx with a reachable Actions cache
+description: buildx, plus the Actions runtime in the job environment that `type=gha` needs from an inline `run:` step.
+
+runs:
+  using: composite
+  steps:
+    # `type=gha` reads ACTIONS_RUNTIME_TOKEN, which GitHub hands to an action but not to an inline `run:` step.
+    - uses: crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0
+
+    - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+    # Without the token every --cache-from and --cache-to resolves to nothing, silently, and every build is cold.
+    #   That is a green run that does none of what it says, so it fails here instead.
+    #   Only the token is checked: it is what the cache exporter needs, and unlike the URL variable
+    #   its name has not moved across buildkit's cache service versions.
+    - name: Assert the Actions runtime reached the job environment
+      shell: bash
+      run: |
+        set -euo pipefail
+        : "${ACTIONS_RUNTIME_TOKEN:?not exported - type=gha would no-op and every build would be cold}"
+        echo "Actions runtime reachable from run: steps"

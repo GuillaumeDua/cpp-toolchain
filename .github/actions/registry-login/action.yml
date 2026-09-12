@@ -1,0 +1,31 @@
+name: Log in to both registries
+description: Docker Hub and GHCR, the two registries every published tag goes to.
+
+# A composite action does not inherit `secrets`, so the caller passes them in.
+inputs:
+  dockerhub-username:
+    description: Docker Hub account the images are published under
+    required: true
+  dockerhub-token:
+    description: Docker Hub access token
+    required: true
+  ghcr-username:
+    description: GitHub actor for ghcr.io
+    required: true
+  ghcr-token:
+    description: "Token carrying `packages: write`"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+      with:
+        username: ${{ inputs.dockerhub-username }}
+        password: ${{ inputs.dockerhub-token }}
+
+    - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+      with:
+        registry: ghcr.io
+        username: ${{ inputs.ghcr-username }}
+        password: ${{ inputs.ghcr-token }}
