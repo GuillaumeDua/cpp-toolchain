@@ -116,20 +116,14 @@ jobs:
           python3 scripts/details/check-release-file.py "${FILE}" --print-targets > plan.txt
           cat plan.txt
 
-      - name: Log in to Docker Hub
+      - name: Log in to both registries
         if: steps.record.outputs.skip != 'true'
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: ./.github/actions/registry-login
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Log in to GitHub Container Registry
-        if: steps.record.outputs.skip != 'true'
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          ghcr-username: ${{ github.actor }}
+          ghcr-token: ${{ secrets.GITHUB_TOKEN }}
 
       # An alarm, not a correctness requirement - the re-tag below sources from the digest,
       # so it would ship the right bytes even if a tag had moved.
@@ -357,28 +351,18 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Set up QEMU
-        if: steps.changed.outputs.skip != 'true'
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
-
       - name: Set up Docker Buildx
         if: steps.changed.outputs.skip != 'true'
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        uses: ./.github/actions/setup-buildx
 
-      - name: Log in to Docker Hub
+      - name: Log in to both registries
         if: steps.changed.outputs.skip != 'true'
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: ./.github/actions/registry-login
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Log in to GitHub Container Registry
-        if: steps.changed.outputs.skip != 'true'
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          ghcr-username: ${{ github.actor }}
+          ghcr-token: ${{ secrets.GITHUB_TOKEN }}
 
       # Single job, built in dependency order on one buildx builder:
       #   the heavy `build` layer is produced once and reused by static-analysis / documentation / dev
@@ -398,10 +382,18 @@ jobs:
           # `common` is an alias resolved by scripts/install/binutils.sh, which is where the triplets are listed.
           CROSS_TARGETS="common"
 
+          # Read-only against the scopes a merge to main maintains (docker-build.yml exports them).
+          #   Nothing is exported from here: one exporter per scope, a second replaces the index instead of merging into it,
+          #   and merges refresh these far more often than this workflow's fortnightly cron.
+          CACHE_SCOPES=(cpp-toolchain-dev cpp-toolchain-documentation cpp-toolchain-build-cross)
+          CACHE_FROM=()
+          for scope in "${CACHE_SCOPES[@]}"; do
+            CACHE_FROM+=(--cache-from "type=gha,scope=${scope}")
+          done
+
           # Run the image validation gate for one variant. $1=BINUTILS_TARGETS build-arg, $2.. = stages.
           #   `cacheonly` because only the exit status matters here - nothing is loaded or pushed,
           #   and the layers these solves build are the very ones the pushes below reuse from the local cache.
-          #   No --cache-to: the throwaway validate layers have no reason to occupy the shared gha cache.
           validate_variant() {
             local targets="$1"; shift
             for target in "$@"; do
@@ -410,7 +402,7 @@ jobs:
                 --file Dockerfile \
                 --target "${target}" \
                 --build-arg "BINUTILS_TARGETS=${targets}" \
-                --cache-from type=gha,scope=cpp-toolchain \
+                "${CACHE_FROM[@]}" \
                 --output type=cacheonly \
                 . || return 1
               echo "::endgroup::"
@@ -440,8 +432,7 @@ jobs:
                 --target "${target}" \
                 --build-arg "BINUTILS_TARGETS=${targets}" \
                 "${tag_args[@]}" \
-                --cache-from type=gha,scope=cpp-toolchain \
-                --cache-to type=gha,mode=max,scope=cpp-toolchain \
+                "${CACHE_FROM[@]}" \
                 --provenance=false \
                 --sbom=false \
                 --metadata-file "build-metadata/${target}${infix:+-cross}.json" \
