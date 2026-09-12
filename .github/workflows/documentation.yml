@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # Doxygen is pinned once, by `ARG DOXYGEN_RELEASE` in the Dockerfile, so a Renovate bump moves the
       # images and this site together; the theme is pinned in generate.sh, which no image installs.
@@ -42,7 +42,7 @@ jobs:
         run: bash docs/details/generate.sh --print-versions >> "${GITHUB_OUTPUT}"
 
       - name: Restore the doxygen and theme downloads
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: docs/details/.cache
           key: documentation-doxygen-${{ steps.versions.outputs.doxygen }}-theme-${{ steps.versions.outputs.theme }}
@@ -55,7 +55,7 @@ jobs:
       # from force-pushing that branch's render over the published site.
       - name: Publish to GitHub Pages
         if: github.ref == 'refs/heads/main'
-        uses: JamesIves/github-pages-deploy-action@v4.9.0
+        uses: JamesIves/github-pages-deploy-action@fa24774553152dd7873cd16ebd8d959b010c5445 # v4.9.0
         with:
           branch: gh-pages
           folder: docs/output
