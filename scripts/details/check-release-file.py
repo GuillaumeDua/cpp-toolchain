@@ -19,6 +19,7 @@ Usage, from the repository root - the git checks and the bumps recompute both re
     python3 scripts/details/check-release-file.py releases/v1.2.yaml --check-bumps        # bumps == render-manifest recompute
     python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-targets      # promotion plan, one line per prefix
     python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-digest dev   # one recorded digest
+    python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-fields       # version/commit/candidate as key=value
     python3 scripts/details/check-release-file.py --print-stages normal|cross             # canonical stage lists
 
 Exits non-zero and reports every schema violation it found, not only the first.
@@ -214,6 +215,17 @@ def print_targets(data):
             print(f"{digest} {prefix}{source_version} {prefix}{version} {prefix}latest")
 
 
+def print_fields(record):
+    """version / commit / candidate as key=value lines, the shape $GITHUB_OUTPUT expects.
+
+    A record cut for a hand-made major carries no candidate, and a consumer reads that as the empty string
+    rather than as a missing key.
+    """
+    print(f"version={record['version']}")
+    print(f"commit={record['commit']}")
+    print(f"candidate={record.get('candidate') or ''}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("file", nargs="?", help="releases/v*.yaml to validate")
@@ -226,6 +238,8 @@ def main():
     parser.add_argument("--print-targets", action="store_true",
                         help="print the promotion plan (digest, source, release and latest tags)")
     parser.add_argument("--print-digest", metavar="KEY", help="print one recorded digest, e.g. dev")
+    parser.add_argument("--print-fields", action="store_true",
+                        help="print version, commit and candidate as key=value lines, for $GITHUB_OUTPUT")
     parser.add_argument("--print-stages", choices=["normal", "cross"],
                         help="print a canonical stage list (no file needed)")
     args = parser.parse_args()
@@ -253,6 +267,8 @@ def main():
 
     if args.print_digest:
         print(data["digests"][args.print_digest])
+    elif args.print_fields:
+        print_fields(data)
     elif args.print_targets:
         print_targets(data)
     else:

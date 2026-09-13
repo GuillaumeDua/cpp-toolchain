@@ -1,0 +1,61 @@
+name: Report through a sticky issue
+description: >
+  One issue holding the current state, rewritten on each run rather than commented on,
+  so it reads as "what is wrong now" and not as a log of every run that ever failed.
+  Closed again by the first run that comes back clean.
+
+inputs:
+  title:
+    description: Exact issue title. It is the identity of the issue, so it must not vary between runs.
+    required: true
+  body-file:
+    description: File holding the issue body. Read only when resolved is false.
+    required: false
+    default: ""
+  resolved:
+    description: "true closes the issue if one is open, false opens or rewrites it"
+    required: false
+    default: "false"
+  close-comment:
+    description: Comment left when closing.
+    required: false
+    default: "Green again."
+  token:
+    description: "Token carrying `issues: write`"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TITLE: ${{ inputs.title }}
+        BODY_FILE: ${{ inputs.body-file }}
+        RESOLVED: ${{ inputs.resolved }}
+        CLOSE_COMMENT: ${{ inputs.close-comment }}
+      run: |
+        set -euo pipefail
+
+        # Listed and filtered on the exact title rather than searched:
+        #   `--search 'in:title <title>'` tokenizes, so it also returns near misses,
+        #   and a title containing a colon reads as a search qualifier.
+        existing=$(gh issue list --state open --limit 200 --json number,title \
+                   --jq 'map(select(.title == $ENV.TITLE)) | .[0].number // empty')
+
+        if [ "${RESOLVED}" = "true" ]; then
+          if [ -n "${existing}" ]; then
+            gh issue close "${existing}" --comment "${CLOSE_COMMENT}"
+            echo "closed #${existing}"
+          else
+            echo "nothing to report"
+          fi
+          exit 0
+        fi
+
+        if [ -n "${existing}" ]; then
+          gh issue edit "${existing}" --body-file "${BODY_FILE}"
+          echo "rewrote #${existing}"
+        else
+          gh issue create --title "${TITLE}" --body-file "${BODY_FILE}"
+        fi

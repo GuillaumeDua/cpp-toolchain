@@ -13,7 +13,11 @@ There is a hard split between **building** (gate, runs on every PR) and **publis
 | [docker-build](.github/workflows/docker-build.yml) | every PR to `main`, every push to `main` | builds the normal variant in full and the cross-arch `build`, then runs the [images validation gate](docs/IMAGES_VALIDATION.md); a push to `main` also builds the cross-arch `static-analysis` / `documentation` / `dev` | ❌ |
 | [docker-publish](.github/workflows/docker-publish.yml) | GitHub **release** (major), merged **candidate PR** (minor), twice-monthly rc schedule, manual dispatch | builds rcs/majors, promotes minors, pushes tags to Docker Hub + GHCR | ✅ |
 | [release-candidate-check](.github/workflows/release-candidate-check.yml) | every PR to `main` (no-op unless a promotion record is touched) | validates the promotion record and smoke-tests the candidate image by digest | ❌ |
+| [documentation](.github/workflows/documentation.yml) | every push to `main`, manual dispatch | renders the repository's markdown and publishes it to the `gh-pages` branch ([docs/details](docs/details/README.md)) | ❌ |
 | [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) | monthly schedule (25th), manual dispatch | opens a PR moving the Ubuntu archive snapshot forward | ❌ |
+
+What those workflows share lives in [.github/actions/](.github/actions/) as composite actions:
+buildx setup, registry login, promotion-record identification, and the sticky issue both failure reports use.
 
 > [!IMPORTANT]
 > **PR validation**

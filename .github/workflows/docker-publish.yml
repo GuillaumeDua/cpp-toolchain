@@ -50,7 +50,7 @@ concurrency:
 jobs:
   # ------------------------------------------------------------------------------------------
   # Promotion: a releases/v*.yaml merged onto main.
-  # No QEMU, no build - the recorded digests are verified against both registries, then re-tagged.
+  # No build - the recorded digests are verified against both registries, then re-tagged.
   # Seconds instead of ~40 minutes, and the release is byte-identical to the rc that was validated.
   # ------------------------------------------------------------------------------------------
   promote:
@@ -63,44 +63,13 @@ jobs:
           fetch-depth: 0 # tags for the supersession assert, history for the release-note diff
 
       # The merge commit's first parent is the main that was merged onto, so this diff is exactly what the PR changed.
-      # Only an added record promotes; releases/*.yaml are immutable records,
-      # so a modified or deleted one fails loudly instead of silently re-promoting shipped bytes.
       - name: Identify the promotion record
         id: record
-        run: |
-          set -euo pipefail
-          added=()
-          while IFS=$'\t' read -r status path; do
-            [[ "${path}" =~ ^releases/v[0-9]+\.[0-9]+\.yaml$ ]] || continue
-            case "${status}" in
-              A) added+=("${path}") ;;
-              *) echo "::error::${path} is an immutable promotion record - it cannot be ${status}-changed. Revert this merge."
-                 exit 1 ;;
-            esac
-          done < <(git diff --name-status "${GITHUB_SHA}^1" "${GITHUB_SHA}" -- releases/)
-
-          if [ "${#added[@]}" -eq 0 ]; then
-            echo "::notice::no promotion record in this push (docs-only change under releases/) - nothing to promote."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [ "${#added[@]}" -gt 1 ]; then
-            echo "::error::one promotion per merge - found: ${added[*]}"
-            exit 1
-          fi
-
-          file="${added[0]}"
-          {
-            echo "skip=false"
-            echo "file=${file}"
-            python3 -c "
-          import sys, yaml
-          data = yaml.safe_load(open(sys.argv[1]))
-          print('version=' + str(data['version']))
-          print('commit=' + str(data['commit']))
-          print('candidate=' + str(data.get('candidate') or ''))
-          " "${file}"
-          } >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/identify-promotion-record
+        with:
+          base-ref: ${{ github.sha }}^1
+          head-ref: ${{ github.sha }}
+          context: merge
 
       # All asserts run before any mutation: schema, candidate tag -> commit, containment in main, newest-rc supersession.
       # A hand-crafted YAML in an ordinary PR reaches this same trigger, so none of this trusts the candidate PR machinery.
@@ -644,32 +613,21 @@ jobs:
 
       # A failed build leaves no pre-release and no candidate PR, so it reads as a quiet fortnight
       #   rather than as a failure - see the failure modes table in docs/RELEASE_PROCESS.md.
-      # One issue holding the current state, rewritten on each run rather than commented on,
-      #   and closed again by the first run that succeeds.
-      - name: Report a failed build
+      - name: Compose the build failure report
+        id: failure
         if: always() && job.status != 'cancelled'
         env:
-          GH_TOKEN: ${{ github.token }}
           JOB_STATUS: ${{ job.status }}
           PRIMARY: ${{ steps.meta.outputs.primary }}
         run: |
           set -euo pipefail
 
-          title='release: the image build is failing'
-
-          # Matched on the full title rather than on the search, which tokenizes and would also return near misses.
-          existing=$(gh issue list --state open --search 'in:title the image build is failing' --json number,title \
-                     --jq "map(select(.title == \"${title}\")) | .[0].number // empty")
-
           if [[ "${JOB_STATUS}" == "success" ]]; then
-              if [[ -n "${existing}" ]]; then
-                  gh issue close "${existing}" --comment "Green again at ${GITHUB_SHA}${PRIMARY:+ (${PRIMARY})}."
-              fi
-              echo "nothing to report"
+              echo "resolved=true" >> "$GITHUB_OUTPUT"
               exit 0
           fi
+          echo "resolved=false" >> "$GITHUB_OUTPUT"
 
-          body=$(mktemp)
           {
               echo "The image build failed, so no pre-release and no candidate pull request were produced."
               echo
@@ -688,10 +646,14 @@ jobs:
               echo '```'
               echo
               echo "Opened by .github/workflows/docker-publish.yml, rewritten on every run, and closed once a build succeeds."
-          } > "${body}"
+          } > build-failure.md
 
-          if [[ -n "${existing}" ]]; then
-              gh issue edit "${existing}" --body-file "${body}"
-          else
-              gh issue create --title "${title}" --body-file "${body}"
-          fi
+      - name: Report a failed build
+        if: always() && job.status != 'cancelled'
+        uses: ./.github/actions/report-sticky-issue
+        with:
+          title: "release: the image build is failing"
+          body-file: build-failure.md
+          resolved: ${{ steps.failure.outputs.resolved }}
+          close-comment: "Green again at ${{ github.sha }}${{ steps.meta.outputs.primary && format(' ({0})', steps.meta.outputs.primary) }}."
+          token: ${{ github.token }}
