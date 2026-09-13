@@ -40,56 +40,27 @@ jobs:
         run: |
           set -euo pipefail
 
-          # `common` is an alias resolved by scripts/install/binutils.sh, which is where the triplets are listed.
-          CROSS_TARGETS="common"
-
-          # Layer cache, keyed <BINUTILS_TARGETS>:<stage> and valued by the scope that build exports.
-          #   A merge to main is the only writer: a cache written from a PR is scoped to that PR and serves nothing but its own re-runs.
-          #   One scope per exporting build - a second export to a scope replaces it, "leaving only the final cache" (https://docs.docker.com/build/cache/backends/gha/).
-          #   Scopes are cheap: blobs are keyed by digest and only the index is scoped, so what the scopes share is stored once.
-          #   These three carry every layer a PR builds - the runtime -> build -> static-analysis -> dev chain, documentation's branch off build, and the cross binutils tail.
-          declare -A CACHE_EXPORTS=(
-            [":dev"]=cpp-toolchain-dev
-            [":documentation"]=cpp-toolchain-documentation
-            ["${CROSS_TARGETS}:build"]=cpp-toolchain-build-cross
-          )
-
-          CACHE_FROM=()
-          for scope in "${CACHE_EXPORTS[@]}"; do
-            CACHE_FROM+=(--cache-from "type=gha,scope=${scope}")
-          done
-
-          # $1 = BINUTILS_TARGETS, $2.. = stages.
-          build_variant() {
-            local targets="$1"; shift
-            local target scope
-            local -a cache_to
-            for target in "$@"; do
-              cache_to=()
-              scope="${CACHE_EXPORTS["${targets}:${target}"]:-}"
-              if [[ -n "${scope}" && "${GITHUB_EVENT_NAME}" == "push" ]]; then
-                cache_to=(--cache-to "type=gha,mode=max,scope=${scope}")
-              fi
-              echo "::group::build cpp-toolchain:${target} [BINUTILS_TARGETS='${targets}']"
-              docker buildx build \
-                --file Dockerfile \
-                --target "${target}" \
-                --build-arg "BINUTILS_TARGETS=${targets}" \
-                "${CACHE_FROM[@]}" \
-                "${cache_to[@]}" \
-                .
-              echo "::endgroup::"
-            done
+          # scripts/details/build-stages.sh owns the buildx flags and the cache scope table,
+          #   shared with docker-publish.yml so the two cannot drift apart.
+          # A merge to main is the only cache writer: one written from a PR is scoped to that PR
+          #   and serves nothing but its own re-runs.
+          build() {
+            local cache=read
+            if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then cache=write; fi
+            bash scripts/details/build-stages.sh --cache "${cache}" "$@"
           }
 
-          # validate-build / validate-runtime are the image validation gate (docs/IMAGES_VALIDATION.md).
-          build_variant "" runtime build validate-build validate-runtime static-analysis documentation dev
+          stages() { python3 scripts/details/check-release-file.py --print-stages "$1"; }
 
-          # The cross variant has no `runtime`, hence no validate-runtime.
-          #   BINUTILS_TARGETS is consumed at the tail of `build`, so cross `build` reuses everything below it from the builder's local cache.
-          #   Every stage above is re-parented and rebuilds in full, for package sets the normal variant has already built.
-          CROSS_STAGES=(build validate-build)
+          # The validate stages are the image validation gate (docs/IMAGES_VALIDATION.md),
+          # appended to the list the job already builds so they cost a cache hit plus their own RUN.
+          build --variant normal $(stages normal) $(stages validate-normal)
+
+          # BINUTILS_TARGETS is consumed at the tail of `build`, so cross `build` reuses everything below it
+          #   from the builder's local cache. Every stage above is re-parented and rebuilds in full,
+          #   for package sets the normal variant has already built - which is why a PR stops after the gate.
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
-            CROSS_STAGES+=(static-analysis documentation dev)
+            build --variant cross $(stages cross) $(stages validate-cross)
+          else
+            build --variant cross build $(stages validate-cross)
           fi
-          build_variant "${CROSS_TARGETS}" "${CROSS_STAGES[@]}"

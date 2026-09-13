@@ -345,88 +345,25 @@ jobs:
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           set -euo pipefail
-          mkdir -p build-metadata
 
-          # Cross-arch target triplets for the `-cross` image variant.
-          # `common` is an alias resolved by scripts/install/binutils.sh, which is where the triplets are listed.
-          CROSS_TARGETS="common"
+          # scripts/details/build-stages.sh owns the buildx flags and the cache scope table,
+          #   shared with docker-build.yml so the two cannot drift apart.
+          # Read-only against the scopes a merge to main maintains: one exporter per scope, and merges
+          #   refresh them far more often than this workflow's fortnightly cron.
+          build() { bash scripts/details/build-stages.sh --cache read "$@"; }
 
-          # Read-only against the scopes a merge to main maintains (docker-build.yml exports them).
-          #   Nothing is exported from here: one exporter per scope, a second replaces the index instead of merging into it,
-          #   and merges refresh these far more often than this workflow's fortnightly cron.
-          CACHE_SCOPES=(cpp-toolchain-dev cpp-toolchain-documentation cpp-toolchain-build-cross)
-          CACHE_FROM=()
-          for scope in "${CACHE_SCOPES[@]}"; do
-            CACHE_FROM+=(--cache-from "type=gha,scope=${scope}")
-          done
-
-          # Run the image validation gate for one variant. $1=BINUTILS_TARGETS build-arg, $2.. = stages.
-          #   `cacheonly` because only the exit status matters here - nothing is loaded or pushed,
-          #   and the layers these solves build are the very ones the pushes below reuse from the local cache.
-          validate_variant() {
-            local targets="$1"; shift
-            for target in "$@"; do
-              echo "::group::validate cpp-toolchain:${target} [BINUTILS_TARGETS='${targets}']"
-              docker buildx build \
-                --file Dockerfile \
-                --target "${target}" \
-                --build-arg "BINUTILS_TARGETS=${targets}" \
-                "${CACHE_FROM[@]}" \
-                --output type=cacheonly \
-                . || return 1
-              echo "::endgroup::"
-            done
-          }
-
-          # Build + push one variant. $1=BINUTILS_TARGETS build-arg, $2=tag infix, $3.. = stages.
-          #   infix ""       -> normal / lean:  <stage>-<tag>        (+ unprefixed <tag> for dev)
-          #   infix "cross-" -> cross-arch:     <stage>-cross-<tag>  (+ unprefixed cross-<tag> for dev)
-          build_variant() {
-            local targets="$1" infix="$2"; shift 2
-            for target in "$@"; do
-              local tag_args=()
-              for registry in docker.io/guillaumedua ghcr.io/guillaumedua; do
-                for tag in ${TAGS}; do
-                  tag_args+=(--tag "${registry}/cpp-toolchain:${target}-${infix}${tag}")
-                  # `dev` is what `docker build` produces without --target, so it also answers to the unprefixed tag
-                  if [ "${target}" = "dev" ]; then
-                    tag_args+=(--tag "${registry}/cpp-toolchain:${infix}${tag}")
-                  fi
-                done
-              done
-
-              echo "::group::build+push cpp-toolchain:${target}-${infix}* [${TAGS}]"
-              docker buildx build \
-                --file Dockerfile \
-                --target "${target}" \
-                --build-arg "BINUTILS_TARGETS=${targets}" \
-                "${tag_args[@]}" \
-                "${CACHE_FROM[@]}" \
-                --provenance=false \
-                --sbom=false \
-                --metadata-file "build-metadata/${target}${infix:+-cross}.json" \
-                --push \
-                . || return 1
-              echo "::endgroup::"
-            done
-          }
-
-          # The stage lists are canonical in check-release-file.py - reading them from there keeps
-          # this loop, the recorded digests and the derived promotion targets from drifting apart.
-          NORMAL_STAGES="$(python3 scripts/details/check-release-file.py --print-stages normal)"
-          CROSS_STAGES="$(python3 scripts/details/check-release-file.py --print-stages cross)"
+          stages() { python3 scripts/details/check-release-file.py --print-stages "$1"; }
 
           # Validate before publishing, so a stage that lost a package never reaches a registry.
-          #   Deliberately not part of NORMAL_STAGES/CROSS_STAGES: those name what gets published and recorded as a digest, and the validate stages are neither.
-          #   The cross variant has no `runtime`, hence no validate-runtime.
-          #
-          # Normal variant first, so its shared toolchain layers populate the gha cache the cross pass reuses.
+          #   `cacheonly` because only the exit status matters - nothing is loaded or pushed,
+          #   and the layers these solves build are the ones the pushes then reuse from the local cache.
+          # Normal variant first, so its shared toolchain layers populate the local cache the cross pass reuses.
           #   `runtime` carries no toolchain, so it gets no cross variant (a cross runtime would be byte-identical).
           publish_all_stages() {
-            validate_variant ""                 validate-build validate-runtime || return 1
-            validate_variant "${CROSS_TARGETS}" validate-build                  || return 1
-            build_variant ""                 ""        ${NORMAL_STAGES}         || return 1
-            build_variant "${CROSS_TARGETS}" "cross-"  ${CROSS_STAGES}          || return 1
+            build --variant normal --output cacheonly $(stages validate-normal) || return 1
+            build --variant cross  --output cacheonly $(stages validate-cross)  || return 1
+            build --variant normal --push --tags "${TAGS}" --metadata-dir build-metadata $(stages normal) || return 1
+            build --variant cross  --push --tags "${TAGS}" --metadata-dir build-metadata $(stages cross)  || return 1
           }
 
           # apt.llvm.org and snapshot.ubuntu.com both fail intermittently,
