@@ -186,7 +186,7 @@ So the guarantees are not read as stronger than they are:
 | **"rc is superseded"** at promotion | Nothing mutated. | Only the newest rc of a minor is promotable. Promote the newer candidate; if it regressed, revert on `main` and cut a fresh rc. Reachable only via a hand-crafted record - the candidate PR machinery closes superseded PRs. |
 | Expired `RELEASE_PR_TOKEN` | The rc's images and pre-release are published, but the candidate PR was never opened. | Rotate the secret, then `gh workflow run docker-publish.yml` for a fresh rc + PR. Do **not** just re-run the failed job: the skip check now sees the fresh rc tag and exits green without opening anything. |
 | Candidate PR appears with **no checks** | Wrong token created it (`GITHUB_TOKEN` PRs fire no `pull_request` events). | Close and reopen the PR by hand - the reopen is human-caused, so the checks fire. |
-| rc cron fails outright | No pre-release, no PR - a silence, not a signal. Actions secrets carry no expiry metadata, so nothing warns beforehand. | Check the Actions tab; if this bites repeatedly, add a failure notification to the rc job. |
+| rc cron fails outright | No pre-release and no PR, which on its own is indistinguishable from the skip case - so the run opens `release: the image build is failing`, rewritten on each run and closed by the first green one. | Read the issue: it names the commit, the intended tag and the run. Fix the cause, then `gh run rerun <id> --failed`. The build already retried 3 times with backoff, so a single upstream blip never reaches here. Nothing warns *before* a secret expires, so this issue is the signal. |
 
 > [!IMPORTANT]
 > **Superseded rcs are marked and kept, never deleted**:  
