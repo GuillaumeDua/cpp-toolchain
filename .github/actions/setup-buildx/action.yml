@@ -9,10 +9,10 @@ runs:
 
     - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
-    # Without the token every --cache-from and --cache-to resolves to nothing, silently, and every build is cold.
-    #   That is a green run that does none of what it says, so it fails here instead.
-    #   Only the token is checked: it is what the cache exporter needs, and unlike the URL variable
-    #   its name has not moved across buildkit's cache service versions.
+    # Without the token every --cache-from and --cache-to resolves to nothing, silently: a green run
+    #   that caches nothing, which is why it fails here instead.
+    #   Only the token is checked - unlike the URL variable, its name has not moved across
+    #   buildkit's cache service versions.
     - name: Assert the Actions runtime reached the job environment
       shell: bash
       run: |

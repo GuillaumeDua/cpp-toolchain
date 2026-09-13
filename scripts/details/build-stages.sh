@@ -5,11 +5,9 @@
 #
 # Build a list of Dockerfile stages, one buildx invocation each, on the builder already set up by the caller.
 #
-# One driver for both workflows:
-# - docker-build.yml builds without pushing,
-# - docker-publish.yml validates and then builds with tags. 
-# They differ in flags, not in how a stage is built, and holding that in two places is
-# what let their cache scopes drift apart.
+# The single driver for both workflows: docker-build.yml builds without pushing, docker-publish.yml
+# validates and then builds with tags. They differ in flags, not in how a stage is built, so the buildx
+# flags and the cache scope table below are defined here and nowhere else.
 #
 # Runs from the repository root - the build context is `.` and the Dockerfile path is relative to it.
 #

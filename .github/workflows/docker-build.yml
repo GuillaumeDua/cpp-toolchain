@@ -40,8 +40,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # scripts/details/build-stages.sh owns the buildx flags and the cache scope table,
-          #   shared with docker-publish.yml so the two cannot drift apart.
           # A merge to main is the only cache writer: one written from a PR is scoped to that PR
           #   and serves nothing but its own re-runs.
           build() {

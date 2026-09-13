@@ -6,7 +6,7 @@ description: >
 
 inputs:
   base-ref:
-    description: Left side of the diff. The first parent is the branch that was merged onto.
+    description: Left side of the diff.
     required: false
     default: HEAD^1
   head-ref:

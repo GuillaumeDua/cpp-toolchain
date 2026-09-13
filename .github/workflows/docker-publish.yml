@@ -346,8 +346,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # scripts/details/build-stages.sh owns the buildx flags and the cache scope table,
-          #   shared with docker-build.yml so the two cannot drift apart.
           # Read-only against the scopes a merge to main maintains: one exporter per scope, and merges
           #   refresh them far more often than this workflow's fortnightly cron.
           build() { bash scripts/details/build-stages.sh --cache read "$@"; }
