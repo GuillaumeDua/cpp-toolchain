@@ -22,7 +22,7 @@ Usage, from the repository root - the git checks and the bumps recompute both re
     python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-fields       # version/commit/candidate as key=value
     python3 scripts/details/check-release-file.py --print-stages normal|cross             # canonical stage lists
     python3 scripts/details/check-release-file.py --print-stages validate-normal|validate-cross
-    python3 scripts/details/check-release-file.py --print-registries [all|dockerhub|ghcr]  # image references
+    python3 scripts/details/check-release-file.py --print-registries                      # one reference per registry
 
 Exits non-zero and reports every schema violation it found, not only the first.
 The supersession, git and bumps checks run only once the schema is sound.
@@ -56,12 +56,8 @@ STAGE_LISTS = {
     "validate-cross": VALIDATE_CROSS_STAGES,
 }
 
-# Every published tag goes to both. Ordered, because the digest a promotion verifies must be checked
-# in a stable sequence for its log to be readable.
-REGISTRIES = {
-    "dockerhub": "docker.io/guillaumedua/cpp-toolchain",
-    "ghcr": "ghcr.io/guillaumedua/cpp-toolchain",
-}
+# Every published tag goes to both.
+REGISTRIES = ("docker.io/guillaumedua/cpp-toolchain", "ghcr.io/guillaumedua/cpp-toolchain")
 
 VERSION_RE = re.compile(r"^v\d+\.\d+$")
 CANDIDATE_RE = re.compile(r"^(v\d+\.\d+)-rc\.(\d+)$")
@@ -264,8 +260,8 @@ def main():
                         help="print version, commit and candidate as key=value lines, for $GITHUB_OUTPUT")
     parser.add_argument("--print-stages", choices=sorted(STAGE_LISTS),
                         help="print a canonical stage list (no file needed)")
-    parser.add_argument("--print-registries", nargs="?", const="all", choices=["all", "dockerhub", "ghcr"],
-                        help="print the image reference of every registry, or of one (no file needed)")
+    parser.add_argument("--print-registries", action="store_true",
+                        help="print the image reference of every registry (no file needed)")
     args = parser.parse_args()
 
     if args.print_stages:
@@ -273,8 +269,7 @@ def main():
         return
 
     if args.print_registries:
-        selected = REGISTRIES if args.print_registries == "all" else {args.print_registries: REGISTRIES[args.print_registries]}
-        print(" ".join(selected.values()))
+        print(" ".join(REGISTRIES))
         return
 
     if not args.file:

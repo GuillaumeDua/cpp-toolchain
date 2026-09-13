@@ -25,8 +25,8 @@ bash    scripts/details/build-stages.sh --help                   # the buildx dr
 ```
 
 `check-dependencies-pins.py`, `check-install-script-parity.py` and `check-action-pins.py` are the [build gate](../../.github/workflows/docker-build.yml)'s first three steps, so running them before pushing saves a round trip.
-`check-release-file.py` backs the [release process](../../docs/RELEASE_PROCESS.md) - see it for what a promotion record is,
-and `build-stages.sh` reads its stage and registry lists from there rather than restating them.
+`check-release-file.py` backs the [release process](../../docs/RELEASE_PROCESS.md) - see it for what a promotion record is.
+The workflows read its stage lists and hand them to `build-stages.sh` as arguments; `build-stages.sh` reads its registry list itself.
 
 `check-dependencies-pins.py` and `render-manifest.py` read the manager regexes out of `renovate.json` rather than restating them,  
 so what Renovate tracks, what the guard enforces, and what the release note lists cannot drift apart.  

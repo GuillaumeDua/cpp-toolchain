@@ -7,17 +7,16 @@ Invariants:
 
     `uses: owner/action@v4` is a mutable tag whose owner can repoint it at any commit,
     which is what happened to tj-actions/changed-files in March 2025 (CVE-2025-30066).
-    Three of this repository's workflows run with registry or PAT credentials in scope.
+    docker-publish.yml runs with the Docker Hub token, RELEASE_PR_TOKEN and `packages: write` in scope.
 
 - nothing is opaque
 
     A bare 40-hex sha says nothing to a reviewer,
     so the tag it resolved from rides along as a trailing comment.
 
-Both describe what `helpers:pinGitHubActionDigestsToSemver` and `helpers:githubDigestChangelogs` in
-renovate.json produce, so this asserts the tree still looks like Renovate's output rather than enforcing a
-second convention. The comment is deliberately not matched against a version shape: an action with no semver
-release is Renovate's problem to represent, not this guard's to reject.
+`helpers:pinGitHubActionDigestsToSemver` in renovate.json produces both, so this asserts the tree still
+looks like Renovate's output rather than enforcing a second convention. The comment is deliberately not
+matched against a version shape: what it should say is Renovate's to decide.
 
 Local `./.github/actions/...` references are exempt: they resolve to the commit under test, which is already exact.
 
