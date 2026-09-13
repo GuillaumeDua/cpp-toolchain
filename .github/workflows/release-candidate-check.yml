@@ -30,37 +30,13 @@ jobs:
         with:
           fetch-depth: 0 # tags for the candidate/supersession checks, history for the bumps recompute
 
-      # The checkout is the PR merge commit, so its first parent is current main and this diff is
-      # exactly what the PR changes. releases/*.yaml are immutable promotion records: only an added
-      # one is a promotion, a modified or deleted one is refused, and a PR touching only docs under
-      # releases/ passes with nothing to validate.
+      # The checkout is the PR merge commit, so its first parent is current main
+      # and this diff is exactly what the PR changes.
       - name: Identify the promotion record
         id: record
-        run: |
-          set -euo pipefail
-          added=()
-          while IFS=$'\t' read -r status path; do
-            [[ "${path}" =~ ^releases/v[0-9]+\.[0-9]+\.yaml$ ]] || continue
-            case "${status}" in
-              A) added+=("${path}") ;;
-              *) echo "::error::${path} is an immutable promotion record - it cannot be ${status}-changed."
-                 exit 1 ;;
-            esac
-          done < <(git diff --name-status HEAD^1 HEAD -- releases/)
-
-          if [ "${#added[@]}" -eq 0 ]; then
-            echo "::notice::no promotion record in this PR - nothing to validate."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [ "${#added[@]}" -gt 1 ]; then
-            echo "::error::one promotion per PR - found: ${added[*]}"
-            exit 1
-          fi
-          {
-            echo "skip=false"
-            echo "file=${added[0]}"
-          } >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/identify-promotion-record
+        with:
+          context: pull request
 
       # Schema, candidate tag -> commit, containment in main, newest-rc supersession, and the
       # bumps recompute (bumps is generated, never hand-edited - so it must equal what

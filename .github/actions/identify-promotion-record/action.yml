@@ -1,0 +1,74 @@
+name: Identify the promotion record
+description: >
+  Find the releases/v*.yaml a change adds, and read its fields.
+  releases/*.yaml are immutable records, so only an added one is a promotion:
+  a modified or deleted one fails loudly instead of silently re-promoting shipped bytes.
+
+inputs:
+  base-ref:
+    description: Left side of the diff. The first parent is the branch that was merged onto.
+    required: false
+    default: HEAD^1
+  head-ref:
+    description: Right side of the diff.
+    required: false
+    default: HEAD
+  context:
+    description: What the change is called in the notice and error messages.
+    required: false
+    default: change
+
+outputs:
+  skip:
+    description: "true when the change adds no promotion record, so the caller has nothing to do"
+    value: ${{ steps.identify.outputs.skip }}
+  file:
+    description: Path of the added record.
+    value: ${{ steps.identify.outputs.file }}
+  version:
+    description: Release the record promotes to.
+    value: ${{ steps.identify.outputs.version }}
+  commit:
+    description: Commit the recorded images were built from.
+    value: ${{ steps.identify.outputs.commit }}
+  candidate:
+    description: rc tag the record came from, empty for a hand-cut major.
+    value: ${{ steps.identify.outputs.candidate }}
+
+runs:
+  using: composite
+  steps:
+    - id: identify
+      shell: bash
+      env:
+        BASE_REF: ${{ inputs.base-ref }}
+        HEAD_REF: ${{ inputs.head-ref }}
+        CONTEXT: ${{ inputs.context }}
+      run: |
+        set -euo pipefail
+        added=()
+        while IFS=$'\t' read -r status path; do
+          [[ "${path}" =~ ^releases/v[0-9]+\.[0-9]+\.yaml$ ]] || continue
+          case "${status}" in
+            A) added+=("${path}") ;;
+            *) echo "::error::${path} is an immutable promotion record - it cannot be ${status}-changed. Revert this change."
+               exit 1 ;;
+          esac
+        done < <(git diff --name-status "${BASE_REF}" "${HEAD_REF}" -- releases/)
+
+        if [ "${#added[@]}" -eq 0 ]; then
+          echo "::notice::no promotion record in this ${CONTEXT} - nothing to promote."
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        if [ "${#added[@]}" -gt 1 ]; then
+          echo "::error::one promotion record per ${CONTEXT} - found: ${added[*]}"
+          exit 1
+        fi
+
+        # check-release-file.py owns the schema, so it is also what reads a record's fields.
+        {
+          echo "skip=false"
+          echo "file=${added[0]}"
+          python3 scripts/details/check-release-file.py "${added[0]}" --print-fields
+        } >> "$GITHUB_OUTPUT"

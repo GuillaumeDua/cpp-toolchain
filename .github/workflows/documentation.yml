@@ -60,32 +60,22 @@ jobs:
           branch: gh-pages
           folder: docs/output
 
-      # One issue holding the current state, rewritten on each run rather than commented on,
-      # so it reads as "what is wrong now" and not as a log of every run that ever failed.
-      - name: Report doxygen diagnostics
+      - name: Compose the diagnostics report
+        id: diagnostics
         if: always() && github.ref == 'refs/heads/main'
         env:
-          GH_TOKEN: ${{ github.token }}
           RENDER_OUTCOME: ${{ steps.render.outcome }}
         run: |
           set -euo pipefail
 
-          title='documentation: doxygen diagnostics'
           log='doxygen-diagnostics.log'
 
-          # Matched on the full title rather than on the search, which tokenizes and would also return near misses.
-          existing=$(gh issue list --state open --search 'in:title doxygen diagnostics' --json number,title \
-                     --jq "map(select(.title == \"${title}\")) | .[0].number // empty")
-
           if [[ "${RENDER_OUTCOME}" == "success" && ! -s "${log}" ]]; then
-              if [[ -n "${existing}" ]]; then
-                  gh issue close "${existing}" --comment "Clean render at ${GITHUB_SHA}."
-              fi
-              echo "no diagnostics to report"
+              echo "resolved=true" >> "$GITHUB_OUTPUT"
               exit 0
           fi
+          echo "resolved=false" >> "$GITHUB_OUTPUT"
 
-          body=$(mktemp)
           {
               echo "The documentation render reported problems."
               echo
@@ -109,10 +99,14 @@ jobs:
               echo '```'
               echo
               echo "Opened by .github/workflows/documentation.yml, rewritten on every run, and closed once a render comes back clean."
-          } > "${body}"
+          } > doxygen-report.md
 
-          if [[ -n "${existing}" ]]; then
-              gh issue edit "${existing}" --body-file "${body}"
-          else
-              gh issue create --title "${title}" --body-file "${body}"
-          fi
+      - name: Report doxygen diagnostics
+        if: always() && github.ref == 'refs/heads/main'
+        uses: ./.github/actions/report-sticky-issue
+        with:
+          title: "documentation: doxygen diagnostics"
+          body-file: doxygen-report.md
+          resolved: ${{ steps.diagnostics.outputs.resolved }}
+          close-comment: "Clean render at ${{ github.sha }}."
+          token: ${{ github.token }}
