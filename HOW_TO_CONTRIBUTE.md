@@ -17,7 +17,7 @@ There is a hard split between **building** (gate, runs on every PR) and **publis
 | [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) | monthly schedule (25th), manual dispatch | opens a PR moving the Ubuntu archive snapshot forward | ❌ |
 
 What those workflows share lives in [.github/actions/](.github/actions/) as composite actions:
-buildx setup, registry login, promotion-record identification, and the sticky issue both failure reports use.
+buildx setup, registry login, promotion-record identification, and the sticky issue the two report steps share.
 
 > [!IMPORTANT]
 > **PR validation**
@@ -58,7 +58,7 @@ Both are throwaway stages built on layers the job already has, so they cost a ca
 See [docs/IMAGES_VALIDATION.md](docs/IMAGES_VALIDATION.md).
 
 Reproduce it locally before pushing (context is the repo root).
-This is the driver the gate itself runs, with the cache flags off:
+This is the driver the gate runs, with the cache flags off:
 
 ```bash
 bash scripts/details/build-stages.sh --variant normal --cache none \
