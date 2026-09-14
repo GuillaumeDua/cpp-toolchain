@@ -33,35 +33,30 @@ The `-cross` images carry per-target cross toolchains (~+200 MB installed per ta
 `runtime` has no toolchain, so it is published once, without a cross variant.  
 What each version means - `latest`, pre-release `v<major>.<minor>-rc.<n>`, pinned `v<major>.<minor>` - is detailed in [Tags & versioning](#tags--versioning).
 
-## Quick start
+## How to use this project
 
-```bash
-# Full dev environment: compilers + analysis + docs + debug, editors, shells
-docker pull ghcr.io/guillaumedua/cpp-toolchain:dev-latest
-
-# Lean CI image: compilers + build systems + dependency managers
-docker pull ghcr.io/guillaumedua/cpp-toolchain:build-latest
-
-# Check it out
-docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version
-```
-
-> [!TIP]
-> **GHCR or Docker Hub ?**
->
-> Both registries carry the same images - prefer [GHCR](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain) for CI, public images there have no anonymous pull rate limit.  
-> Working in [VS Code](https://code.visualstudio.com/) ? Open the repo and **Reopen in Container** - see [As a dev environment](#as-a-dev-environment).
+- [Using the images](docs/IMAGES.md)
+  - [Visual Studio Code dev container](https://code.visualstudio.com/docs/devcontainers/containers)
+  - `GitHub Actions`
+  - `GitLab` CI
+  - [Docker Compose](https://docs.docker.com/compose/)
+  - One-off `docker run`
+  - Remote SSH
+  - building your own variant
+  - etc.
+- [Using standalone scripts](scripts/README.md) has the same toolchain without `Docker`.  
+  The install scripts run on any Debian/Ubuntu host, no image involved.
 
 ## Key features
 
 - **Five stages**, from a minimal runtime to a full dev environment - so you pull only what you need ([Pick your image/stage](#pick-your-image-one-per-stage)).
 - **Both toolchains side by side**: GNU `g++`/`libstdc++` and LLVM `clang++`/`libc++`, a pinned major of each ([Compilers & standard library](#compilers--standard-library)).
-- **Several compiler versions at once**, wired through `update-alternatives` ([Build it yourself](#build-it-yourself)).
+- **Several compiler versions at once**, wired through `update-alternatives` ([Build your own image](docs/IMAGES.md#build-your-own-image)).
 - **Coverage** for both ecosystems: `gcov`/`lcov` and `llvm-cov`/`llvm-profdata` ([Code coverage](docs/COVERAGE.md)).
 - **Cross-architecture compilation**: opt-in `-cross` images that compile *and* link for `arm64`, `arm32` hard-float and `riscv64` - or any supported triplet in a custom build ([Cross-compilation](docs/CROSS-COMPILATION.md)).
 - **Multilib**: secondary host ABIs via `-m32` / `-mx32` ([Multilib](docs/CROSS-COMPILATION.md#multilib---secondary-abis)).
-- **Ready as a dev container**: VS Code *Reopen in Container*, plus an opt-in `SSH` layer for Remote-SSH ([As a dev environment](#as-a-dev-environment)).
-- **Usable without Docker**: the install scripts run standalone on any Debian/Ubuntu host ([Standalone use](#standalone-use-no-docker)).
+- **Ready as a dev container**: one `devcontainer.json` pointing at `dev-latest`, plus an opt-in `SSH` layer for Remote-SSH ([Dev container](docs/IMAGES.md#dev-container)).
+- **Usable without Docker**: the install scripts run standalone on any Debian/Ubuntu host ([Standalone scripts](scripts/README.md)).
 
 ## What's inside
 
@@ -137,88 +132,6 @@ Because the versions are pinned rather than resolved at build time, that list is
 > [!WARNING]
 > A few pieces degrade on non-amd64: `Doxygen` falls back to the distro apt package, and `Bazel` and the `-m32` / `-mx32` multilib are **amd64-only** (skipped with a log).
 
-## As a dev environment
-
-These images are built to be your dev container - see [docs/DEVCONTAINER.md](docs/DEVCONTAINER.md) for both workflows:
-
-- **Reopen in Container** (VS Code) needs a [`devcontainer.json`](.devcontainer/devcontainer.json) referencing a [`docker-compose.yaml`](.devcontainer/docker-compose.yaml) - both are in this repo.
-- **Remote SSH** uses the opt-in `ssh_support` layer on top of `dev` (SSH on port `2222`).
-
-## Standalone use (no Docker)
-
-The **install scripts are self-contained**: fetch one and run it directly on any `Debian`/`Ubuntu`-based host to get the same toolchain, no image involved.  
-Each needs root and takes the same options as the build arguments below (`--help` lists them all):
-
-```bash
-# GCC (from the ubuntu-toolchain-r PPA)
-wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/install/gcc.sh
-sudo bash gcc.sh --versions='>=13'
-
-# LLVM/Clang (from apt.llvm.org)
-wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/install/llvm.sh
-sudo bash llvm.sh --versions='latest-stable'
-```
-
-The standards probe travels the same way, and needs no root - give it a compiler and it reports which C++ standards that compiler accepts, which is enough to drive a CI matrix without pulling an image:
-
-```bash
-wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/checks/cxx-standards.sh
-bash cxx-standards.sh --stable g++-16
-# c++03 -> __cplusplus=199711
-# ...
-# c++26 -> __cplusplus=202400
-
-# One field at a time, to feed straight back into a build
-bash cxx-standards.sh --greatest --stable --format=std g++-16   # c++26
-```
-
-> [!TIP]
-> **On scripts documentation**
->
-> `cmake.sh` and `binutils.sh` work the same way.  
-> See [scripts/install/README.md](scripts/install/README.md) for the full `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` option reference,
-> [scripts/checks/README.md](scripts/checks/README.md) for the standards probe, and [scripts/README.md](scripts/README.md) for which scripts are public.
-
-## Build it yourself
-
-The stage name is the `docker build --target <stage>` argument - omitting `--target` builds `dev`, the last stage:
-
-```bash
-# build a specific stage locally (context is the repo root)
-docker build --target runtime         -t cpp-toolchain:runtime         .
-docker build --target build           -t cpp-toolchain:build           .
-docker build --target static-analysis -t cpp-toolchain:static-analysis .
-docker build --target documentation   -t cpp-toolchain:documentation   .
-docker build --target dev             -t cpp-toolchain:dev             .
-```
-
-The published images install a single pinned `GCC` and `Clang/LLVM` to stay lean.
-`gcc.sh` and `llvm.sh` both support **multiple versions side by side** (via `update-alternatives`) - useful to test against several compiler versions in the same environment:
-
-```bash
-docker build -t cpp-toolchain:dev . \
-    --build-arg GCC_VERSIONS='>=13' \
-    --build-arg LLVM_VERSIONS='12 20 22'
-```
-
-Adding `--build-arg BINUTILS_TARGETS='<triplets>'` to any `--target` build produces the cross-arch flavor of that stage - see [Cross-compilation](docs/CROSS-COMPILATION.md).
-
-<details>
-<summary><b>Common build arguments</b></summary>
-
-| Name                    | default     | description                                                                            | example                                  |
-| ----------------------- | ----------- | -------------------------------------------------------------------------------------- | ---------------------------------------- |
-| CMAKE_VERSION           | *pinned*    | exact version, or `latest`                                                             | `latest`                                 |
-| GCC_VERSIONS            | *pinned*    | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
-| LLVM_VERSIONS           | *pinned*    | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13`   |
-| BINUTILS_TARGETS        | `''` (none) | Cross toolchain target triplets; empty = lean, a list = cross-arch variant             | `'aarch64-linux-gnu riscv64-linux-gnu'`  |
-| OPT_IN_INTEGRATE_BAZEL  | `no`        | `y` or `n`                                                                             |                                          |
-| OPT_IN_INTEGRATE_BUILD2 | `no`        | `y` or `n`                                                                             |                                          |
-
-The *pinned* defaults are the `ARG` block at the top of the [Dockerfile](Dockerfile), and every release note lists the values that release shipped.
-
-</details>
-
 ## Compilers & standard library
 
 Available from the **`build`** stage onwards.
@@ -230,28 +143,14 @@ Both toolchains are installed side by side - the pinned version of each by defau
 | LLVM      | `clang` / `clang++` | `clang-<N>` / `clang++-<N>` | `clang-tidy`, `clangd`, `lldb`, ... in `static-analysis` / `dev` |
 
 Unversioned commands are `update-alternatives` symlinks; the **latest-stable version always has the highest priority**.
-With several versions installed ([Build it yourself](#build-it-yourself)), either switch the default or call a versioned binary directly:
-
-```bash
-update-alternatives --config gcc      # switch the default gcc/g++/gcov/gcov-tool set
-update-alternatives --config clang    # switch the default clang/clang++ set
-
-g++-14     -std=c++23 main.cpp        # or pin explicitly
-clang++-20 -std=c++23 main.cpp
-```
-
-The installed versions are also exported as `gcc_versions` / `llvm_versions` shell variables (bash & zsh).
+Switching the default, or installing several versions at once, is [Choosing a compiler version](docs/IMAGES.md#choosing-a-compiler-version).
 
 | Compiler  | Default standard library                | Alternative      |
 | --------- | --------------------------------------- | ---------------- |
 | `g++`     | `libstdc++`                             | -                |
 | `clang++` | `libstdc++` (GCC's - the Linux default) | `-stdlib=libc++` |
 
-libc++ (`libc++-<N>-dev`, `libc++abi-<N>-dev`, `libunwind-<N>-dev`) is installed for the **host** architecture, so the LLVM toolchain is fully usable *without* GCC:
-
-```bash
-clang++ -std=c++23 -stdlib=libc++ main.cpp
-```
+libc++ (`libc++-<N>-dev`, `libc++abi-<N>-dev`, `libunwind-<N>-dev`) is installed for the **host** architecture, so the LLVM toolchain is fully usable *without* GCC.
 
 The `runtime` image carries the matching shared libraries (`libc++1`, `libc++abi1`) beside `libstdc++6`, so it runs everything `build` can produce - `g++`, `clang++`, and `clang++ -stdlib=libc++` alike.
 That all three still run there is asserted by the [validation gate](docs/IMAGES_VALIDATION.md), not assumed.
@@ -262,7 +161,8 @@ Everything below is also published as a browsable site at <https://guillaumedua.
 
 | Document | Content |
 | -------- | ------- |
-| [docs/DEVCONTAINER.md](docs/DEVCONTAINER.md) | Dev container: VS Code *Reopen in Container*, opt-in SSH server, Remote-SSH setup |
+| [docs/IMAGES.md](docs/IMAGES.md) | Using the images: dev container, GitHub Actions, GitLab CI, Compose, one-off runs, remote SSH, custom builds |
+| [scripts/README.md](scripts/README.md) | Without Docker: which scripts are standalone, and how to fetch and run one |
 | [docs/CROSS-COMPILATION.md](docs/CROSS-COMPILATION.md) | Cross-architecture compilation: published targets, what links and what does not, multilib |
 | [docs/COVERAGE.md](docs/COVERAGE.md) | Code coverage: GNU `gcov`/`lcov` and LLVM `llvm-cov`/`llvm-profdata` |
 | [docs/IMAGES_VALIDATION.md](docs/IMAGES_VALIDATION.md) | Images validation gate: what proves an image still fills its purpose, and how to run it |

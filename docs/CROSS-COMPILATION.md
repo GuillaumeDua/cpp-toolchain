@@ -78,6 +78,6 @@ Installed by default, **best-effort**: multilib lags for brand-new GCC versions 
 
 ## See also
 
-- [README.md](../README.md) - images, features, tags, build arguments.
+- [README.md](../README.md) - the images themselves: stages, features, tags, what each contains.
 - [scripts/install/README.md](../scripts/install/README.md#binutilssh) - `binutils.sh` reference: available triplets, triplet axes, fallback behavior.
 - [docs/COVERAGE.md](COVERAGE.md) - GNU and LLVM code coverage.

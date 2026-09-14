@@ -1,5 +1,8 @@
 # Standalone scripts
 
+The public scripts are self-contained: fetch one and run it on any Debian/Ubuntu-based host, with no image and no checkout involved.
+[Using the images](../docs/IMAGES.md) is the Docker route instead.
+
 | Directory | Scope | What lives there |
 | --------- | ----- | ---------------- |
 | [install/](install/) | **Public** - standalone | Toolchain installers - `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh`, `doxygen.sh`. Reusable on any Debian/Ubuntu-based system, with no dependency on this repository. See [install/README.md](install/README.md) for the full option reference. |

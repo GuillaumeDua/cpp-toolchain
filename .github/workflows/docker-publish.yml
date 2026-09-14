@@ -22,7 +22,7 @@ name: docker-publish
 #     - the candidate PR must therefore be created with RELEASE_PR_TOKEN or its checks would never run.
 #     Same reason its merge has to be a human, never a token.
 #
-# The build job holds all of its permissions for all of its steps, including the ~40-minute build.
+# The build job holds all of its permissions for all of its steps, including the 15-to-25-minute build.
 # Splitting the PR upkeep into a separate job would cost an artifact hop per output,
 # and the build runs no third-party code beyond the pinned actions.
 on:
@@ -51,7 +51,7 @@ jobs:
   # ------------------------------------------------------------------------------------------
   # Promotion: a releases/v*.yaml merged onto main.
   # No build - the recorded digests are verified against both registries, then re-tagged.
-  # Seconds instead of ~40 minutes, and the release is byte-identical to the rc that was validated.
+  # Seconds instead of 15-25 minutes, and the release is byte-identical to the rc that was validated.
   # ------------------------------------------------------------------------------------------
   promote:
     if: github.event_name == 'push'
