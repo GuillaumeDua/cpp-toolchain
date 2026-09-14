@@ -55,7 +55,7 @@ What each version means - `latest`, pre-release `v<major>.<minor>-rc.<n>`, pinne
 - **Coverage** for both ecosystems: `gcov`/`lcov` and `llvm-cov`/`llvm-profdata` ([Code coverage](docs/COVERAGE.md)).
 - **Cross-architecture compilation**: opt-in `-cross` images that compile *and* link for `arm64`, `arm32` hard-float and `riscv64` - or any supported triplet in a custom build ([Cross-compilation](docs/CROSS-COMPILATION.md)).
 - **Multilib**: secondary host ABIs via `-m32` / `-mx32` ([Multilib](docs/CROSS-COMPILATION.md#multilib---secondary-abis)).
-- **Ready as a dev container**: one `devcontainer.json` pointing at `dev-latest`, plus an opt-in `SSH` layer for Remote-SSH ([Dev container](docs/IMAGES.md#dev-container)).
+- **Ready as a dev container**: one `devcontainer.json` pointing at `dev-latest`, plus an opt-in `SSH` layer for Remote-SSH ([Dev container](docs/IMAGES.md#visual-studio-code---dev-container)).
 - **Usable without Docker**: the install scripts run standalone on any Debian/Ubuntu host ([Standalone scripts](scripts/README.md)).
 
 ## What's inside

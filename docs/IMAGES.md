@@ -1,10 +1,10 @@
 # Using the images
 
-Every way to consume the published images, one section each.
-Using the toolchain **without** Docker is [scripts/README.md](../scripts/README.md) instead: the install scripts run standalone on any Debian/Ubuntu host.
+Every way to consume the published images, one section each.  
+Using the toolchain **without** Docker is [scripts/README.md](../scripts/README.md) instead: the install scripts run standalone on any `Debian`/`Ubuntu` host.
 
-Which stage to pull is [Pick your image](../README.md#pick-your-image-one-per-stage) - `dev` for an interactive environment, `build` for CI.
-Every example here uses `latest`; pin `v1.3` instead when the tag has to stay put, per [Tags & versioning](../README.md#tags--versioning).
+Which stage to pull is [Pick your image](../README.md#pick-your-image-one-per-stage) - `dev` for an interactive environment, `build` for CI.  
+Every example here uses `latest`; pin `v1.3` instead when the tag has to stay put, per [Tags & versioning](../README.md#tags--versioning).  
 Both registries carry the same images, so `docker.io/guillaumedua/cpp-toolchain` substitutes for `ghcr.io/guillaumedua/cpp-toolchain` throughout.
 
 > [!WARNING]
@@ -56,7 +56,10 @@ Anything else is optional - `features` to add tooling, `customizations.vscode.ex
 
 ## GitHub Actions
 
-A job's `container:` key runs every `run:` step inside the image, so the toolchain needs no setup action:
+A job's `container:` key runs every `run:` step inside the image, so the toolchain needs no setup action.  
+Each job below takes the leanest stage carrying what it needs, per [Pick your image](../README.md#pick-your-image-one-per-stage).
+
+### Compile and test - `build`
 
 ```yaml
 jobs:
@@ -68,6 +71,92 @@ jobs:
       - run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build
+          ctest --test-dir build --output-on-failure
+```
+
+### Static analysis - `static-analysis`
+
+`clang-tidy`, `clang-format`, `cppcheck`, `scan-build` and `iwyu` answer to unversioned names from this stage onwards, not from `build`.
+
+```yaml
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    container: ghcr.io/guillaumedua/cpp-toolchain:static-analysis-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          clang-tidy -p build src/*.cpp
+          clang-format --dry-run --Werror src/*.cpp
+```
+
+### Coverage report - `documentation`
+
+`lcov` and `genhtml` ship in this stage only - `gcov` itself comes with GCC everywhere, so a stage below this one produces counters but no HTML.
+The same stage carries `doxygen` and `graphviz` for an API site.
+Which tool lives where is [Code coverage](COVERAGE.md).
+
+```yaml
+jobs:
+  coverage:
+    runs-on: ubuntu-24.04
+    container: ghcr.io/guillaumedua/cpp-toolchain:documentation-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          cmake -S . -B build -DCMAKE_CXX_FLAGS=--coverage
+          cmake --build build
+          ctest --test-dir build
+          lcov --capture --directory build --output-file cov.info
+          genhtml cov.info --output-directory coverage-html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: coverage-html
+```
+
+### Cross-compilation - `build-cross`
+
+The `-cross` images add a `g++-<triplet>` per published target, so a matrix picks the triplet and nothing else changes.
+
+```yaml
+jobs:
+  cross:
+    runs-on: ubuntu-24.04
+    container: ghcr.io/guillaumedua/cpp-toolchain:build-cross-latest
+    strategy:
+      matrix:
+        target: [aarch64-linux-gnu, arm-linux-gnueabihf, riscv64-linux-gnu]
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          cmake -S . -B build \
+              -DCMAKE_SYSTEM_NAME=Linux \
+              -DCMAKE_CXX_COMPILER=${{ matrix.target }}-g++
+          cmake --build build
+```
+
+Those three are what `common` resolves to - see [Cross-compilation](CROSS-COMPILATION.md).
+
+### Run without a toolchain - `runtime`
+
+`runtime` carries the C++ shared libraries and no compiler, so running there proves the binary has no build-time dependency left.
+It needs the binary as an artifact from the build job above.
+
+```yaml
+jobs:
+  smoke:
+    needs: build
+    runs-on: ubuntu-24.04
+    container: ghcr.io/guillaumedua/cpp-toolchain:runtime-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: app
+      - run: |
+          chmod +x ./app
+          ./app
 ```
 
 ## GitLab CI

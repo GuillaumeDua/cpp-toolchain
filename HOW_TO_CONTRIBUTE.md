@@ -87,7 +87,7 @@ The heavy `build` layer is produced once and reused by `static-analysis` / `docu
 [.devcontainer/](.devcontainer/) is for working **on** cpp-toolchain, not for consuming it.
 Its [`docker-compose.yaml`](.devcontainer/docker-compose.yaml) names no registry: it builds the `dev` target from the repo-root [Dockerfile](Dockerfile) and mounts the checkout at `/workspace`, so **Reopen in Container** gives you a from-source environment with your working tree in it, at the cost of a full local build.
 
-Consuming the published images needs none of that - one `devcontainer.json` with an `image` key, in [Using the images](docs/IMAGES.md#dev-container).
+Consuming the published images needs none of that - one `devcontainer.json` with an `image` key, in [Using the images](docs/IMAGES.md#visual-studio-code---dev-container).
 
 The local build above builds every stage; [Build your own image](docs/IMAGES.md#build-your-own-image) builds a single customised one. Different jobs, so neither replaces the other.
 
