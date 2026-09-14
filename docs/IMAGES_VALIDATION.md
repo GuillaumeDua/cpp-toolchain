@@ -248,7 +248,7 @@ flowchart LR
     dbuild --> g1["validate-build + validate-runtime<br/>normal and cross variants"]
 
     trigger["release<br/>schedule<br/>dispatch"] --> dpub["docker-publish.yml"]
-    dpub --> g2["validate_variant<br/>--output type=cacheonly"]
+    dpub --> g2["validate-build + validate-runtime<br/>--output type=cacheonly"]
     g2 --> push["build + push"]
 
     classDef gate fill:#2d6a4f,stroke:#95d5b2,color:#ffffff

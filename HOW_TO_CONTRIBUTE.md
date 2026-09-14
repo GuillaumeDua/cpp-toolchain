@@ -57,18 +57,26 @@ It then runs the **images validation gate** - the `validate-build` and `validate
 Both are throwaway stages built on layers the job already has, so they cost a cache hit plus their own `RUN`.
 See [docs/IMAGES_VALIDATION.md](docs/IMAGES_VALIDATION.md).
 
-Reproduce it locally before pushing (context is the repo root):
+Reproduce it locally before pushing (context is the repo root).
+This is the driver the gate itself runs, with the cache flags off:
 
 ```bash
-# normal / lean variant - all five stages
-for stage in runtime build static-analysis documentation dev; do
+bash scripts/details/build-stages.sh --variant normal --cache none \
+  $(python3 scripts/details/check-release-file.py --print-stages normal)
+
+bash scripts/details/build-stages.sh --variant cross --cache none \
+  $(python3 scripts/details/check-release-file.py --print-stages cross)
+```
+
+`build-stages.sh` calls `docker buildx build`. Without buildx, drive `docker build` over the same stage lists:
+
+```bash
+for stage in $(python3 scripts/details/check-release-file.py --print-stages normal); do
   docker build --target "$stage" .
 done
 
-# cross-arch variant - the four toolchain stages
-CROSS_TARGETS='common'   # resolved by scripts/install/binutils.sh
-for stage in build static-analysis documentation dev; do
-  docker build --target "$stage" --build-arg "BINUTILS_TARGETS=${CROSS_TARGETS}" .
+for stage in $(python3 scripts/details/check-release-file.py --print-stages cross); do
+  docker build --target "$stage" --build-arg BINUTILS_TARGETS=common .
 done
 ```
 
