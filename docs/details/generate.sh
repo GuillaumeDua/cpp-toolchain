@@ -68,7 +68,7 @@ USAGE
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --doxygen-version)         doxygen_version="$2";        shift 2 ;;
+        --doxygen-version)         doxygen_version="$2";         shift 2 ;;
         --doxygen-awesome-version) doxygen_awesome_version="$2"; shift 2 ;;
         --diagnostics)             diagnostics_file="$2";        shift 2 ;;
         --print-versions)          print_versions=true;          shift   ;;
@@ -249,8 +249,8 @@ fi
 sed -i -e 's|\(<dl class="section remark"><dt>\)Remarks\(</dt>\)|\1Tip\2|g' \
        -e 's|\(<dl class="section attention"><dt>\)Attention\(</dt>\)|\1Caution\2|g' "${OUTPUT_DIR}"/*.html
 
-# Doxygen writes a page per input directory whatever SHOW_FILES says, carrying a title and a breadcrumb and
-# nothing else. The crawler helper is the only file linking to them.
+# Doxygen writes a page per input directory whatever SHOW_FILES says, carrying a title and a breadcrumb and nothing else.
+# The crawler helper is the only file linking to them.
 rm -f "${OUTPUT_DIR}"/dir_*.html
 sed -i '/<a href="dir_[0-9a-f]*\.html"\/>/d' "${OUTPUT_DIR}/doxygen_crawl.html"
 

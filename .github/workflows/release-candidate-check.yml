@@ -59,8 +59,9 @@ jobs:
         run: |
           set -euo pipefail
           digest=$(python3 scripts/details/check-release-file.py "${FILE}" --print-digest dev)
-          echo "smoke-testing ghcr.io/guillaumedua/cpp-toolchain@${digest}"
+          image=$(python3 scripts/details/check-release-file.py --print-registries ghcr)
+          echo "smoke-testing ${image}@${digest}"
           docker run --rm \
             --volume "${PWD}/scripts/details:/opt/cpp-toolchain-scripts:ro" \
-            "ghcr.io/guillaumedua/cpp-toolchain@${digest}" \
+            "${image}@${digest}" \
             bash /opt/cpp-toolchain-scripts/smoke-test.sh
