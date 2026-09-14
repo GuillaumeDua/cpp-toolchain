@@ -82,6 +82,15 @@ done
 
 The heavy `build` layer is produced once and reused by `static-analysis` / `documentation` / `dev`, so a full local run is cheaper than five independent builds.
 
+## The repository's dev container
+
+[.devcontainer/](.devcontainer/) is for working **on** cpp-toolchain, not for consuming it.
+Its [`docker-compose.yaml`](.devcontainer/docker-compose.yaml) names no registry: it builds the `dev` target from the repo-root [Dockerfile](Dockerfile) and mounts the checkout at `/workspace`, so **Reopen in Container** gives you a from-source environment with your working tree in it, at the cost of a full local build.
+
+Consuming the published images needs none of that - one `devcontainer.json` with an `image` key, in [Using the images](docs/IMAGES.md#dev-container).
+
+The local build above builds every stage; [Build your own image](docs/IMAGES.md#build-your-own-image) builds a single customised one. Different jobs, so neither replaces the other.
+
 ## How images get published
 
 Publishing is [docker-publish](.github/workflows/docker-publish.yml) - a **separate** workflow that contributors never trigger from a PR:
@@ -107,7 +116,7 @@ See [Tags & versioning](README.md#tags--versioning) for the full tag scheme.
 
 ## Related docs
 
-- [README.md](README.md) - images, features, build arguments, cross-architecture compilation.
+- [README.md](README.md) - the images themselves: stages, features, tags, what each contains.
 - [scripts/install/README.md](scripts/install/README.md) - the standalone `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` options.
 - [scripts/details/README.md](scripts/details/README.md) - the repository's own tooling: pin guard, release-note renderer, promotion-record schema, smoke test.
 - [docs/details/README.md](docs/details/README.md) - how this documentation is rendered and published, and how to preview it locally.

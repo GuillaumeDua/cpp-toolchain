@@ -10,7 +10,7 @@ Merging the candidate pull request is what promotes it:
 
 ```mermaid
 graph LR
-    main["main"] -->|"cron, or gh workflow run"| build["fresh build<br>~40 min"]
+    main["main"] -->|"cron, or gh workflow run"| build["fresh build<br>~15-25 min"]
     build --> rc["pre-release v1.2-rc.1<br>every stage pushed"]
     rc --> pr["candidate PR<br>adds releases/v1.2.yaml"]
     pr -->|"you merge"| promote["re-tag the recorded digests<br>~90 s, no rebuild"]
@@ -20,7 +20,7 @@ graph LR
 The whole cycle, on demand:
 
 ```bash
-# 1. Cut the rc - fresh build from main HEAD, ~40 min.
+# 1. Cut the rc - fresh build from main HEAD, ~15-25 min depending on cache state.
 #    A dispatch bypasses the skip-when-unchanged check, so it always builds.
 gh workflow run docker-publish.yml --ref main
 
@@ -105,7 +105,7 @@ Deliberately **not** a fourth channel - it is the normal path with the cron repl
 
 1. Land the fix on `main` as usual.
 2. `gh workflow run docker-publish.yml` - a dispatch bypasses the skip-when-unchanged check,  
-   so it cuts the next rc immediately (~40 min) and opens the candidate PR.
+   so it cuts the next rc immediately (~15-25 min) and opens the candidate PR.
 3. Merge the PR once its check is green (~90 s to promote, no rebuild).
 
 Two constraints, both enforced and neither obvious:
@@ -151,7 +151,7 @@ Promotion reads the YAML, so the same digests are re-tagged to `v2.0`.
 ### From a commit no rc was built at
 
 Cut a `v2.0` GitHub release by hand.  
-It builds fresh (~40 min), publishes, then opens a records-only PR adding `releases/v2.0.yaml` - merge it so `releases/` stays the complete digest record (rollback depends on it).  
+It builds fresh (~15-25 min), publishes, then opens a records-only PR adding `releases/v2.0.yaml` - merge it so `releases/` stays the complete digest record (rollback depends on it).  
 Merging that PR re-fires the promote job as an idempotent no-op.
 
 ## What the release process assumes

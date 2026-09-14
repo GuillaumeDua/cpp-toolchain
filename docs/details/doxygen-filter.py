@@ -40,7 +40,7 @@ MAIN_PAGE = "README.md"
 # A markdown file absent from here is still published, under the name doxygen derives from its path.
 LABEL_OF = {
     "docs/README.md":            "guides",
-    "docs/DEVCONTAINER.md":      "dev-environment",
+    "docs/IMAGES.md":            "images",
     "docs/CROSS-COMPILATION.md": "cross-compilation",
     "docs/COVERAGE.md":          "coverage",
 

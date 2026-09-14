@@ -35,5 +35,5 @@ llvm-cov show ./app -instr-profile=app.profdata
 
 ## See also
 
-- [README.md](../README.md) - images, features, tags, build arguments.
+- [README.md](../README.md) - the images themselves: stages, features, tags, what each contains.
 - [docs/CROSS-COMPILATION.md](CROSS-COMPILATION.md) - cross-architecture compilation and multilib.
