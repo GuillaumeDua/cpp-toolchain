@@ -449,7 +449,7 @@ Going further</h1>
 </table>
 <h1 class="doxsection"><a class="anchor" id="dependency-updates"></a>
 Dependency updates</h1>
-<p><b>Every version is pinned in the <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/Dockerfile">Dockerfile</a></b> - base image (by digest), GCC, Clang/LLVM, CMake, vcpkg, Conan, Doxygen, build2, oh-my-zsh (by commit) and powerlevel10k - and each pin is tracked by <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/renovate.json">Renovate</a>. Nothing resolves to "whatever is newest" at build time.</p>
+<p><b>Every version is pinned in the <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/Dockerfile">Dockerfile</a></b> - base image (by digest), GCC, Clang/LLVM, CMake, vcpkg, Conan, Doxygen, build2, oh-my-zsh (by commit) and powerlevel10k - and each pin is tracked by <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/renovate.json">Renovate</a>. The actions the <a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/.github/workflows">workflows</a> run are pinned to commit digests and tracked the same way. Nothing resolves to "whatever is newest" at build time.</p>
 <p>That has two consequences worth knowing:</p>
 <ul>
 <li><b>Updates arrive as reviewable pull requests</b>, not silently on a rebuild. A version bump that the upstream apt repository has not published yet fails the build gate, so it stays a red PR instead of a broken image.</li>

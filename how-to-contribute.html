@@ -190,8 +190,11 @@ The workflows</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/release-candidate-check.yml">release-candidate-check</a>  </td><td class="markdownTableBodyNone">every PR to <span class="tt">main</span> (no-op unless a promotion record is touched)  </td><td class="markdownTableBodyNone">validates the promotion record and smoke-tests the candidate image by digest  </td><td class="markdownTableBodyCenter">❌  </td></tr>
 <tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/documentation.yml">documentation</a>  </td><td class="markdownTableBodyNone">every push to <span class="tt">main</span>, manual dispatch  </td><td class="markdownTableBodyNone">renders the repository's markdown and publishes it to the <span class="tt">gh-pages</span> branch (<a class="el" href="documentation-site.html#md_docs_2details_2README" title="docs/details/README.md">docs/details</a>)  </td><td class="markdownTableBodyCenter">❌  </td></tr>
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/ubuntu-snapshot.yml">ubuntu-snapshot</a>  </td><td class="markdownTableBodyNone">monthly schedule (25th), manual dispatch  </td><td class="markdownTableBodyNone">opens a PR moving the Ubuntu archive snapshot forward  </td><td class="markdownTableBodyCenter">❌  </td></tr>
 </table>
+<p>What those workflows share lives in <a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/.github/actions">.github/actions/</a> as composite actions: buildx setup, registry login, promotion-record identification, and the sticky issue the two report steps share.</p>
 <dl class="section important"><dt>Important</dt><dd><b>PR validation</b> <br  />
 <br  />
  Every PR to <span class="tt">main</span> must still build all five stages of the normal variant, plus the cross-arch toolchain and its validation (<a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-build.yml">docker-build</a>); publishing is a separate workflow that refuses to push anything whose commit is not contained in <span class="tt">main</span>.</dd></dl>
@@ -219,16 +222,19 @@ What the build gate checks</h1>
 <p><span class="tt">BINUTILS_TARGETS</span> is consumed at the tail of <span class="tt">build</span>, so changing it re-parents every stage above it: the cross-arch <span class="tt">static-analysis</span> / <span class="tt">documentation</span> / <span class="tt">dev</span> can hit no cache and reinstall their packages in full, for package sets the normal variant has already built. A PR therefore gates the cross toolchain itself, through <span class="tt">build</span> and <span class="tt">validate-build</span>. Build the three locally, as below, when you change what they install.</p>
 <p>It then runs the <b>images validation gate</b> - the <span class="tt">validate-build</span> and <span class="tt">validate-runtime</span> stages, which assert that every toolchain package still comes from the repository that owns it, and that a binary compiled in <span class="tt">build</span> still runs on <span class="tt">runtime</span>. <br  />
  Both are throwaway stages built on layers the job already has, so they cost a cache hit plus their own <span class="tt">RUN</span>. See <a class="el" href="images-validation.html#md_docs_2IMAGES__VALIDATION" title="docs/IMAGES_VALIDATION.md">docs/IMAGES_VALIDATION.md</a>.</p>
-<p>Reproduce it locally before pushing (context is the repo root):</p>
-<div class="fragment"><div class="line"># normal / lean variant - all five stages</div>
-<div class="line">for stage in runtime build static-analysis documentation dev; do</div>
+<p>Reproduce it locally before pushing (context is the repo root). This is the driver the gate runs, with the cache flags off:</p>
+<div class="fragment"><div class="line">bash scripts/details/build-stages.sh --variant normal --cache none \</div>
+<div class="line">  $(python3 scripts/details/check-release-file.py --print-stages normal)</div>
+<div class="line"> </div>
+<div class="line">bash scripts/details/build-stages.sh --variant cross --cache none \</div>
+<div class="line">  $(python3 scripts/details/check-release-file.py --print-stages cross)</div>
+</div><!-- fragment --><p><span class="tt">build-stages.sh</span> calls <span class="tt">docker buildx build</span>. Without buildx, drive <span class="tt">docker build</span> over the same stage lists:</p>
+<div class="fragment"><div class="line">for stage in $(python3 scripts/details/check-release-file.py --print-stages normal); do</div>
 <div class="line">  docker build --target &quot;$stage&quot; .</div>
 <div class="line">done</div>
 <div class="line"> </div>
-<div class="line"># cross-arch variant - the four toolchain stages</div>
-<div class="line">CROSS_TARGETS=&#39;common&#39;   # resolved by scripts/install/binutils.sh</div>
-<div class="line">for stage in build static-analysis documentation dev; do</div>
-<div class="line">  docker build --target &quot;$stage&quot; --build-arg &quot;BINUTILS_TARGETS=${CROSS_TARGETS}&quot; .</div>
+<div class="line">for stage in $(python3 scripts/details/check-release-file.py --print-stages cross); do</div>
+<div class="line">  docker build --target &quot;$stage&quot; --build-arg BINUTILS_TARGETS=common .</div>
 <div class="line">done</div>
 </div><!-- fragment --><p>The heavy <span class="tt">build</span> layer is produced once and reused by <span class="tt">static-analysis</span> / <span class="tt">documentation</span> / <span class="tt">dev</span>, so a full local run is cheaper than five independent builds.</p>
 <h1 class="doxsection"><a class="anchor" id="how-images-get-published"></a>
