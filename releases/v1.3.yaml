@@ -1,0 +1,15 @@
+version: "v1.3"
+candidate: "v1.3-rc.1"
+commit: "b5d49ffccff2df287a1f0dcc25b318304c6dcc38"
+digests:
+  runtime: "sha256:b5525c4d30362f84efe070214f3ccc20f7cdb20219a0ac59a9b26b366f3bb547"
+  build: "sha256:68bac6d1fcef5ad463edc26de54674debb09d502a346d94a8065a97e76af49c9"
+  static-analysis: "sha256:ef4fd9435c0e80fd953b79484638cb8b845dec071468fa4db018656804a887e1"
+  documentation: "sha256:6e0d06d677b1fdaf972fa1ead226de89002af3a8aeed935895027fdbea521ce8"
+  dev: "sha256:1c4a2fb3aee61d53e7a8af0c324837a0e9c3a707cef68726d5cb12bb83717a1d"
+  build-cross: "sha256:cfe2886efee5c28beb3250ae13b7aeba7b245ec27bae8eed99298ca103b29252"
+  static-analysis-cross: "sha256:d0e9010d8d1724e2ae08f11c2a13e7147fc4436f42185de50a4fe96fefefebe9"
+  documentation-cross: "sha256:1c1875623e2b0e29b017c668685a705300f67339cc32d353726e9bfbdfffa827"
+  dev-cross: "sha256:e8e3c96ac9b504ebf6c8bea38443b1e3f746cfc576c3b0e619edaa4effbcbe59"
+bumps:
+  "doxygen/doxygen": { "from": "Release_1_17_0", "to": "Release_1_18_0" }
