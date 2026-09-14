@@ -18,10 +18,10 @@
 #
 #   --variant   normal builds the lean image; cross adds the cross-compilation toolchains.
 #               It also decides the tag infix and the metadata file suffix, so a caller cannot pair them wrongly.
-#   --cache     read exports nothing, write also exports the scope this variant/stage pair owns,
+#   --cache     read imports every scope, write also exports the one this variant/stage pair owns,
 #               none passes no cache flags at all.
 #   --output    cacheonly solves the stage for its exit status without producing an image.
-#   --push      tag for every registry and push. Requires --tags and --metadata-dir.
+#   --push      tags for every registry and pushes. Requires --tags and --metadata-dir.
 
 set -euo pipefail
 

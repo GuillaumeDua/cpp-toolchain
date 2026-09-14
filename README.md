@@ -272,7 +272,7 @@ Everything below is also published as a browsable site at <https://guillaumedua.
 ## Dependency updates
 
 **Every version is pinned in the [Dockerfile](Dockerfile)** - base image (by digest), GCC, Clang/LLVM, CMake, vcpkg, Conan, Doxygen, build2, oh-my-zsh (by commit) and powerlevel10k - and each pin is tracked by [Renovate](renovate.json).
-The actions the [workflows](.github/workflows) run are pinned the same way, by commit digest.
+The actions the [workflows](.github/workflows) run are pinned to commit digests and tracked the same way.
 Nothing resolves to "whatever is newest" at build time.
 
 That has two consequences worth knowing:

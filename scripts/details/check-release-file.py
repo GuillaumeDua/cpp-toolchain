@@ -264,7 +264,7 @@ def main():
     parser.add_argument("--print-stages", choices=sorted(STAGE_LISTS),
                         help="print a canonical stage list (no file needed)")
     parser.add_argument("--print-registries", nargs="?", const="all", choices=["all", *REGISTRIES],
-                        help="print every registry's image reference, or one named registry's (no file needed)")
+                        help="print the image reference of every registry, or of the named one (no file needed)")
     args = parser.parse_args()
 
     if args.print_stages:
