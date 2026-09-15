@@ -8,6 +8,11 @@
 Up-to-date C++ toolchain images for the complete development cycle - **GNU and LLVM side by side**, from a minimal runtime to a full dev container.  
 Built as a single multi-stage [`Dockerfile`](Dockerfile), published to [Docker Hub](https://hub.docker.com/repository/docker/guillaumedua/cpp-toolchain) and [GHCR](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain) by [GitHub Actions](.github/workflows/docker-publish.yml).
 
+Every Ubuntu release pins a GCC and a Clang version - 24.04 ships GCC 13 and Clang 18.  
+Getting past that means wiring up the toolchain repositories yourself, on every machine and in every CI job.  
+Keeping it current then means watching upstream for releases and bumping versions by hand - time spent on the toolchain rather than on the code.  
+These images do it once and carry both toolchains, so using GNU or LLVM - or moving between them later - is a matter of which command you run rather than which image you pull.
+
 ## Pick your image (one per stage)
 
 ```mermaid
