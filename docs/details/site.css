@@ -82,3 +82,63 @@ body:has(#md_README) .title::before {
 #projectlogo img {
     height: calc(var(--title-font-size) * 2);
 }
+
+/*
+ * The ribbon docs/details/github-corner.html injects after <body>.
+ * Its triangle carries no fill of its own and inherits the svg's, while the two octocat paths are
+ * fill="currentColor", so this one pair of theme variables colors both, in either color scheme.
+ */
+.github-corner svg {
+    position: absolute;
+    top: 0;
+    right: 0;
+    /*
+     * Over doxygen-awesome's #top, which is z-index 99 and opaque, and which spans the viewport below 768px
+     * where the sidebar is hidden. Under the search dropdowns, which the theme puts at 9999.
+     */
+    z-index: 100;
+    width: 72px;
+    height: 72px;
+    fill: var(--primary-light-color);
+    color: var(--page-background-color);
+}
+
+.github-corner:hover .octo-arm {
+    animation: octocat-wave 560ms ease-in-out;
+}
+
+@keyframes octocat-wave {
+    0%, 100% { transform: rotate(0);       }
+    20%, 60% { transform: rotate(-25deg);  }
+    40%, 80% { transform: rotate(10deg);   }
+}
+
+/*
+ * A touch screen has no hover, so the arm would never wave there. It runs once on load instead.
+ * The hover rule has to be cleared for that: it carries one more class than the unconditional one and
+ * would otherwise win.
+ */
+@media screen and (max-width: 500px) {
+    .github-corner:hover .octo-arm {
+        animation: none;
+    }
+
+    .github-corner .octo-arm {
+        animation: octocat-wave 560ms ease-in-out;
+    }
+}
+
+/*
+ * Below 768px doxygen-awesome hides the sidebar and #titlearea spans the viewport, bringing the project name
+ * and brief under the ribbon - the more so because #projectname wraps here rather than staying on one line.
+ */
+@media screen and (max-width: 767px) {
+    .github-corner svg {
+        width: 50px;
+        height: 50px;
+    }
+
+    #projectalign {
+        padding-right: 50px;
+    }
+}

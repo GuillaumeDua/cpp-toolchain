@@ -22,6 +22,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 readonly DOXYFILE="docs/details/Doxyfile"
 readonly THEME_SCRIPTS="docs/details/theme-scripts.html"
+readonly GITHUB_CORNER="docs/details/github-corner.html"
 readonly CACHE_DIR="docs/details/.cache"
 readonly OUTPUT_DIR="docs/output"
 
@@ -196,11 +197,14 @@ fi
     "${CACHE_DIR}/footer.html" \
     "${CACHE_DIR}/stylesheet.css"
 
-awk '
-    FNR == NR { snippet = snippet $0 ORS; next }
-    /<\/head>/ { printf "%s", snippet }
+# FNR == NR tells two input files apart and no more, so the snippets are matched by name instead.
+awk -v head_snippet="${THEME_SCRIPTS}" -v body_snippet="${GITHUB_CORNER}" '
+    FILENAME == head_snippet { head = head $0 ORS; next }
+    FILENAME == body_snippet { body = body $0 ORS; next }
+    /<\/head>/ { printf "%s", head }
     { print }
-' "${THEME_SCRIPTS}" "${CACHE_DIR}/header.html" > "${CACHE_DIR}/header.html.injected"
+    /<body>/   { printf "%s", body }
+' "${THEME_SCRIPTS}" "${GITHUB_CORNER}" "${CACHE_DIR}/header.html" > "${CACHE_DIR}/header.html.injected"
 mv "${CACHE_DIR}/header.html.injected" "${CACHE_DIR}/header.html"
 
 # --- render ---

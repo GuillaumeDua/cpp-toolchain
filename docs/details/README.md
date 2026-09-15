@@ -46,7 +46,8 @@ The page renders correctly, and escaping the backtick is not an option - CommonM
 | [Doxyfile](Doxyfile) | The settings that differ from doxygen's defaults, each with the reason it is set |
 | [hierarchy.dox](hierarchy.dox) | The page tree, in `@page` and `@subpage` |
 | [doxygen-filter.py](doxygen-filter.py) | `INPUT_FILTER`: names each page, and rewrites links to non-markdown files as absolute GitHub URLs, images as `raw` ones |
-| [theme-scripts.html](theme-scripts.html) | The theme's script tags, injected into the generated header |
+| [theme-scripts.html](theme-scripts.html) | The theme's script tags, injected into the generated header's `<head>` |
+| [github-corner.html](github-corner.html) | The ribbon linking back to the repository, injected after `<body>` |
 | [site.css](site.css) | Overrides on top of doxygen-awesome, loaded last |
 | [logo.svg](logo.svg) | The mark beside [README.md](../../README.md)'s title, reused as the site's header logo and browser-tab icon. Its 32px size is what renders it at the size of the title text it sits in |
 
