@@ -1,0 +1,19 @@
+<!-- Social card for og:image, rendered to og-card.png by inkscape at 1200px wide.
+     The mark and palette are logo.svg; the wording is the Doxyfile's PROJECT_BRIEF. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#1f2937"/>
+  <g transform="translate(96,58) scale(5)">
+    <path d="M22.16 24.63 A 9 9 0 1 0 22.16 39.37" fill="none" stroke="#ffffff" stroke-width="7"/>
+    <g fill="#f0a02c">
+      <rect x="32.5" y="29.8" width="12" height="4.4"/>
+      <rect x="36.3" y="26" width="4.4" height="12"/>
+    </g>
+    <g fill="#35c4a8">
+      <rect x="47.5" y="29.8" width="12" height="4.4"/>
+      <rect x="51.3" y="26" width="4.4" height="12"/>
+    </g>
+  </g>
+  <text x="96" y="404" font-family="DejaVu Sans" font-size="84" font-weight="bold" fill="#ffffff">cpp-toolchain</text>
+  <text x="96" y="470" font-family="DejaVu Sans" font-size="30" fill="#9ca3af">Up-to-date C++ toolchain images for the complete</text>
+  <text x="96" y="514" font-family="DejaVu Sans" font-size="30" fill="#9ca3af">development cycle - GNU and LLVM side by side</text>
+</svg>

@@ -72,7 +72,8 @@ HTML_EXTRA_STYLESHEET  = docs/details/.cache/doxygen-awesome/doxygen-awesome.css
                          docs/details/site.css
 HTML_EXTRA_FILES       = docs/details/.cache/doxygen-awesome/doxygen-awesome-darkmode-toggle.js \
                          docs/details/.cache/doxygen-awesome/doxygen-awesome-paragraph-link.js \
-                         docs/details/.cache/doxygen-awesome/doxygen-awesome-interactive-toc.js
+                         docs/details/.cache/doxygen-awesome/doxygen-awesome-interactive-toc.js \
+                         docs/details/og-card.png
 
 # Nothing here documents source entities, so the code-oriented indexes would all be empty.
 SHOW_FILES             = NO

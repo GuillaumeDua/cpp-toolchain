@@ -50,6 +50,7 @@ The page renders correctly, and escaping the backtick is not an option - CommonM
 | [theme-scripts.html](theme-scripts.html) | The theme's script tags, injected into the generated header's `<head>` |
 | [github-corner.html](github-corner.html) | The ribbon linking back to the repository, injected after `<body>` |
 | [site.css](site.css) | Overrides on top of doxygen-awesome, loaded last |
+| [og-card.svg](og-card.svg), og-card.png | The image a link to the site previews as, named by the `og:image` in [theme-scripts.html](theme-scripts.html). The PNG is committed rather than rendered here, so the prerequisites above stay as they are |
 | [logo.svg](logo.svg) | The mark beside [README.md](../../README.md)'s title, reused as the site's header logo and browser-tab icon. Its 32px size is what renders it at the size of the title text it sits in |
 
 ## The page tree
