@@ -16,7 +16,7 @@
 #   Nothing published inherits them - see docs/IMAGES_VALIDATION.md.
 #
 #   SSH remote access is an opt-in extra layer, built separately on top of the `dev` image via
-#   .devcontainer/ssh_support.dockerfile (its docker-compose.yaml `ssh` profile; docs/DEVCONTAINER.md#remote-ssh).
+#   .devcontainer/ssh_support.dockerfile (its docker-compose.yaml `ssh` profile; docs/IMAGES.md#remote-ssh).
 # =============================================================================================
 
 # ---------------------------------------------------------------------------------------------

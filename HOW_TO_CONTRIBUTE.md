@@ -118,5 +118,6 @@ See [Tags & versioning](README.md#tags--versioning) for the full tag scheme.
 
 - [README.md](README.md) - the images themselves: stages, features, tags, what each contains.
 - [scripts/install/README.md](scripts/install/README.md) - the standalone `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` options.
+- [releases/README.md](releases/README.md) - the promotion record behind each shipped release: the rc it came from, the commit built, and every stage's digest.
 - [scripts/details/README.md](scripts/details/README.md) - the repository's own tooling: pin guard, release-note renderer, promotion-record schema, smoke test.
 - [docs/details/README.md](docs/details/README.md) - how this documentation is rendered and published, and how to preview it locally.
