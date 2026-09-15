@@ -156,7 +156,7 @@ jobs:
           cmake --build build
 ```
 
-Those three are what `common` resolves to - see [Cross-compilation](CROSS-COMPILATION.md).
+`common` resolves to those three and the host triplet - see [Cross-compilation](CROSS-COMPILATION.md).
 
 ### Run without a toolchain - `runtime`
 

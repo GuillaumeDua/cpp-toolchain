@@ -10,7 +10,8 @@ GitHub serves the `gh-pages` branch the workflow pushes to, which is a repositor
 ## Rendering it locally
 
 ```bash
-bash docs/details/generate.sh   # -> docs/output/index.html
+bash docs/details/generate.sh                        # -> docs/output/index.html
+python3 -m http.server 8000 --directory docs/output  # -> http://localhost:8000
 ```
 
 Prerequisites are `curl`, `tar`, `awk`, and `python3` for the link filter.
@@ -64,7 +65,7 @@ The label goes in through the filter rather than into the markdown: written ther
 A link to the Dockerfile, to an install script or to a directory leaves the site for GitHub, because the site holds rendered pages and nothing else.
 Links between markdown files stay inside it.
 
-The site also groups its pages, which a repository of markdown files cannot do, and a parent page opens with a list of the pages under it - a list its own markdown does not carry.
+The site also groups its pages, which a repository of markdown files cannot do: the pages under a parent are the sidebar nodes beneath it.
 The logo beside [README.md](../../README.md)'s title is drawn on the landing page by [site.css](site.css), doxygen carrying a title's markup into the sidebar label, where an `<img>` tag shows as text.
 
 Four things do not carry over:

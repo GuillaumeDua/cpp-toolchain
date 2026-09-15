@@ -1,12 +1,15 @@
-// The site's page tree. A page is named here by the label doxygen-filter.py gives it, so a label
-// renamed there is renamed here too.
+// The site's page tree.
+// A page is named here by the label doxygen-filter.py gives it, so a label renamed there is renamed here too.
 // The order of the blocks is the order of the sidebar; a page named in none of them is published at
-// the top level, but *after* every block, which is why a childless top-level page still needs one.
+// the top level, but AFTER every block, which is why a childless top-level page still needs one.
 //
 // The list carries no heading: a heading in one of these blocks becomes a section that doxygen files
 // in the sidebar under the first child page, pointing back at the parent.
-// It renders at the top of the parent page rather than the foot: doxygen reads this file before the
-// markdown it adds to, and nothing here changes that order.
+//
+// @subpage adds a link to the page it names and makes that page a subpage of this one, both at once.
+// The link lands at the top of the parent page, ahead of the markdown the page is rendered from, which
+// already lists the same children for a reader on GitHub.
+// site.css hides the div to drop that second copy; @internal hides it too and drops the parenting with it.
 
 /**
 @page images
@@ -14,21 +17,27 @@
 
 /**
 @page standalone-scripts
-- @subpage install-scripts
-- @subpage check-scripts
+<div class="page-children">
+@subpage install-scripts
+@subpage check-scripts
+</div>
 */
 
 /**
 @page guides
-- @subpage cross-compilation
-- @subpage coverage
+<div class="page-children">
+@subpage cross-compilation
+@subpage coverage
+</div>
 */
 
 /**
 @page how-to-contribute
-- @subpage images-validation
-- @subpage release-process
-- @subpage release-records
-- @subpage repository-tooling
-- @subpage documentation-site
+<div class="page-children">
+@subpage images-validation
+@subpage release-process
+@subpage release-records
+@subpage repository-tooling
+@subpage documentation-site
+</div>
 */
