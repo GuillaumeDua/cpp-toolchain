@@ -91,10 +91,29 @@ jobs:
           clang-format --dry-run --Werror src/*.cpp
 ```
 
+### API documentation - `documentation`
+
+`doxygen` here is a pinned upstream build rather than Ubuntu's apt package, which lags it, and `graphviz` ships beside it - so `HAVE_DOT = YES` renders call and collaboration graphs with nothing else to install.
+
+```yaml
+jobs:
+  docs:
+    runs-on: ubuntu-24.04
+    container: ghcr.io/guillaumedua/cpp-toolchain:documentation-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: doxygen Doxyfile
+      - uses: actions/upload-artifact@v4
+        with:
+          name: api-docs
+          path: html
+```
+
+`html` is doxygen's default `HTML_OUTPUT`; point the upload at whatever your `Doxyfile` sets.
+
 ### Coverage report - `documentation`
 
 `lcov` and `genhtml` ship in this stage only - `gcov` itself comes with GCC everywhere, so a stage below this one produces counters but no HTML.
-The same stage carries `doxygen` and `graphviz` for an API site.
 Which tool lives where is [Code coverage](COVERAGE.md).
 
 ```yaml
