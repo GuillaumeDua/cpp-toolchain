@@ -3,6 +3,7 @@ var how_to_contribute =
     [ "The workflows", "how-to-contribute.html#the-workflows", null ],
     [ "Opening a pull request", "how-to-contribute.html#opening-a-pull-request", null ],
     [ "What the build gate checks", "how-to-contribute.html#what-the-build-gate-checks", null ],
+    [ "The repository's dev container", "how-to-contribute.html#the-repositorys-dev-container", null ],
     [ "How images get published", "how-to-contribute.html#how-images-get-published", null ],
     [ "Related docs", "how-to-contribute.html#related-docs", null ],
     [ "Images validation", "images-validation.html", [

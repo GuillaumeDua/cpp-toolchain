@@ -38,6 +38,21 @@ mermaid.initialize({ startOnLoad: true, theme: theme });
 <link rel="icon" href="logo.svg" type="image/svg+xml"/>
 <!-- Doxygen writes no meta description of its own; Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side keeps the Doxyfile the only place it is spelled. -->
 <meta name="description" content="Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side"/>
+<!--
+  Open Graph, for the card a link to the site renders as.
+  Both URLs are written in full. og:url is an identifier rather than a link, and  resolves to
+  the output root, which is empty on every page here; og:image follows it, so a move has one place to change.
+  Every page carries the site root rather than its own address, so og:title names the site, not the page.
+  og-card.png reaches the output through the Doxyfile's HTML_EXTRA_FILES,
+  and its size is declared so that a renderer can lay the card out before it has fetched the bytes.
+-->
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://guillaumedua.github.io/cpp-toolchain/"/>
+<meta property="og:title" content="cpp-toolchain documentation"/>
+<meta property="og:description" content="Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side"/>
+<meta property="og:image" content="https://guillaumedua.github.io/cpp-toolchain/og-card.png"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
 <script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
 <script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
 <script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
@@ -72,6 +87,20 @@ mermaid.initialize({ startOnLoad: true, theme: theme });
 </script>
 </head>
 <body>
+<!--
+  The ribbon linking back to the repository, injected after <body> by docs/details/generate.sh so that every
+  generated page carries it.
+  The markup is tholman/github-corners (MIT); its styling is in site.css, except the transform-origin, which
+  is the arm's pivot for the hover animation and so belongs with the path rather than with the colors.
+-->
+<a href="https://github.com/GuillaumeDua/cpp-toolchain" class="github-corner"
+   aria-label="This project on GitHub" title="This project on GitHub">
+  <svg viewBox="0 0 250 250" aria-hidden="true">
+    <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path>
+    <path class="octo-arm" style="transform-origin: 130px 106px;" fill="currentColor" d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2"></path>
+    <path class="octo-body" fill="currentColor" d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z"></path>
+  </svg>
+</a>
 <div id="top"><!-- do not remove this div, it is closed by doxygen! -->
 <div id="titlearea">
 <table cellspacing="0" cellpadding="0">
@@ -171,7 +200,8 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('documentation-
 <p><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/documentation.yml">.github/workflows/documentation.yml</a> publishes it on every push to <span class="tt">main</span>, and on manual dispatch. It never runs on a pull request: documentation does not gate a merge. GitHub serves the <span class="tt">gh-pages</span> branch the workflow pushes to, which is a repository setting (<em>Settings</em> -&gt; <em>Pages</em> -&gt; <em>Source</em>) and not something the workflow can establish for itself.</p>
 <h1 class="doxsection"><a class="anchor" id="rendering-it-locally"></a>
 Rendering it locally</h1>
-<div class="fragment"><div class="line">bash docs/details/generate.sh   # -&gt; docs/output/index.html</div>
+<div class="fragment"><div class="line">bash docs/details/generate.sh                        # -&gt; docs/output/index.html</div>
+<div class="line">python3 -m http.server 8000 --directory docs/output  # -&gt; http://localhost:8000</div>
 </div><!-- fragment --><p>Prerequisites are <span class="tt">curl</span>, <span class="tt">tar</span>, <span class="tt">awk</span>, and <span class="tt">python3</span> for the link filter. Doxygen and the <a href="https://github.com/jothepro/doxygen-awesome-css">doxygen-awesome-css</a> theme are downloaded on first run and cached in <span class="tt">.cache/</span>, which CI restores between runs, so neither is committed and neither has to be installed. Doxygen comes from <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/install/doxygen.sh">scripts/install/doxygen.sh</a>, the same installer the images use, pointed at <span class="tt">.cache/</span> with <span class="tt">--prefix</span>. A doxygen already on <span class="tt">PATH</span> is used as it is when it is exactly the pinned version, and ignored otherwise.</p>
 <p>Both versions are pinned, and <span class="tt">--doxygen-version</span> / <span class="tt">--doxygen-awesome-version</span> override either one:</p>
 <table class="markdownTable">
@@ -205,9 +235,13 @@ The pieces</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/doxygen-filter.py">doxygen-filter.py</a>  </td><td class="markdownTableBodyNone"><span class="tt">INPUT_FILTER</span>: names each page, and rewrites links to non-markdown files as absolute GitHub URLs, images as <span class="tt">raw</span> ones  </td></tr>
 <tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/theme-scripts.html">theme-scripts.html</a>  </td><td class="markdownTableBodyNone">The theme's script tags, injected into the generated header  </td></tr>
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/theme-scripts.html">theme-scripts.html</a>  </td><td class="markdownTableBodyNone">The theme's script tags, injected into the generated header's <span class="tt">&lt;head&gt;</span>  </td></tr>
 <tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/github-corner.html">github-corner.html</a>  </td><td class="markdownTableBodyNone">The ribbon linking back to the repository, injected after <span class="tt">&lt;body&gt;</span>  </td></tr>
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/site.css">site.css</a>  </td><td class="markdownTableBodyNone">Overrides on top of doxygen-awesome, loaded last  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/og-card.svg">og-card.svg</a>, og-card.png  </td><td class="markdownTableBodyNone">The image a link to the site previews as, named by the <span class="tt">og:image</span> in <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/theme-scripts.html">theme-scripts.html</a>. The PNG is committed rather than rendered here, so the prerequisites above stay as they are  </td></tr>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/logo.svg">logo.svg</a>  </td><td class="markdownTableBodyNone">The mark beside <a class="el" href="index.html#md_README" title="cpp-toolchain">README.md</a>'s title, reused as the site's header logo and browser-tab icon. Its 32px size is what renders it at the size of the title text it sits in  </td></tr>
 </table>
@@ -218,7 +252,7 @@ The page tree</h1>
 <h1 class="doxsection"><a class="anchor" id="where-the-site-differs-from-github"></a>
 Where the site differs from GitHub</h1>
 <p>A link to the Dockerfile, to an install script or to a directory leaves the site for GitHub, because the site holds rendered pages and nothing else. Links between markdown files stay inside it.</p>
-<p>The site also groups its pages, which a repository of markdown files cannot do, and a parent page opens with a list of the pages under it - a list its own markdown does not carry. The logo beside <a class="el" href="index.html#md_README" title="cpp-toolchain">README.md</a>'s title is drawn on the landing page by <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/site.css">site.css</a>, doxygen carrying a title's markup into the sidebar label, where an <span class="tt">&lt;img&gt;</span> tag shows as text.</p>
+<p>The site also groups its pages, which a repository of markdown files cannot do: the pages under a parent are the sidebar nodes beneath it. The logo beside <a class="el" href="index.html#md_README" title="cpp-toolchain">README.md</a>'s title is drawn on the landing page by <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/docs/details/site.css">site.css</a>, doxygen carrying a title's markup into the sidebar label, where an <span class="tt">&lt;img&gt;</span> tag shows as text.</p>
 <p>Four things do not carry over:</p>
 <ul>
 <li><b>A pipe inside a table cell</b> is written <span class="tt">&lt;code&gt;a\|b&lt;/code&gt;</span>, not <span class="tt"> `a\|b` </span>. <br  />

@@ -1,12 +1,14 @@
 var searchData=
 [
-  ['fail_0',['Proving the gate can fail',['../images-validation.html#proving-the-gate-can-fail',1,'']]],
-  ['failure_20modes_1',['Failure modes',['../release-process.html#failure-modes',1,'']]],
-  ['features_2',['Key features',['../index.html#key-features',1,'']]],
-  ['fixes_3',['Urgent fixes',['../release-process.html#urgent-fixes',1,'']]],
-  ['from_20a_20commit_20no_20rc_20was_20built_20at_4',['From a commit no rc was built at',['../release-process.html#from-a-commit-no-rc-was-built-at',1,'']]],
-  ['from_20a_20validated_20rc_5',['From a validated rc',['../release-process.html#from-a-validated-rc',1,'']]],
-  ['from_20github_6',['Where the site differs from GitHub',['../documentation-site.html#where-the-site-differs-from-github',1,'']]],
-  ['from_20vs_20code_7',['Step 2. Connect from VS Code',['../dev-environment.html#step-2-connect-from-vs-code',1,'']]],
-  ['further_8',['Going further',['../index.html#going-further',1,'']]]
+  ['gate_20can_20fail_0',['Proving the gate can fail',['../images-validation.html#proving-the-gate-can-fail',1,'']]],
+  ['gate_20checks_1',['What the build gate checks',['../how-to-contribute.html#what-the-build-gate-checks',1,'']]],
+  ['gate_20scripts_2',['Gate scripts',['../check-scripts.html#gate-scripts',1,'']]],
+  ['gcc_20sh_3',['&lt;span class=&quot;tt&quot;&gt;gcc.sh&lt;/span&gt;',['../install-scripts.html#gccsh',1,'']]],
+  ['get_20published_4',['How images get published',['../how-to-contribute.html#how-images-get-published',1,'']]],
+  ['github_5',['Where the site differs from GitHub',['../documentation-site.html#where-the-site-differs-from-github',1,'']]],
+  ['github_20actions_6',['GitHub Actions',['../images.html#github-actions',1,'']]],
+  ['gitlab_20ci_7',['GitLab CI',['../images.html#gitlab-ci',1,'']]],
+  ['given_20tag_8',['What&apos;s inside a given tag',['../index.html#whats-inside-a-given-tag',1,'']]],
+  ['going_20further_9',['Going further',['../index.html#going-further',1,'']]],
+  ['guides_10',['Guides',['../guides.html',1,'']]]
 ];

@@ -26,8 +26,27 @@ var NAVTREE =
 [
   [ "cpp-toolchain documentation", "index.html", [
     [ "cpp-toolchain", "index.html", "index" ],
-    [ "Guides", "guides.html", "guides" ],
+    [ "Using the images", "images.html", [
+      [ "Pull an image", "images.html#pull-an-image", null ],
+      [ "One-off container", "images.html#one-off-container", null ],
+      [ "Visual Studio Code - Dev container", "images.html#visual-studio-code---dev-container", null ],
+      [ "GitHub Actions", "images.html#github-actions", [
+        [ "Compile and test - <span class=\"tt\">build</span>", "images.html#compile-and-test---build", null ],
+        [ "Static analysis - <span class=\"tt\">static-analysis</span>", "images.html#static-analysis---static-analysis", null ],
+        [ "API documentation - <span class=\"tt\">documentation</span>", "images.html#api-documentation---documentation", null ],
+        [ "Coverage report - <span class=\"tt\">documentation</span>", "images.html#coverage-report---documentation", null ],
+        [ "Cross-compilation - <span class=\"tt\">build-cross</span>", "images.html#cross-compilation---build-cross", null ],
+        [ "Run without a toolchain - <span class=\"tt\">runtime</span>", "images.html#run-without-a-toolchain---runtime", null ]
+      ] ],
+      [ "GitLab CI", "images.html#gitlab-ci", null ],
+      [ "Docker Compose", "images.html#docker-compose", null ],
+      [ "Remote SSH", "images.html#remote-ssh", null ],
+      [ "Build your own image", "images.html#build-your-own-image", null ],
+      [ "Choosing a compiler version", "images.html#choosing-a-compiler-version", null ],
+      [ "See also", "images.html#see-also-2", null ]
+    ] ],
     [ "Standalone scripts", "standalone-scripts.html", "standalone-scripts" ],
+    [ "Guides", "guides.html", "guides" ],
     [ "How to contribute", "how-to-contribute.html", "how-to-contribute" ]
   ] ]
 ];

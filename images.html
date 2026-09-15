@@ -1,0 +1,453 @@
+<!-- HTML header for doxygen 1.18.0-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.18.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>cpp-toolchain documentation: Using the images</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="codefolding.js"></script>
+<script type="text/javascript" src="clipboard.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<script type="text/javascript" src="cookie.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const theme = 'default';
+mermaid.initialize({ startOnLoad: true, theme: theme });
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="doxygen-awesome-sidebar-only.css" rel="stylesheet" type="text/css"/>
+<link href="doxygen-awesome-sidebar-only-darkmode-toggle.css" rel="stylesheet" type="text/css"/>
+<link href="site.css" rel="stylesheet" type="text/css"/>
+<!--
+  doxygen-awesome extensions, injected into the generated HTML header by docs/details/generate.sh.
+  Code folding and copy-to-clipboard are left to doxygen's own implementations (HTML_CODE_FOLDING, HTML_COPY_CLIPBOARD).
+-->
+<!--
+  PROJECT_LOGO copies logo.svg into the output, and the tab icon is that same file.
+  PROJECT_ICON would declare it, but the header template it feeds calls every icon image/x-icon.
+-->
+<link rel="icon" href="logo.svg" type="image/svg+xml"/>
+<!-- Doxygen writes no meta description of its own; Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side keeps the Doxyfile the only place it is spelled. -->
+<meta name="description" content="Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side"/>
+<!--
+  Open Graph, for the card a link to the site renders as.
+  Both URLs are written in full. og:url is an identifier rather than a link, and  resolves to
+  the output root, which is empty on every page here; og:image follows it, so a move has one place to change.
+  Every page carries the site root rather than its own address, so og:title names the site, not the page.
+  og-card.png reaches the output through the Doxyfile's HTML_EXTRA_FILES,
+  and its size is declared so that a renderer can lay the card out before it has fetched the bytes.
+-->
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://guillaumedua.github.io/cpp-toolchain/"/>
+<meta property="og:title" content="cpp-toolchain documentation"/>
+<meta property="og:description" content="Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side"/>
+<meta property="og:image" content="https://guillaumedua.github.io/cpp-toolchain/og-card.png"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    DoxygenAwesomeDarkModeToggle.init()
+    DoxygenAwesomeParagraphLink.init()
+    DoxygenAwesomeInteractiveToc.init()
+</script>
+<script type="module">
+    // doxygen writes its own mermaid bootstrap from HTML_COLORSTYLE, which is LIGHT here because the theme
+    // requires it, so every diagram would stay light under the theme's dark mode.
+    // The URL has to match the Doxyfile's MERMAID_JS_URL character for character, for the reason given there.
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    const diagrams = () => document.querySelectorAll('pre.mermaid');
+    const themeFor = enabled => enabled ? 'dark' : 'default';
+    // Module scripts run once the document is parsed and before doxygen's startOnLoad render,
+    // so the source is captured while it is still the fence's text and the first render already uses the right theme.
+    for (const diagram of diagrams()) {
+        diagram.dataset.mermaidSource = diagram.innerHTML;
+    }
+    mermaid.initialize({ startOnLoad: true, theme: themeFor(DoxygenAwesomeDarkModeToggle.darkModeEnabled) });
+    const enableDarkMode = DoxygenAwesomeDarkModeToggle.enableDarkMode.bind(DoxygenAwesomeDarkModeToggle);
+    DoxygenAwesomeDarkModeToggle.enableDarkMode = enable => {
+        enableDarkMode(enable);
+        for (const diagram of diagrams()) {
+            diagram.removeAttribute('data-processed');
+            diagram.innerHTML = diagram.dataset.mermaidSource;
+        }
+        mermaid.initialize({ theme: themeFor(enable) });
+        mermaid.run({ nodes: diagrams() });
+    };
+</script>
+</head>
+<body>
+<!--
+  The ribbon linking back to the repository, injected after <body> by docs/details/generate.sh so that every
+  generated page carries it.
+  The markup is tholman/github-corners (MIT); its styling is in site.css, except the transform-origin, which
+  is the arm's pivot for the hover animation and so belongs with the path rather than with the colors.
+-->
+<a href="https://github.com/GuillaumeDua/cpp-toolchain" class="github-corner"
+   aria-label="This project on GitHub" title="This project on GitHub">
+  <svg viewBox="0 0 250 250" aria-hidden="true">
+    <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path>
+    <path class="octo-arm" style="transform-origin: 130px 106px;" fill="currentColor" d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2"></path>
+    <path class="octo-body" fill="currentColor" d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z"></path>
+  </svg>
+</a>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="logo.svg"/></td>
+  <td id="projectalign">
+   <div id="projectname">cpp-toolchain documentation
+   </div>
+   <div id="projectbrief">Up-to-date C++ toolchain images for the complete development cycle - GNU and LLVM side by side</div>
+  </td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.18.0 -->
+<script type="text/javascript">
+let searchBox = new SearchBox("searchBox", "search/",'.html');
+</script>
+<script type="text/javascript">
+document.addEventListener('DOMContentLoaded', codefold.init);
+</script>
+<script type="application/json" id="doxygen-config">
+{
+  "relPath": "",
+  "generateTreeView": true,
+  "searchEngine": true,
+  "serverBasedSearch": false,
+  "disableIndex": false,
+  "dynamicMenus": true,
+  "fullSidebar": false
+}
+</script>
+<script type="text/javascript" src="menudata.js"></script>
+<script type="text/javascript" src="menu.js"></script>
+<div id="main-nav-mobile">
+<div class="sm sm-dox"><input id="main-menu-state" type="checkbox"/>
+<label class="main-menu-btn" for="main-menu-state">
+<span class="main-menu-btn-icon"></span> Toggle main menu visibility</label>
+<span id="searchBoxPos1"></span>
+</div>
+</div><!-- main-nav-mobile -->
+<div id="main-nav">
+  <ul class="sm sm-dox" id="main-menu">
+    <li id="searchBoxPos2">
+        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect" class="search-icon"><span class="search-icon-dropdown"></span></span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><div id="MSearchCloseImg" class="close-icon"></div></a>
+          </span>
+        </div>
+    </li>
+  </ul>
+</div><!-- main-nav -->
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+document.addEventListener('DOMContentLoaded',() => { initNavTree('images.html','',''); });
+</script>
+<div id="container">
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div><div class="header">
+  <div class="headertitle"><div class="title">Using the images </div></div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><p><a class="anchor" id="md_docs_2IMAGES"></a></p>
+<p>Every way to consume the published images, one section each. <br  />
+ Using the toolchain <b>without</b> Docker is <a class="el" href="standalone-scripts.html#md_scripts_2README" title="scripts/README.md">scripts/README.md</a> instead: the install scripts run standalone on any <span class="tt">Debian</span>/<span class="tt">Ubuntu</span> host.</p>
+<p>Which stage to pull is <a class="el" href="index.html#pick-your-image-one-per-stage" title="Pick your image (one per stage)">Pick your image</a> - <span class="tt">dev</span> for an interactive environment, <span class="tt">build</span> for CI. <br  />
+ Every example here uses <span class="tt">latest</span>; pin <span class="tt">v1.3</span> instead when the tag has to stay put, per <a class="el" href="index.html#tags--versioning" title="Tags &amp; versioning">Tags &amp; versioning</a>. <br  />
+ Both registries carry the same images, so <span class="tt">docker.io/guillaumedua/cpp-toolchain</span> substitutes for <span class="tt">ghcr.io/guillaumedua/cpp-toolchain</span> throughout.</p>
+<dl class="section warning"><dt>Warning</dt><dd><b>Everything runs as root</b> <br  />
+<br  />
+ No stage declares a <span class="tt">USER</span>, and no non-root account exists in the image - the opt-in <a class="el" href="#remote-ssh" title="Remote SSH">SSH layer</a> is the only thing that creates one. <br  />
+ A build run over a bind mount therefore leaves root-owned files on your host. <span class="tt">--user "$(id -u):$(id -g)"</span> corrects the ownership, at the cost of a uid with no <span class="tt">/etc/passwd</span> entry.</dd></dl>
+<h1 class="doxsection"><a class="anchor" id="pull-an-image"></a>
+Pull an image</h1>
+<div class="fragment"><div class="line"># Full dev environment: compilers + analysis + docs + debug, editors, shells</div>
+<div class="line">docker pull ghcr.io/guillaumedua/cpp-toolchain:dev-latest</div>
+<div class="line"> </div>
+<div class="line"># Lean CI image: compilers + build systems + dependency managers</div>
+<div class="line">docker pull ghcr.io/guillaumedua/cpp-toolchain:build-latest</div>
+</div><!-- fragment --><p>Prefer <a href="https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain">GHCR</a> for CI: public images there have no anonymous pull rate limit.</p>
+<h1 class="doxsection"><a class="anchor" id="one-off-container"></a>
+One-off container</h1>
+<div class="fragment"><div class="line"># Check what you pulled</div>
+<div class="line">docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version</div>
+<div class="line"> </div>
+<div class="line"># Compile the working directory</div>
+<div class="line">docker run --rm --volume &quot;${PWD}:/src&quot; --workdir /src \</div>
+<div class="line">    ghcr.io/guillaumedua/cpp-toolchain:build-latest \</div>
+<div class="line">    g++ -std=c++23 main.cpp -o main</div>
+</div><!-- fragment --><h1 class="doxsection"><a class="anchor" id="visual-studio-code---dev-container"></a>
+Visual Studio Code - Dev container</h1>
+<p>Put a <span class="tt">.devcontainer/devcontainer.json</span> in <b>your</b> <span class="tt">vscode</span> project - the image reference is the whole file:</p>
+<div class="fragment"><div class="line">{</div>
+<div class="line">    &quot;name&quot;: &quot;my-project&quot;,</div>
+<div class="line">    &quot;image&quot;: &quot;ghcr.io/guillaumedua/cpp-toolchain:dev-latest&quot;</div>
+<div class="line">}</div>
+</div><!-- fragment --><p>Then run <b>Dev Containers: Reopen in Container</b> from the VS Code command palette. Nothing is built: the image is pulled, and your project is mounted into it.</p>
+<p>Anything else is optional - <span class="tt">features</span> to add tooling, <span class="tt">customizations.vscode.extensions</span> to preinstall extensions.</p>
+<h1 class="doxsection"><a class="anchor" id="github-actions"></a>
+GitHub Actions</h1>
+<p>A job's <span class="tt">container:</span> key runs every <span class="tt">run:</span> step inside the image, so the toolchain needs no setup action. <br  />
+ Each job below takes the leanest stage carrying what it needs, per <a class="el" href="index.html#pick-your-image-one-per-stage" title="Pick your image (one per stage)">Pick your image</a>.</p>
+<h2 class="doxsection"><a class="anchor" id="compile-and-test---build"></a>
+Compile and test - <span class="tt">build</span></h2>
+<div class="fragment"><div class="line">jobs:</div>
+<div class="line">  build:</div>
+<div class="line">    runs-on: ubuntu-24.04</div>
+<div class="line">    container: ghcr.io/guillaumedua/cpp-toolchain:build-latest</div>
+<div class="line">    steps:</div>
+<div class="line">      - uses: actions/checkout@v4</div>
+<div class="line">      - run: |</div>
+<div class="line">          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release</div>
+<div class="line">          cmake --build build</div>
+<div class="line">          ctest --test-dir build --output-on-failure</div>
+</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="static-analysis---static-analysis"></a>
+Static analysis - <span class="tt">static-analysis</span></h2>
+<p><span class="tt">clang-tidy</span>, <span class="tt">clang-format</span>, <span class="tt">cppcheck</span>, <span class="tt">scan-build</span> and <span class="tt">iwyu</span> answer to unversioned names from this stage onwards, not from <span class="tt">build</span>.</p>
+<div class="fragment"><div class="line">jobs:</div>
+<div class="line">  lint:</div>
+<div class="line">    runs-on: ubuntu-24.04</div>
+<div class="line">    container: ghcr.io/guillaumedua/cpp-toolchain:static-analysis-latest</div>
+<div class="line">    steps:</div>
+<div class="line">      - uses: actions/checkout@v4</div>
+<div class="line">      - run: |</div>
+<div class="line">          cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON</div>
+<div class="line">          clang-tidy -p build src/*.cpp</div>
+<div class="line">          clang-format --dry-run --Werror src/*.cpp</div>
+</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="api-documentation---documentation"></a>
+API documentation - <span class="tt">documentation</span></h2>
+<p><span class="tt">doxygen</span> here is a pinned upstream build rather than Ubuntu's apt package, which lags it, and <span class="tt">graphviz</span> ships beside it - so <span class="tt">HAVE_DOT = YES</span> renders call and collaboration graphs with nothing else to install.</p>
+<div class="fragment"><div class="line">jobs:</div>
+<div class="line">  docs:</div>
+<div class="line">    runs-on: ubuntu-24.04</div>
+<div class="line">    container: ghcr.io/guillaumedua/cpp-toolchain:documentation-latest</div>
+<div class="line">    steps:</div>
+<div class="line">      - uses: actions/checkout@v4</div>
+<div class="line">      - run: doxygen Doxyfile</div>
+<div class="line">      - uses: actions/upload-artifact@v4</div>
+<div class="line">        with:</div>
+<div class="line">          name: api-docs</div>
+<div class="line">          path: html</div>
+</div><!-- fragment --><p><span class="tt">html</span> is doxygen's default <span class="tt">HTML_OUTPUT</span>; point the upload at whatever your <span class="tt">Doxyfile</span> sets.</p>
+<h2 class="doxsection"><a class="anchor" id="coverage-report---documentation"></a>
+Coverage report - <span class="tt">documentation</span></h2>
+<p><span class="tt">lcov</span> and <span class="tt">genhtml</span> ship in this stage only - <span class="tt">gcov</span> itself comes with GCC everywhere, so a stage below this one produces counters but no HTML. Which tool lives where is <a class="el" href="coverage.html#md_docs_2COVERAGE" title="docs/COVERAGE.md">Code coverage</a>.</p>
+<div class="fragment"><div class="line">jobs:</div>
+<div class="line">  coverage:</div>
+<div class="line">    runs-on: ubuntu-24.04</div>
+<div class="line">    container: ghcr.io/guillaumedua/cpp-toolchain:documentation-latest</div>
+<div class="line">    steps:</div>
+<div class="line">      - uses: actions/checkout@v4</div>
+<div class="line">      - run: |</div>
+<div class="line">          cmake -S . -B build -DCMAKE_CXX_FLAGS=--coverage</div>
+<div class="line">          cmake --build build</div>
+<div class="line">          ctest --test-dir build</div>
+<div class="line">          lcov --capture --directory build --output-file cov.info</div>
+<div class="line">          genhtml cov.info --output-directory coverage-html</div>
+<div class="line">      - uses: actions/upload-artifact@v4</div>
+<div class="line">        with:</div>
+<div class="line">          name: coverage-html</div>
+<div class="line">          path: coverage-html</div>
+</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="cross-compilation---build-cross"></a>
+Cross-compilation - <span class="tt">build-cross</span></h2>
+<p>The <span class="tt">-cross</span> images add a <span class="tt">g++-&lt;triplet&gt;</span> per published target, so a matrix picks the triplet and nothing else changes.</p>
+<div class="fragment"><div class="line">jobs:</div>
+<div class="line">  cross:</div>
+<div class="line">    runs-on: ubuntu-24.04</div>
+<div class="line">    container: ghcr.io/guillaumedua/cpp-toolchain:build-cross-latest</div>
+<div class="line">    strategy:</div>
+<div class="line">      matrix:</div>
+<div class="line">        target: [aarch64-linux-gnu, arm-linux-gnueabihf, riscv64-linux-gnu]</div>
+<div class="line">    steps:</div>
+<div class="line">      - uses: actions/checkout@v4</div>
+<div class="line">      - run: |</div>
+<div class="line">          cmake -S . -B build \</div>
+<div class="line">              -DCMAKE_SYSTEM_NAME=Linux \</div>
+<div class="line">              -DCMAKE_CXX_COMPILER=${{ matrix.target }}-g++</div>
+<div class="line">          cmake --build build</div>
+</div><!-- fragment --><p><span class="tt">common</span> resolves to those three and the host triplet - see <a class="el" href="cross-compilation.html#md_docs_2CROSS-COMPILATION" title="docs/CROSS-COMPILATION.md">Cross-compilation</a>.</p>
+<h2 class="doxsection"><a class="anchor" id="run-without-a-toolchain---runtime"></a>
+Run without a toolchain - <span class="tt">runtime</span></h2>
+<p><span class="tt">runtime</span> carries the C++ shared libraries and no compiler, so running there proves the binary has no build-time dependency left. It needs the binary as an artifact from the build job above.</p>
+<div class="fragment"><div class="line">jobs:</div>
+<div class="line">  smoke:</div>
+<div class="line">    needs: build</div>
+<div class="line">    runs-on: ubuntu-24.04</div>
+<div class="line">    container: ghcr.io/guillaumedua/cpp-toolchain:runtime-latest</div>
+<div class="line">    steps:</div>
+<div class="line">      - uses: actions/download-artifact@v4</div>
+<div class="line">        with:</div>
+<div class="line">          name: app</div>
+<div class="line">      - run: |</div>
+<div class="line">          chmod +x ./app</div>
+<div class="line">          ./app</div>
+</div><!-- fragment --><h1 class="doxsection"><a class="anchor" id="gitlab-ci"></a>
+GitLab CI</h1>
+<div class="fragment"><div class="line">build:</div>
+<div class="line">  image: ghcr.io/guillaumedua/cpp-toolchain:build-latest</div>
+<div class="line">  script:</div>
+<div class="line">    - cmake -S . -B build -DCMAKE_BUILD_TYPE=Release</div>
+<div class="line">    - cmake --build build</div>
+</div><!-- fragment --><h1 class="doxsection"><a class="anchor" id="docker-compose"></a>
+Docker Compose</h1>
+<p>A service in <b>your</b> project's <span class="tt">compose.yaml</span>, with the source mounted and the container left running:</p>
+<div class="fragment"><div class="line">services:</div>
+<div class="line">  toolchain:</div>
+<div class="line">    image: ghcr.io/guillaumedua/cpp-toolchain:dev-latest</div>
+<div class="line">    volumes:</div>
+<div class="line">      - .:/workspace</div>
+<div class="line">    working_dir: /workspace</div>
+<div class="line">    command: sleep infinity</div>
+<div class="line">    # ptrace-based debuggers - gdb, valgrind</div>
+<div class="line">    cap_add: [SYS_PTRACE]</div>
+<div class="line">    security_opt: [seccomp:unconfined]</div>
+</div><!-- fragment --><p><span class="tt">docker compose up -d</span> starts it, <span class="tt">docker compose exec toolchain bash</span> drops you in.</p>
+<h1 class="doxsection"><a class="anchor" id="remote-ssh"></a>
+Remote SSH</h1>
+<p>The published images ship <b>no SSH server</b>. Remote access is an opt-in layer on top of <span class="tt">dev</span>, and it is a single Dockerfile that needs no clone:</p>
+<div class="fragment"><div class="line">wget https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/.devcontainer/ssh_support.dockerfile</div>
+<div class="line"> </div>
+<div class="line">docker build --file ssh_support.dockerfile --tag cpp-toolchain:ssh \</div>
+<div class="line">    --build-arg BASE_IMAGE=ghcr.io/guillaumedua/cpp-toolchain:dev-latest \</div>
+<div class="line">    --build-arg USER_NAME=vscodeuser \</div>
+<div class="line">    --build-arg USER_PASSWORD=password \</div>
+<div class="line">    .</div>
+<div class="line"> </div>
+<div class="line">docker run --rm --publish 2222:22 --volume &quot;${PWD}:/workspace&quot; cpp-toolchain:ssh</div>
+</div><!-- fragment --><p>That creates <span class="tt">vscodeuser</span> with sudo rights and exposes SSH on <span class="tt">2222</span>. Add a host to <span class="tt">~/.ssh/config</span>:</p>
+<div class="fragment"><div class="line"> -config</div>
+<div class="line">Host cpp-toolchain</div>
+<div class="line">  HostName localhost</div>
+<div class="line">  User vscodeuser</div>
+<div class="line">  Port 2222</div>
+<div class="line">  ForwardAgent yes</div>
+</div><!-- fragment --><p>With the <b>Remote - SSH</b> extension, run <b>Remote-SSH: Connect to Host...</b> -&gt; <span class="tt">cpp-toolchain</span>.</p>
+<dl class="section warning"><dt>Warning</dt><dd><span class="tt">USER_NAME</span> / <span class="tt">USER_PASSWORD</span> are passed as build arguments and land in the image history. Use throwaway credentials, and change them before exposing port <span class="tt">2222</span> beyond <span class="tt">localhost</span>.</dd></dl>
+<h1 class="doxsection"><a class="anchor" id="build-your-own-image"></a>
+Build your own image</h1>
+<p>The published images carry a single pinned GCC and Clang/LLVM to stay lean. Building from the repository gets you any other combination - the stage name is the <span class="tt">--target</span> argument, and omitting it builds <span class="tt">dev</span>:</p>
+<div class="fragment"><div class="line">git clone https://github.com/GuillaumeDua/cpp-toolchain.git</div>
+<div class="line">cd cpp-toolchain</div>
+<div class="line"> </div>
+<div class="line"># One stage, context is the repo root</div>
+<div class="line">docker build --target build -t cpp-toolchain:build .</div>
+<div class="line"> </div>
+<div class="line"># Several compiler versions side by side, wired through update-alternatives</div>
+<div class="line">docker build -t cpp-toolchain:dev . \</div>
+<div class="line">    --build-arg GCC_VERSIONS=&#39;&gt;=13&#39; \</div>
+<div class="line">    --build-arg LLVM_VERSIONS=&#39;12 20 22&#39;</div>
+</div><!-- fragment --><table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Name  </th><th class="markdownTableHeadNone">default  </th><th class="markdownTableHeadNone">description  </th><th class="markdownTableHeadNone">example  </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone">CMAKE_VERSION  </td><td class="markdownTableBodyNone"><em>pinned</em>  </td><td class="markdownTableBodyNone">exact version, or <span class="tt">latest</span>  </td><td class="markdownTableBodyNone"><span class="tt">latest</span>  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone">GCC_VERSIONS  </td><td class="markdownTableBodyNone"><em>pinned</em>  </td><td class="markdownTableBodyNone"><span class="tt">all</span><br  />
+<span class="tt">latest</span><br  />
+<span class="tt">latest-stable</span><br  />
+<span class="tt">&gt;=(number)</span><br  />
+<span class="tt">(space-separated-numbers...)</span>  </td><td class="markdownTableBodyNone"><span class="tt">all</span><br  />
+<span class="tt">latest</span><br  />
+<span class="tt">&gt;=13</span><br  />
+<span class="tt">9 11 13</span>  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone">LLVM_VERSIONS  </td><td class="markdownTableBodyNone"><em>pinned</em>  </td><td class="markdownTableBodyNone"><span class="tt">all</span><br  />
+<span class="tt">latest</span><br  />
+<span class="tt">latest-stable</span><br  />
+<span class="tt">&gt;=(number)</span><br  />
+<span class="tt">(space-separated-numbers...)</span>  </td><td class="markdownTableBodyNone"><span class="tt">all</span><br  />
+<span class="tt">latest</span><br  />
+<span class="tt">&gt;=13</span><br  />
+<span class="tt">11 13</span>  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone">BINUTILS_TARGETS  </td><td class="markdownTableBodyNone"><span class="tt">''</span> (none)  </td><td class="markdownTableBodyNone">Cross toolchain target triplets; empty = lean, a list = cross-arch variant  </td><td class="markdownTableBodyNone"><span class="tt">'aarch64-linux-gnu riscv64-linux-gnu'</span>  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone">OPT_IN_INTEGRATE_BAZEL  </td><td class="markdownTableBodyNone"><span class="tt">no</span>  </td><td class="markdownTableBodyNone"><span class="tt">y</span> or <span class="tt">n</span>  </td><td class="markdownTableBodyNone"></td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone">OPT_IN_INTEGRATE_BUILD2  </td><td class="markdownTableBodyNone"><span class="tt">no</span>  </td><td class="markdownTableBodyNone"><span class="tt">y</span> or <span class="tt">n</span>  </td><td class="markdownTableBodyNone"></td></tr>
+</table>
+<p>The <em>pinned</em> defaults are the <span class="tt">ARG</span> block at the top of the <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/Dockerfile">Dockerfile</a>, and every release note lists the values that release shipped. <span class="tt">BINUTILS_TARGETS</span> on any <span class="tt">--target</span> build produces the cross-arch flavor of that stage - see <a class="el" href="cross-compilation.html#md_docs_2CROSS-COMPILATION" title="docs/CROSS-COMPILATION.md">Cross-compilation</a>.</p>
+<h1 class="doxsection"><a class="anchor" id="choosing-a-compiler-version"></a>
+Choosing a compiler version</h1>
+<p>Unversioned commands are <span class="tt">update-alternatives</span> symlinks, and the latest-stable version always holds the highest priority. With several versions installed, either switch the default or call a versioned binary:</p>
+<div class="fragment"><div class="line">update-alternatives --config gcc      # switch the default gcc/g++/gcov/gcov-tool set</div>
+<div class="line">update-alternatives --config clang    # switch the default clang/clang++ set</div>
+<div class="line"> </div>
+<div class="line">g++-14     -std=c++23 main.cpp        # or pin explicitly</div>
+<div class="line">clang++-20 -std=c++23 main.cpp</div>
+</div><!-- fragment --><p>The installed versions are exported as <span class="tt">gcc_versions</span> / <span class="tt">llvm_versions</span> shell variables, in bash and zsh.</p>
+<p><span class="tt">clang++</span> defaults to GCC's <span class="tt">libstdc++</span>, the Linux default. libc++ is installed for the host architecture, so the LLVM toolchain is usable without GCC:</p>
+<div class="fragment"><div class="line">clang++ -std=c++23 -stdlib=libc++ main.cpp</div>
+</div><!-- fragment --><h1 class="doxsection"><a class="anchor" id="see-also-2"></a>
+See also</h1>
+<ul>
+<li><a class="el" href="index.html#md_README" title="cpp-toolchain">README.md</a> - the images themselves: stages, features, tags, what each contains.</li>
+<li><a class="el" href="standalone-scripts.html#md_scripts_2README" title="scripts/README.md">scripts/README.md</a> - the same toolchain without Docker, from standalone install scripts.</li>
+<li><a class="el" href="cross-compilation.html#md_docs_2CROSS-COMPILATION" title="docs/CROSS-COMPILATION.md">docs/CROSS-COMPILATION.md</a> - cross-architecture compilation and multilib.</li>
+<li><a class="el" href="coverage.html#md_docs_2COVERAGE" title="docs/COVERAGE.md">docs/COVERAGE.md</a> - the GNU and LLVM coverage tools, and which stage carries which. </li>
+</ul>
+</div></div><!-- contents -->
+</div><!-- PageDoc -->
+</div><!-- doc-content -->
+<div id="page-nav" class="page-nav-panel">
+<div id="page-nav-resize-handle"></div>
+<div id="page-nav-tree">
+<div id="page-nav-contents">
+</div><!-- page-nav-contents -->
+</div><!-- page-nav-tree -->
+</div><!-- page-nav -->
+</div><!-- container -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="footer">Generated by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.18.0 </li>
+  </ul>
+</div>
+</body>
+</html>
