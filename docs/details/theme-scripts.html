@@ -9,6 +9,22 @@
 <link rel="icon" href="$relpath^logo.svg" type="image/svg+xml"/>
 <!-- Doxygen writes no meta description of its own; $projectbrief keeps the Doxyfile the only place it is spelled. -->
 <meta name="description" content="$projectbrief"/>
+<!--
+  Open Graph, for the card a link to the site renders as.
+  Both URLs are written in full. og:url is an identifier rather than a link, and $relpath^ resolves to
+  the output root, which is empty on every page here; og:image follows it, so a move has one place to change.
+  Every page carries the site root rather than its own address, so og:title names the site, not the page.
+  og-card.png reaches the output through the Doxyfile's HTML_EXTRA_FILES,
+  and its size is declared so that a renderer can lay the card out before it has fetched the bytes.
+-->
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://guillaumedua.github.io/cpp-toolchain/"/>
+<meta property="og:title" content="$projectname"/>
+<meta property="og:description" content="$projectbrief"/>
+<meta property="og:image" content="https://guillaumedua.github.io/cpp-toolchain/og-card.png"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+
 <script type="text/javascript" src="$relpath^doxygen-awesome-darkmode-toggle.js"></script>
 <script type="text/javascript" src="$relpath^doxygen-awesome-paragraph-link.js"></script>
 <script type="text/javascript" src="$relpath^doxygen-awesome-interactive-toc.js"></script>
