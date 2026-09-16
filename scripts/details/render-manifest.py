@@ -16,7 +16,7 @@ Usage, from the repository root - `--dockerfile` and `--renovate` default to pat
     python3 scripts/details/render-manifest.py --print-newest-release   # the newest release tag, nothing else
 
 `--previous-ref` defaults to the newest release before `--tag`, which is the base every caller
-wants, so no caller computes one. Pass `--previous-ref ''` for a manifest with no diff column.
+wants, so no caller computes one. Pass `--previous-ref ''` for a manifest with no changes section.
 
 Which tags count as releases and how they order is defined here and nowhere else:
 docker-publish.yml reads `--print-newest-release` to derive the next minor, so the tag it
@@ -74,8 +74,9 @@ def dockerfile_managers(renovate_config):
 
 
 def parse(dockerfile, renovate_config):
-    """{name: version} for every pin in the Dockerfile, keyed by depName where one exists."""
+    """({name: version}, {name: versioning}) for every pin in the Dockerfile, keyed by depName where one exists."""
     found = {}
+    schemes = {}
     for manager in dockerfile_managers(renovate_config):
         for pattern in manager["matchStrings"]:
             for match in re.finditer(js_to_py(pattern), dockerfile):
@@ -92,12 +93,37 @@ def parse(dockerfile, renovate_config):
                 if not name or not value:
                     continue
                 found[name] = value
+                if groups.get("versioning"):
+                    schemes[name] = groups["versioning"]
 
     # The one pin no manager covers, by design.
     snapshot = re.search(r"^ARG UBUNTU_SNAPSHOT=(\S+)", dockerfile, re.MULTILINE)
     if snapshot:
         found["UBUNTU_SNAPSHOT"] = snapshot.group(1)
-    return found
+    return found, schemes
+
+
+def render_version(value, versioning):
+    """`value` as a dotted version when its Renovate scheme can name the parts, verbatim otherwise.
+
+    Doxygen pins the git tag `Release_1_18_0` while the image reports `1.18.0`, and a manifest of
+    what is installed wants the latter. The scheme that governs the bump already says where the
+    numbers are, so reading it keeps that mapping in one place.
+    """
+    if not versioning or not versioning.startswith("regex:"):
+        return value
+    # `search`, not `fullmatch`: the scheme declares its own anchors.
+    match = re.search(js_to_py(versioning[len("regex:"):]), value)
+    if not match:
+        return value
+    groups = match.groupdict()
+    # The numeric parts Renovate's regex versioning names, in version order. `compatibility` is not
+    # one of them, and `prerelease` is a suffix rather than a part.
+    parts = [groups[part] for part in ("major", "minor", "patch", "build", "revision") if groups.get(part)]
+    if not parts:
+        return value
+    prerelease = groups.get("prerelease")
+    return ".".join(parts) + (f"-{prerelease}" if prerelease else "")
 
 
 def git_show(ref, path):
@@ -130,32 +156,44 @@ def newest_release_before(tag):
     return max(releases, key=lambda t: tuple(int(part) for part in t[1:].split(".")))
 
 
-def delta(current, previous):
-    """Markdown cell describing the move from `previous` to `current`."""
-    if previous is None:
-        return "new"
-    if current == previous:
-        return "="
-    def tup(value):
-        parts = []
-        for segment in re.split(r"[.\-_]", value):
-            if not segment.isdigit():
-                break
-            parts.append(int(segment))
-        return tuple(parts)
-    lhs, rhs = tup(current), tup(previous)
-    arrow = "⬆" if (lhs and rhs and lhs > rhs) else ("⬇" if (lhs and rhs and lhs < rhs) else "→")
-    return f"{arrow} {previous}"
+def moved_pins(current, previous):
+    """{name: (old, new)} for every pin whose value differs, `None` on the side it is absent from.
+
+    Over the union of both sides, so a pin added to or dropped from the Dockerfile shows up
+    as well as one re-pinned. Sorted by name, not display order.
+    """
+    return {
+        name: (previous.get(name), current.get(name))
+        for name in sorted(set(current) | set(previous))
+        if current.get(name) != previous.get(name)
+    }
+
+
+def change_lines(moved, labels, order, schemes):
+    """One markdown bullet per moved pin, in the manifest's display order, dropped pins last.
+
+    Both values sit in the bullet, so the move reads left to right and needs no direction glyph.
+    """
+    names = [name for name in order if name in moved]
+    names += [name for name in moved if name not in order]
+    lines = []
+    for name in names:
+        old, new = moved[name]
+        label = labels.get(name, name)
+        versioning = schemes.get(name)
+        if old is None:
+            lines.append(f"- {label}: added, `{render_version(new, versioning)}`")
+        elif new is None:
+            lines.append(f"- {label}: removed, was `{render_version(old, versioning)}`")
+        else:
+            lines.append(f"- {label}: `{render_version(old, versioning)}` → `{render_version(new, versioning)}`")
+    return lines
 
 
 def bumps_yaml(current, previous, diffing):
     """The moved pins as a YAML mapping. JSON quoting keeps this dependency-free:
     every emitted line is a YAML flow mapping, and json.dumps escapes the slashes in depNames."""
-    moved = {}
-    if diffing:
-        for name in sorted(set(current) | set(previous)):
-            if current.get(name) != previous.get(name):
-                moved[name] = (previous.get(name), current.get(name))
+    moved = moved_pins(current, previous) if diffing else {}
     if not moved:
         return "bumps: {}"
     lines = ["bumps:"]
@@ -195,7 +233,7 @@ def main():
         renovate_config = pathlib.Path(args.renovate).read_text(encoding="utf-8")
         dockerfile = pathlib.Path(args.dockerfile).read_text(encoding="utf-8")
 
-    current = parse(dockerfile, renovate_config)
+    current, schemes = parse(dockerfile, renovate_config)
     if not current:
         raise SystemExit("::error::no pinned versions found - has the Dockerfile or renovate.json changed shape?")
 
@@ -209,8 +247,8 @@ def main():
                   file=sys.stderr)
         else:
             # The old Dockerfile is parsed with the *current* regexes.
-            # Fine in practice: the annotation format is stable, and a pin the old regex could not see reads as "new".
-            previous = parse(old_dockerfile, renovate_config)
+            # Fine in practice: the annotation format is stable, and a pin the old regex could not see reads as added.
+            previous, _ = parse(old_dockerfile, renovate_config)
 
     diffing = bool(previous)
 
@@ -242,21 +280,30 @@ def main():
             f"(https://github.com/GuillaumeDua/cpp-toolchain/blob/main/releases/{args.tag}.yaml)",
             "",
         ]
-    out.append("| Component | Version |" + (f" Since {previous_ref} |" if diffing else ""))
-    out.append("| --- | --- |" + (" --- |" if diffing else ""))
-    for name in ordered:
-        row = f"| {labels.get(name, name)} | `{current[name]}` |"
-        if diffing:
-            row += f" {delta(current[name], previous.get(name))} |"
-        out.append(row)
-
+    out += [
+        "### Toolchain versions",
+        "",
+        "| Component | Version |",
+        "| --- | --- |",
+    ]
+    out += [f"| {labels.get(name, name)} | `{render_version(current[name], schemes.get(name))}` |" for name in ordered]
     out += [
         "",
         "Every version listed above is pinned in the [Dockerfile](Dockerfile) and kept current by Renovate,  ",
         "so this table is the authoritative manifest of the image's contents, not a point-in-time snapshot.",
-        "",
-        "<!-- manifest:end -->"
     ]
+
+    if diffing:
+        moved = moved_pins(current, previous)
+        out += ["", f"### Changes since {previous_ref}", ""]
+        if not moved:
+            out.append("No component moved.")
+        else:
+            out += change_lines(moved, labels, ordered, schemes)
+            if any(name not in moved for name in ordered):
+                out += ["", "All other components unchanged."]
+
+    out += ["", "<!-- manifest:end -->"]
     print("\n".join(out))
 
 
