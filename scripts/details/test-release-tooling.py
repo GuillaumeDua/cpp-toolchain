@@ -198,18 +198,26 @@ class NewestReleaseBefore(unittest.TestCase):
         with repository_with_tags(self.TAGS):
             self.assertEqual(render_manifest.newest_release_before("v2.0"), "v1.10")
 
-    def test_outside_a_checkout_is_empty(self):
-        with tempfile.TemporaryDirectory() as directory, contextlib.chdir(directory):
-            self.assertEqual(render_manifest.newest_release_before("v1.0"), "")
-
-    # TODO: keep only the releases strictly below `tag`, instead of every release but `tag`.
-    #   Today `newest_release_before('v1.0')` answers 'v2.0', which is why `--check-bumps` on an
-    #   already-shipped record recomputes against a later release and reports a downgrade.
-    #   Drop this decorator with the fix.
-    @unittest.expectedFailure
     def test_a_release_after_the_tag_is_not_before_it(self):
+        # Re-checking a shipped record must diff against what preceded it. Answering 'v2.0' here is
+        # what made `--check-bumps` on releases/v1.2.yaml report a Doxygen downgrade.
         with repository_with_tags(self.TAGS):
             self.assertEqual(render_manifest.newest_release_before("v1.0"), "")
+            self.assertEqual(render_manifest.newest_release_before("v1.10"), "v1.9")
+
+    def test_an_rc_orders_as_its_target_minor(self):
+        with repository_with_tags(self.TAGS):
+            self.assertEqual(render_manifest.newest_release_before("v2.0-rc.1"), "v1.10")
+
+    def test_no_tags_is_the_first_release(self):
+        with repository_with_tags([]):
+            self.assertEqual(render_manifest.newest_release_before("v1.0"), "")
+
+    def test_an_unreadable_tag_list_raises_rather_than_reading_as_no_releases(self):
+        # Otherwise a checkout whose tags were never fetched silently cuts v1.0 over an existing one.
+        with tempfile.TemporaryDirectory() as directory, contextlib.chdir(directory):
+            with self.assertRaises(SystemExit):
+                render_manifest.newest_release_before("v1.0")
 
 
 class DiffingGuard(unittest.TestCase):
@@ -243,6 +251,50 @@ class DiffingGuard(unittest.TestCase):
         self.assertIn("| `20260825T000000Z` |", out)
         self.assertIn("| GCC | `15` |", out)
         self.assertIn("| Doxygen | `1.18.0` |", out)
+
+    def test_an_unreadable_previous_ref_fails_the_record(self):
+        # An unverifiable `bumps: {}` in an immutable record reads exactly like a verified one.
+        with self.assertRaises(subprocess.CalledProcessError) as raised:
+            self.render("--tag", "v1.4", "--previous-ref", "v0.0-absent", "--bumps-yaml")
+        self.assertIn("::error::cannot diff against v0.0-absent", raised.exception.stderr)
+
+    def test_an_unreadable_previous_ref_is_stated_in_the_note(self):
+        out = self.render("--tag", "v1.4", "--previous-ref", "v0.0-absent")
+        self.assertIn("Not comparable against `v0.0-absent`", out)
+        self.assertNotIn("No component moved.", out)
+
+
+class ReplaceRegion(unittest.TestCase):
+    BODY = "Hand-written intro.\n\n<!-- manifest:begin -->\nold table\n<!-- manifest:end -->\n\nTrailing prose."
+
+    def replace(self, body, **kwargs):
+        return render_manifest.replace_region(body, kwargs.pop("name", "manifest"),
+                                              kwargs.pop("replacement", "NEW"),
+                                              kwargs.pop("when_absent", "append"))
+
+    def test_only_the_region_is_replaced(self):
+        out = self.replace(self.BODY)
+        self.assertIn("Hand-written intro.", out)
+        self.assertIn("Trailing prose.", out)
+        self.assertIn("NEW", out)
+        self.assertNotIn("old table", out)
+
+    def test_absent_region_appends_or_prepends(self):
+        self.assertTrue(self.replace("body").endswith("NEW"))
+        self.assertTrue(self.replace("body", when_absent="prepend").startswith("NEW"))
+
+    def test_a_missing_end_marker_does_not_eat_the_rest_of_the_body(self):
+        # The sed this replaces deleted to end-of-file here, losing every hand-written line.
+        with self.assertRaises(SystemExit):
+            self.replace("intro\n<!-- manifest:begin -->\ntable\n\nTrailing prose.")
+
+    def test_a_duplicated_region_is_refused(self):
+        with self.assertRaises(SystemExit):
+            self.replace(self.BODY + "\n" + self.BODY)
+
+    def test_markers_out_of_order_are_refused(self):
+        with self.assertRaises(SystemExit):
+            self.replace("<!-- manifest:end -->\ntable\n<!-- manifest:begin -->")
 
 
 class Validate(unittest.TestCase):

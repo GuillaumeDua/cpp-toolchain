@@ -215,7 +215,13 @@ def check_bumps(data):
     commit = str(data.get("commit", ""))
     cmd = [sys.executable, str(HERE / "render-manifest.py"),
            "--tag", version, "--ref", commit, "--bumps-yaml"]
-    recomputed = yaml.safe_load(subprocess.run(cmd, capture_output=True, text=True, check=True).stdout)
+    done = subprocess.run(cmd, capture_output=True, text=True)
+    # A record predating a repository layout change has no comparable predecessor, so its bumps
+    # cannot be recomputed at all. That is a finding, not a crash: report it like any other.
+    if done.returncode != 0:
+        detail = (done.stderr.strip() or done.stdout.strip()).replace("::error::", "")
+        return [f"bumps cannot be recomputed at {commit}: {detail}"]
+    recomputed = yaml.safe_load(done.stdout)
     expected = recomputed.get("bumps") or {}
     recorded = data.get("bumps") or {}
     if recorded != expected:

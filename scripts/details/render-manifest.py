@@ -15,9 +15,17 @@ so it is matched separately here and bumped by .github/workflows/ubuntu-snapshot
 Usage, from the repository root - `--dockerfile` and `--renovate` default to paths relative to it:
     python3 scripts/details/render-manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
     python3 scripts/details/render-manifest.py --print-newest-release   # the newest release tag, nothing else
+    python3 scripts/details/render-manifest.py --replace-region manifest --with note.md < body.md
 
 `--previous-ref` defaults to the newest release before `--tag`, which is the base every caller
 wants, so no caller computes one. Pass `--previous-ref ''` for a manifest with no changes section.
+A named ref that cannot be read, or that parses to no pins, is never silently rendered as "nothing
+moved": `--bumps-yaml` fails, because an unverifiable `{}` in an immutable record reads as a
+verified one, and the markdown says it is not comparable.
+
+`--replace-region` edits a release body in place around the `<!-- name:begin -->` markers this
+script emits, and refuses an unbalanced pair. Every caller that upserts a release body goes
+through it, so hand-written prose outside the region survives a re-run.
 
 Which tags count as releases and how they order is defined here and nowhere else:
 docker-publish.yml reads `--print-newest-release` to derive the next minor, so the tag it
@@ -55,6 +63,7 @@ LABELS = [
 ]
 
 RELEASE_RE = re.compile(r"^v\d+\.\d+$")
+VERSION_HEAD_RE = re.compile(r"^v(\d+)\.(\d+)")
 
 # Registry pages the images are published to - hardcoded like LABELS, this script is repository-specific.
 GHCR_PAGE = "https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain"
@@ -138,23 +147,64 @@ def git_show(ref, path):
         return None
 
 
-def newest_release_before(tag):
-    """Newest release tag by version order, excluding pre-releases and `tag` itself.
+def version_order(tag):
+    """(major, minor) read off the head of a tag, so `v1.4` and `v1.4-rc.1` order alike.
 
-    Ordered on the parsed (major, minor): lexically, v1.10 sorts below v1.9.
-    Empty outside a git checkout.
+    Lexically, v1.10 sorts below v1.9, which is why every comparison here goes through this.
+    """
+    match = VERSION_HEAD_RE.match(tag)
+    if not match:
+        raise SystemExit(f"::error::'{tag}' is not a v<major>.<minor> tag")
+    return int(match.group(1)), int(match.group(2))
+
+
+def newest_release_before(tag):
+    """Newest release tag strictly below `tag`, or the newest of all when `tag` is empty.
+
+    Strictly below, not merely "not `tag`": re-checking an already-shipped record must diff against
+    what preceded it, never against a release cut afterwards.
+    An rc orders as its target minor, so `v1.4-rc.1` answers the same as `v1.4`.
+
+    Empty means this is the first release. A git failure raises instead, so a checkout whose tags
+    were never fetched cannot be mistaken for a project that has never released.
     """
     try:
         tags = subprocess.run(
             ["git", "tag", "-l", "v*.*"],
             capture_output=True, text=True, check=True,
         ).stdout.split()
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return ""
-    releases = [t for t in tags if RELEASE_RE.match(t) and t != tag]
+    except (subprocess.CalledProcessError, FileNotFoundError) as error:
+        raise SystemExit("::error::cannot list git tags - is this a checkout, and were the tags fetched?") from error
+    releases = [candidate for candidate in tags if RELEASE_RE.match(candidate)]
+    if tag:
+        releases = [candidate for candidate in releases if version_order(candidate) < version_order(tag)]
     if not releases:
         return ""
-    return max(releases, key=lambda t: tuple(int(part) for part in t[1:].split(".")))
+    return max(releases, key=version_order)
+
+
+def replace_region(body, name, replacement, when_absent):
+    """`body` with the `<!-- name:begin -->` / `<!-- name:end -->` region replaced by `replacement`.
+
+    An unbalanced pair is a corrupt body, not an instruction to delete the rest of it: a
+    `sed '/begin/,/end/d'` runs to end-of-file when the closing marker is missing, taking any
+    hand-written release prose with it.
+    """
+    begin, end = f"<!-- {name}:begin -->", f"<!-- {name}:end -->"
+    lines = body.splitlines()
+    starts = [index for index, line in enumerate(lines) if line.strip() == begin]
+    ends = [index for index, line in enumerate(lines) if line.strip() == end]
+
+    if len(starts) > 1 or len(ends) > 1 or len(starts) != len(ends):
+        raise SystemExit(f"::error::{name}: found {len(starts)} '{begin}' and {len(ends)} '{end}'"
+                         " - expected exactly one of each, or neither")
+    if not starts:
+        block = replacement.splitlines()
+        ordered = block + [""] + lines if when_absent == "prepend" else lines + [""] + block
+        return "\n".join(ordered)
+    if ends[0] < starts[0]:
+        raise SystemExit(f"::error::{name}: '{end}' precedes '{begin}'")
+    return "\n".join(lines[:starts[0]] + replacement.splitlines() + lines[ends[0] + 1:])
 
 
 def moved_pins(current, previous):
@@ -214,12 +264,25 @@ def main():
                         help="emit the moved pins as a YAML `bumps:` mapping instead of the markdown manifest")
     parser.add_argument("--print-newest-release", action="store_true",
                         help="print the newest release tag by version order and exit (no --tag needed)")
+    parser.add_argument("--replace-region", metavar="NAME",
+                        help="replace the <!-- NAME:begin --> region of a release body read on stdin (no --tag needed)")
+    parser.add_argument("--with", dest="replacement", metavar="FILE",
+                        help="the replacement block, for --replace-region")
+    parser.add_argument("--when-absent", choices=["append", "prepend"], default="append",
+                        help="where to put the block when the region is not there yet (default: append)")
     parser.add_argument("--dockerfile", default="Dockerfile")
     parser.add_argument("--renovate", default="renovate.json")
     args = parser.parse_args()
 
     if args.print_newest_release:
         print(newest_release_before(args.tag or ""))
+        return
+
+    if args.replace_region:
+        if not args.replacement:
+            parser.error("--replace-region needs --with FILE")
+        replacement = pathlib.Path(args.replacement).read_text(encoding="utf-8")
+        print(replace_region(sys.stdin.read(), args.replace_region, replacement, args.when_absent))
         return
 
     if not args.tag:
@@ -241,17 +304,28 @@ def main():
     previous_ref = newest_release_before(args.tag) if args.previous_ref is None else args.previous_ref
 
     previous = {}
+    undiffable = ""
     if previous_ref:
         old_dockerfile = git_show(previous_ref, args.dockerfile)
         if old_dockerfile is None:
-            print(f"[render-manifest] no Dockerfile at {previous_ref} - rendering without a diff",
-                  file=sys.stderr)
+            undiffable = f"{args.dockerfile} does not exist at {previous_ref}"
         else:
             # The old Dockerfile is parsed with the *current* regexes.
             # Fine in practice: the annotation format is stable, and a pin the old regex could not see reads as added.
             previous, _ = parse(old_dockerfile, renovate_config)
+            if not previous:
+                undiffable = (f"no pinned versions found in {args.dockerfile} at {previous_ref}"
+                              " - the renovate.json manager regexes no longer match it")
 
-    diffing = bool(previous)
+    # The two outputs answer differently because their readers differ.
+    # `bumps:` lands in an immutable record, where an unverifiable `{}` is indistinguishable from a
+    # verified "nothing moved", so it fails instead. The markdown says so and renders the rest.
+    if undiffable:
+        if args.bumps_yaml:
+            raise SystemExit(f"::error::cannot diff against {previous_ref}: {undiffable}")
+        print(f"::warning::cannot diff against {previous_ref}: {undiffable}", file=sys.stderr)
+
+    diffing = bool(previous_ref)
 
     if args.bumps_yaml:
         print(bumps_yaml(current, previous, diffing))
@@ -296,14 +370,18 @@ def main():
     ]
 
     if diffing:
-        moved = moved_pins(current, previous)
         out += ["", f"### Changes since {previous_ref}", ""]
-        if not moved:
-            out.append("No component moved.")
+        if undiffable:
+            # Never "No component moved." here: that is a claim, and this is the case where nothing is known.
+            out.append(f"Not comparable against `{previous_ref}` - {undiffable}.")
         else:
-            out += change_lines(moved, labels, ordered, schemes)
-            if any(name not in moved for name in ordered):
-                out += ["", "All other components unchanged."]
+            moved = moved_pins(current, previous)
+            if not moved:
+                out.append("No component moved.")
+            else:
+                out += change_lines(moved, labels, ordered, schemes)
+                if any(name not in moved for name in ordered):
+                    out += ["", "All other components unchanged."]
 
     out += ["", "<!-- manifest:end -->"]
     print("\n".join(out))

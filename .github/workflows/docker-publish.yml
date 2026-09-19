@@ -165,8 +165,8 @@ jobs:
             # Already exists: a records merge for a hand-cut major, or a re-run. Replace only the
             # marked manifest region, so hand-written release prose survives.
             gh release view "${VERSION}" --json body -q .body > body.md || true
-            sed '/<!-- manifest:begin -->/,/<!-- manifest:end -->/d' body.md > merged.md
-            cat note.md >> merged.md
+            python3 scripts/details/render-manifest.py \
+              --replace-region manifest --with note.md < body.md > merged.md
             gh release edit "${VERSION}" --notes-file merged.md
           else
             gh release create "${VERSION}" \
@@ -199,9 +199,9 @@ jobs:
             echo "> Promoted to [${VERSION}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${VERSION}) - same digests, byte-identical.  "
             echo "> Use the stable release; this pre-release remains as the record of what was validated."
             echo "<!-- promoted:end -->"
-            echo
-            sed '/<!-- promoted:begin -->/,/<!-- promoted:end -->/d' rc-body.md
-          } > rc-merged.md
+          } > banner.md
+          python3 scripts/details/render-manifest.py \
+            --replace-region promoted --with banner.md --when-absent prepend < rc-body.md > rc-merged.md
           gh release edit "${CANDIDATE}" --notes-file rc-merged.md
 
   # ------------------------------------------------------------------------------------------
@@ -419,8 +419,8 @@ jobs:
         run: |
           set -euo pipefail
           gh release view "${PRIMARY}" --json body -q .body > body.md || true
-          sed '/<!-- manifest:begin -->/,/<!-- manifest:end -->/d' body.md > merged.md
-          cat note.md >> merged.md
+          python3 scripts/details/render-manifest.py \
+            --replace-region manifest --with note.md < body.md > merged.md
           gh release edit "${PRIMARY}" --notes-file merged.md
 
       # The promotion record:
