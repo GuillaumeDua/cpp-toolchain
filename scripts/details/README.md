@@ -11,6 +11,7 @@ Implementation details of *this* repository - unlike the [toolchain installers](
 | `check-release-file.py` | The single definition of the `releases/v*.yaml` schema, of the canonical stage and registry lists, and of the promotion plan derived from a record |
 | `build-stages.sh` | Builds a list of Dockerfile stages, one buildx invocation each. Owns the buildx flags and the layer cache scopes for both [docker-build](../../.github/workflows/docker-build.yml) and [docker-publish](../../.github/workflows/docker-publish.yml) |
 | `smoke-test.sh` | Runs *inside* a candidate image - compiles and runs a C++23 hello world with both default compilers. Bind-mounted and executed by [release-candidate-check.yml](../../.github/workflows/release-candidate-check.yml) |
+| `test-release-tooling.py` | Covers `render-manifest.py` and `check-release-file.py`, the two scripts that write release pages and the `bumps:` half of a promotion record. Inline fixtures, so a pin bump never turns a test red |
 
 Everything here runs from the **repository root**: the Python defaults are paths relative to the working directory, and `build-stages.sh` uses it as the build context.
 `smoke-test.sh` is the exception: it runs inside the image under test, not here.
@@ -19,12 +20,13 @@ Everything here runs from the **repository root**: the Python defaults are paths
 python3 scripts/details/check-dependencies-pins.py               # exits non-zero and reports every violation
 python3 scripts/details/check-install-script-parity.py           # shared helpers, byte for byte
 python3 scripts/details/check-action-pins.py                     # every `uses:` is a commit digest
+python3 scripts/details/test-release-tooling.py                  # the release tooling's own tests
 python3 scripts/details/render-manifest.py --tag v1.2            # diffed against the newest release before it
 python3 scripts/details/check-release-file.py releases/v1.2.yaml # schema only, offline
 bash    scripts/details/build-stages.sh --help                   # the buildx driver's options
 ```
 
-`check-dependencies-pins.py`, `check-install-script-parity.py` and `check-action-pins.py` are the [build gate](../../.github/workflows/docker-build.yml)'s first three steps, so running them before pushing saves a round trip.
+`check-dependencies-pins.py`, `check-install-script-parity.py`, `check-action-pins.py` and `test-release-tooling.py` are the [build gate](../../.github/workflows/docker-build.yml)'s first four steps, so running them before pushing saves a round trip.
 `check-release-file.py` backs the [release process](../../docs/RELEASE_PROCESS.md) - see it for what a promotion record is.
 The workflows read its stage lists and pass them to `build-stages.sh`, which reads its registry list itself.
 

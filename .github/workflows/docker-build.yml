@@ -33,6 +33,9 @@ jobs:
       - name: Assert every action is pinned to a commit digest
         run: python3 scripts/details/check-action-pins.py
 
+      - name: Test the release tooling
+        run: python3 scripts/details/test-release-tooling.py
+
       - name: Set up Docker Buildx
         uses: ./.github/actions/setup-buildx
 
