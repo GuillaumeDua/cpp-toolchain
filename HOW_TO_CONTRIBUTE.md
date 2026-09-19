@@ -98,12 +98,13 @@ Publishing is [docker-publish](.github/workflows/docker-publish.yml) - a **separ
 - The twice-monthly **rc schedule** and manual dispatch cut a **release candidate** (`v1.2-rc.1`) and open a candidate PR; it never moves `latest`.
 - A **minor** (`v1.1`, `v1.2`, ...) ships when the maintainer **merges that candidate PR**: the rc's image digests are re-tagged, so the release is byte-identical to the rc that was validated - no rebuild.
 - A GitHub **release** cut by hand from `main` publishes a **major** (`v<major>.0`, e.g. `v2.0`) plus the `latest` alias.
-- The scheduled rc **publishes nothing when nothing changed**: every version is pinned, so an unchanged commit would rebuild to an identical image.
+- The scheduled rc **publishes nothing when nothing changed**: an unchanged tree has nothing new to ship, so no release is cut just because a date arrived.
 - Images go to both **Docker Hub** and **GHCR**.
 
 The full release procedure (promotion, urgent fixes, rollback, failure modes) is in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) - the cadence is stated there and nowhere else.
 
-Release notes are generated from the Dockerfile's pinned `ARG`s by [scripts/details/render-manifest.py](scripts/details/render-manifest.py), so each release states exactly what it contains and what moved since the previous one.
+Release notes are generated from the Dockerfile's pinned `ARG`s by [scripts/details/render-manifest.py](scripts/details/render-manifest.py), so each release states the versions it pins and what moved since the previous one.
+What a pin does and does not fix is in [Tags & versioning](README.md#whats-inside-a-given-tag).
 
 Guards protecting the registries:
 

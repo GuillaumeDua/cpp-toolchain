@@ -111,6 +111,8 @@ The three channels differ in *who decides*, not in what they contain:
   Only a human decides that.
 - **minor** = a validated rc, promoted.
   Renovate moved versions, the rc proved they hold up, a human shipped it.
+  A compiler major bump arrives this way too: GCC or Clang moving to a new major ships as a minor, so `latest` can change compiler major.
+  Pin `v<major>.<minor>` when that matters.
 - **rc** = a fresh build from `main`, published early for validation.
 
 Every version in the image is **pinned** in the [Dockerfile](Dockerfile) and updated by [Renovate](renovate.json), so a scheduled run **publishes nothing when nothing changed** - no release is cut just because a date arrived.
@@ -125,8 +127,10 @@ Every other stage must be named explicitly.
 
 ### What's inside a given tag
 
-Every release note lists the exact versions that release contains - compilers, build systems, dependency managers, documentation tooling - and what moved since the previous one.
-Because the versions are pinned rather than resolved at build time, that list is the image's contents rather than a snapshot of them, and **two builds of the same commit produce the same image**.
+Every release note lists the versions that release pins - compilers, build systems, dependency managers, documentation tooling - and what moved since the previous one.
+Those pins are what the image **requests**, which is not always what it resolves to.
+GCC and Clang pin a **major** and install from rolling apt sources (`ppa:ubuntu-toolchain-r/test` and `apt.llvm.org`), so two builds of the same commit weeks apart can carry different patch releases of the same compiler major.
+The Ubuntu archive is pinned by `UBUNTU_SNAPSHOT`; the rest pins an upstream version.
 
 > [!NOTE]
 > **On host architecture**:
@@ -190,8 +194,9 @@ That has two consequences worth knowing:
 > [!NOTE]
 > **On reproducibility**
 >
-> Two builds of the same commit produce the same image.  
-> Rebuilding a *years-old* tag is a weaker promise: GCC, Clang and CMake come from a PPA and two third-party apt repositories, none of which keep superseded versions.  
+> Two builds of the same commit install the same distro package set, frozen by the archive snapshot, and the same exactly-pinned tools.  
+> They do **not** produce the same image: GCC and Clang pin a major, so each build takes whatever patch level the PPA and `apt.llvm.org` serve that day.  
+> Rebuilding a *years-old* tag is weaker still: those repositories keep no superseded versions.  
 > The published image is the durable artifact, not the ability to recreate it.
 
 ## Contributing

@@ -5,7 +5,7 @@ name: ubuntu-snapshot
 #   This workflow stands in for Renovate - same cadence, same `dependencies` label, same review path through a pull request and the build gate.
 #
 # Moving the timestamp forward is what lets the ~20 unpinned distro packages (ninja, cppcheck, valgrind, gdb, lcov, ...) pick up upstream updates.
-# Between bumps they are frozen, which is what makes two builds of the same commit produce the same image.
+# Between bumps those packages are frozen, so two builds of one commit install the same distro package set.
 on:
   schedule:
     - cron: "0 3 25 * *" # 25th, so the PR lands before the next rc on the 8th
