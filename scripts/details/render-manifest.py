@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Render the Dockerfile's pinned versions as a markdown manifest, for a GitHub release description.
 
-Every version these images contain is pinned as an annotated `ARG` in the Dockerfile,
+Every version these images request is pinned as an annotated `ARG` in the Dockerfile,
 so the manifest is known before anything is built - no image introspection required.
+A pin is not always an exact version - GCC and Clang pin a major. See README.md#whats-inside-a-given-tag.
 
 The parsing regexes are read from renovate.json rather than duplicated here, so there is one
 definition and the two cannot drift apart: if Renovate can bump a pin, this lists it, and if it
@@ -289,8 +290,9 @@ def main():
     out += [f"| {labels.get(name, name)} | `{render_version(current[name], schemes.get(name))}` |" for name in ordered]
     out += [
         "",
-        "Every version listed above is pinned in the [Dockerfile](Dockerfile) and kept current by Renovate,  ",
-        "so this table is the authoritative manifest of the image's contents, not a point-in-time snapshot.",
+        "Every version listed above is pinned in the [Dockerfile](Dockerfile) and kept current by Renovate.  ",
+        "GCC and Clang pin a major and install from rolling apt sources, so their patch level is the one those sources served on the build date.  ",
+        "What a pinned version does and does not fix: [Tags & versioning](README.md#whats-inside-a-given-tag).",
     ]
 
     if diffing:

@@ -39,8 +39,7 @@ jobs:
           context: pull request
 
       # Schema, candidate tag -> commit, containment in main, newest-rc supersession, and the
-      # bumps recompute (bumps is generated, never hand-edited - so it must equal what
-      # render-manifest.py derives at the recorded commit).
+      # bumps recompute (bumps is generated, never hand-edited - so it must equal what render-manifest.py derives at the recorded commit).
       - name: Validate the record
         if: steps.record.outputs.skip != 'true'
         env:
