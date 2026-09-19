@@ -14,7 +14,6 @@ so it is matched separately here and bumped by .github/workflows/ubuntu-snapshot
 
 Usage, from the repository root - `--dockerfile` and `--renovate` default to paths relative to it:
     python3 scripts/details/render-manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
-    python3 scripts/details/render-manifest.py --print-newest-release   # the newest release tag, nothing else
     python3 scripts/details/render-manifest.py --replace-region manifest --with note.md < body.md
 
 `--previous-ref` defaults to the newest release before `--tag`, which is the base every caller
@@ -27,9 +26,10 @@ verified one, and the markdown says it is not comparable.
 script emits, and refuses an unbalanced pair. Every caller that upserts a release body goes
 through it, so hand-written prose outside the region survives a re-run.
 
-Which tags count as releases and how they order is defined here and nowhere else:
-docker-publish.yml reads `--print-newest-release` to derive the next minor, so the tag it
-publishes and the base this manifest diffs against cannot disagree.
+Which tags count as releases, how they order, and where the images are published are all
+check-release-file.py's, read from here rather than restated: the tag docker-publish.yml
+publishes, the base this manifest diffs against, and the reference it tells readers to pull
+cannot disagree.
 
 `--ref` reads the Dockerfile and renovate.json from a git ref instead of the worktree,
 so the manifest can be rendered for the exact commit an image was built from,
@@ -40,11 +40,18 @@ the shape recorded in releases/v*.yaml and re-checked by check-release-file.py.
 """
 
 import argparse
+import importlib.util
 import json
 import pathlib
 import re
 import subprocess
 import sys
+
+# Importing check-release-file.py below would drop a scripts/details/__pycache__/ next to the
+# sources, on every local run and every CI run.
+sys.dont_write_bytecode = True
+
+HERE = pathlib.Path(__file__).resolve().parent
 
 # depName (or ARG name, for the pins no datasource covers) -> display label, in report order.
 # Anything matched but not listed here still appears, under its raw name - so a new pin is never silently dropped from the manifest.
@@ -62,12 +69,31 @@ LABELS = [
     ("romkatv/powerlevel10k", "powerlevel10k"),
 ]
 
-RELEASE_RE = re.compile(r"^v\d+\.\d+$")
-VERSION_HEAD_RE = re.compile(r"^v(\d+)\.(\d+)")
+def load_check_release_file():
+    """check-release-file.py, imported by path - the hyphen makes it not a normal module name.
 
-# Registry pages the images are published to - hardcoded like LABELS, this script is repository-specific.
-GHCR_PAGE = "https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain"
-DOCKERHUB_PAGE = "https://hub.docker.com/r/guillaumedua/cpp-toolchain"
+    It owns the version grammar and the registry references:
+        the tag the workflows publish, the base this note diffs against, and the image it tells
+        readers to pull are then one answer rather than three spellings of it.
+    """
+    spec = importlib.util.spec_from_file_location("check_release_file", HERE / "check-release-file.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+schema = load_check_release_file()
+newest_release_before = schema.newest_release_before
+
+GHCR_REFERENCE = schema.REGISTRIES["ghcr"]
+DOCKERHUB_REFERENCE = schema.REGISTRIES["dockerhub"]
+
+# Browsable pages rather than pull references: the repository and the GHCR package live on
+# github.com, Docker Hub's page under /r/. Derived, so the owner and image name are spelled once.
+# github.com paths are case-insensitive, so the lowercase a registry reference carries resolves.
+REPOSITORY_PAGE = f"https://github.com/{GHCR_REFERENCE.split('/', 1)[1]}"
+GHCR_PAGE = f"{REPOSITORY_PAGE}/pkgs/container/{GHCR_REFERENCE.rsplit('/', 1)[1]}"
+DOCKERHUB_PAGE = f"https://hub.docker.com/r/{DOCKERHUB_REFERENCE.split('/', 1)[1]}"
 
 
 def js_to_py(pattern):
@@ -145,42 +171,6 @@ def git_show(ref, path):
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None
-
-
-def version_order(tag):
-    """(major, minor) read off the head of a tag, so `v1.4` and `v1.4-rc.1` order alike.
-
-    Lexically, v1.10 sorts below v1.9, which is why every comparison here goes through this.
-    """
-    match = VERSION_HEAD_RE.match(tag)
-    if not match:
-        raise SystemExit(f"::error::'{tag}' is not a v<major>.<minor> tag")
-    return int(match.group(1)), int(match.group(2))
-
-
-def newest_release_before(tag):
-    """Newest release tag strictly below `tag`, or the newest of all when `tag` is empty.
-
-    Strictly below, not merely "not `tag`": re-checking an already-shipped record must diff against
-    what preceded it, never against a release cut afterwards.
-    An rc orders as its target minor, so `v1.4-rc.1` answers the same as `v1.4`.
-
-    Empty means this is the first release. A git failure raises instead, so a checkout whose tags
-    were never fetched cannot be mistaken for a project that has never released.
-    """
-    try:
-        tags = subprocess.run(
-            ["git", "tag", "-l", "v*.*"],
-            capture_output=True, text=True, check=True,
-        ).stdout.split()
-    except (subprocess.CalledProcessError, FileNotFoundError) as error:
-        raise SystemExit("::error::cannot list git tags - is this a checkout, and were the tags fetched?") from error
-    releases = [candidate for candidate in tags if RELEASE_RE.match(candidate)]
-    if tag:
-        releases = [candidate for candidate in releases if version_order(candidate) < version_order(tag)]
-    if not releases:
-        return ""
-    return max(releases, key=version_order)
 
 
 def replace_region(body, name, replacement, when_absent):
@@ -262,8 +252,6 @@ def main():
                         help="git ref to read the Dockerfile and renovate.json from (default: the worktree)")
     parser.add_argument("--bumps-yaml", action="store_true",
                         help="emit the moved pins as a YAML `bumps:` mapping instead of the markdown manifest")
-    parser.add_argument("--print-newest-release", action="store_true",
-                        help="print the newest release tag by version order and exit (no --tag needed)")
     parser.add_argument("--replace-region", metavar="NAME",
                         help="replace the <!-- NAME:begin --> region of a release body read on stdin (no --tag needed)")
     parser.add_argument("--with", dest="replacement", metavar="FILE",
@@ -273,10 +261,6 @@ def main():
     parser.add_argument("--dockerfile", default="Dockerfile")
     parser.add_argument("--renovate", default="renovate.json")
     args = parser.parse_args()
-
-    if args.print_newest_release:
-        print(newest_release_before(args.tag or ""))
-        return
 
     if args.replace_region:
         if not args.replacement:
@@ -343,7 +327,7 @@ def main():
         "",
         f"Published to [GHCR]({GHCR_PAGE}/versions?filters%5Bversion_type%5D=tagged)"
         f" and [Docker Hub]({DOCKERHUB_PAGE}/tags?name={args.tag}) -"
-        f" `docker pull ghcr.io/guillaumedua/cpp-toolchain:{args.tag}`",
+        f" `docker pull {GHCR_REFERENCE}:{args.tag}`",
         "",
     ]
     # The promotion record lands on main only when the candidate merges,
@@ -352,7 +336,7 @@ def main():
         out += [
             f"Scripts can read the promotion record, the manifest digest of every stage:"
             f" [releases/{args.tag}.yaml]"
-            f"(https://github.com/GuillaumeDua/cpp-toolchain/blob/main/releases/{args.tag}.yaml)",
+            f"({REPOSITORY_PAGE}/blob/main/releases/{args.tag}.yaml)",
             "",
         ]
     out += [

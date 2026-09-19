@@ -258,10 +258,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Newest existing release tag. render-manifest.py owns the rule - which tags count as
+          # Newest existing release tag. check-release-file.py owns the rule - which tags count as
           # releases, and how they order - so the minor derived here and the base the release note
           # diffs against are the same answer rather than two spellings of it.
-          newest=$(python3 scripts/details/render-manifest.py --print-newest-release)
+          #   It fails rather than answering "none" when the tags are unreachable, so an incomplete
+          #   checkout cannot restart the line at v1.0 over an existing release.
+          newest=$(python3 scripts/details/check-release-file.py --print-newest-release)
 
           # Next minor: bump the newest release's minor, or start the line at v1.0.
           if [ -z "${newest}" ]; then
