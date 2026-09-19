@@ -188,36 +188,36 @@ class NewestReleaseBefore(unittest.TestCase):
 
     def test_ordered_on_the_parsed_version_not_lexically(self):
         with repository_with_tags(["v1.9", "v1.10"]):
-            self.assertEqual(render_manifest.newest_release_before(""), "v1.10")
+            self.assertEqual(check_release_file.newest_release_before(""), "v1.10")
 
     def test_pre_releases_are_not_releases(self):
         with repository_with_tags(["v1.9", "v1.10-rc.1"]):
-            self.assertEqual(render_manifest.newest_release_before(""), "v1.9")
+            self.assertEqual(check_release_file.newest_release_before(""), "v1.9")
 
     def test_the_tag_being_cut_is_excluded(self):
         with repository_with_tags(self.TAGS):
-            self.assertEqual(render_manifest.newest_release_before("v2.0"), "v1.10")
+            self.assertEqual(check_release_file.newest_release_before("v2.0"), "v1.10")
 
     def test_a_release_after_the_tag_is_not_before_it(self):
         # Re-checking a shipped record must diff against what preceded it. Answering 'v2.0' here is
         # what made `--check-bumps` on releases/v1.2.yaml report a Doxygen downgrade.
         with repository_with_tags(self.TAGS):
-            self.assertEqual(render_manifest.newest_release_before("v1.0"), "")
-            self.assertEqual(render_manifest.newest_release_before("v1.10"), "v1.9")
+            self.assertEqual(check_release_file.newest_release_before("v1.0"), "")
+            self.assertEqual(check_release_file.newest_release_before("v1.10"), "v1.9")
 
     def test_an_rc_orders_as_its_target_minor(self):
         with repository_with_tags(self.TAGS):
-            self.assertEqual(render_manifest.newest_release_before("v2.0-rc.1"), "v1.10")
+            self.assertEqual(check_release_file.newest_release_before("v2.0-rc.1"), "v1.10")
 
     def test_no_tags_is_the_first_release(self):
         with repository_with_tags([]):
-            self.assertEqual(render_manifest.newest_release_before("v1.0"), "")
+            self.assertEqual(check_release_file.newest_release_before("v1.0"), "")
 
     def test_an_unreadable_tag_list_raises_rather_than_reading_as_no_releases(self):
         # Otherwise a checkout whose tags were never fetched silently cuts v1.0 over an existing one.
         with tempfile.TemporaryDirectory() as directory, contextlib.chdir(directory):
             with self.assertRaises(SystemExit):
-                render_manifest.newest_release_before("v1.0")
+                check_release_file.newest_release_before("v1.0")
 
 
 class DiffingGuard(unittest.TestCase):

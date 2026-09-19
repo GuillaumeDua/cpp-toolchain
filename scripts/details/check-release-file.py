@@ -11,6 +11,9 @@ Merging it to main is what promotes - so this file is the single place its schem
 
 The stage lists are the canonical ones (--print-stages) - docker-publish.yml reads them from this script rather than restating them,
 so the digests recorded by the rc build and the targets derived at promotion cannot drift apart.
+The version grammar and the registry references are here for the same reason: render-manifest.py
+and both workflows read them, so the tag that is published, the base a release note diffs against
+and the reference a reader is told to pull are one answer.
 
 Usage, from the repository root - the git checks and the bumps recompute both read the worktree:
     python3 scripts/details/check-release-file.py releases/v1.2.yaml                      # schema only (offline)
@@ -23,6 +26,7 @@ Usage, from the repository root - the git checks and the bumps recompute both re
     python3 scripts/details/check-release-file.py --print-stages normal|cross             # canonical stage lists
     python3 scripts/details/check-release-file.py --print-stages validate-normal|validate-cross
     python3 scripts/details/check-release-file.py --print-registries [dockerhub|ghcr]     # both references, or one
+    python3 scripts/details/check-release-file.py --print-newest-release [--tag v1.4]     # the release before a tag
 
 Exits non-zero and reports every schema violation it found, not only the first.
 The supersession, git and bumps checks run only once the schema is sound.
@@ -67,7 +71,43 @@ CANDIDATE_RE = re.compile(r"^(v\d+\.\d+)-rc\.(\d+)$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
+# The head of any tag this repository cuts, release or rc, so both order alike.
+VERSION_HEAD_RE = re.compile(r"^v(\d+)\.(\d+)")
+
 TOP_LEVEL_KEYS = {"version", "candidate", "commit", "digests", "bumps"}
+
+
+def version_order(tag):
+    """(major, minor) read off the head of a tag. Lexically, v1.10 sorts below v1.9."""
+    match = VERSION_HEAD_RE.match(tag)
+    if not match:
+        raise SystemExit(f"::error::'{tag}' is not a v<major>.<minor> tag")
+    return int(match.group(1)), int(match.group(2))
+
+
+def newest_release_before(tag):
+    """Newest release tag strictly below `tag`, or the newest of all when `tag` is empty.
+
+    Strictly below, not merely "not `tag`": re-checking an already-shipped record must diff against
+    what preceded it, never against a release cut afterwards.
+    An rc orders as its target minor, so `v1.4-rc.1` answers the same as `v1.4`.
+
+    Empty means this is the first release. A git failure raises instead, so a checkout whose tags
+    were never fetched cannot be mistaken for a project that has never released.
+    """
+    try:
+        tags = subprocess.run(
+            ["git", "tag", "-l", "v*.*"],
+            capture_output=True, text=True, check=True,
+        ).stdout.split()
+    except (subprocess.CalledProcessError, FileNotFoundError) as error:
+        raise SystemExit("::error::cannot list git tags - is this a checkout, and were the tags fetched?") from error
+    releases = [candidate for candidate in tags if VERSION_RE.match(candidate)]
+    if tag:
+        releases = [candidate for candidate in releases if version_order(candidate) < version_order(tag)]
+    if not releases:
+        return ""
+    return max(releases, key=version_order)
 
 
 def expected_digest_keys():
@@ -271,7 +311,14 @@ def main():
                         help="print a canonical stage list (no file needed)")
     parser.add_argument("--print-registries", nargs="?", const="all", choices=["all", *REGISTRIES],
                         help="print the image reference of every registry, or of the named one (no file needed)")
+    parser.add_argument("--print-newest-release", action="store_true",
+                        help="print the newest release tag strictly below --tag, or the newest of all (no file needed)")
+    parser.add_argument("--tag", default="", help="the tag being cut, for --print-newest-release")
     args = parser.parse_args()
+
+    if args.print_newest_release:
+        print(newest_release_before(args.tag))
+        return
 
     if args.print_stages:
         print(" ".join(STAGE_LISTS[args.print_stages]))
