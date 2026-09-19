@@ -20,11 +20,11 @@
 # =============================================================================================
 
 # ---------------------------------------------------------------------------------------------
-# Pinned versions - the single source of truth for what these images contain.
+# Pinned versions - the single source of truth for the versions these images request.
 #
 #   Every version is pinned and `# renovate:`-annotated,
-#   so Renovate owns the updates and this block *is* the image manifest: scripts/details/render-manifest.py reads these same lines to build each release note.
-#   Nothing resolves at build time, so two builds of one commit produce the same image.
+#   so Renovate owns the updates and this block is what each release note lists: scripts/details/render-manifest.py reads these same lines.
+#   A pin is not always an exact version: GCC_VERSIONS and LLVM_VERSIONS name a major, and apt resolves the patch level at build time.
 #
 #   Declared once, before the first FROM, and re-declared bare (`ARG LLVM_VERSIONS`) in each stage that needs one.
 #   A per-stage default would be a second value for Renovate to keep in step.
