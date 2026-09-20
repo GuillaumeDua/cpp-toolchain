@@ -103,7 +103,8 @@ Publishing is [docker-publish](.github/workflows/docker-publish.yml) - a **separ
 
 The full release procedure (promotion, urgent fixes, rollback, failure modes) is in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) - the cadence is stated there and nowhere else.
 
-Release notes are generated from the Dockerfile's pinned `ARG`s by [scripts/details/render-manifest.py](scripts/details/render-manifest.py), so each release states the versions it pins and what moved since the previous one.
+Release notes are two halves, composed by [scripts/details/render-manifest.py](scripts/details/render-manifest.py): the versions a release pins and what moved since the previous one, read from the Dockerfile's `ARG`s, then the pull requests merged since that release.
+The second half is a plain list of PR titles, so the title you give a PR is what a release note shows.
 What a pin does and does not fix is in [Tags & versioning](README.md#whats-inside-a-given-tag).
 
 Guards protecting the registries:

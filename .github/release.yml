@@ -1,0 +1,18 @@
+# Shapes the "What's Changed" half of a release note: the pull requests merged since the previous
+# release, fetched from the generate-notes API by .github/workflows/docker-publish.yml and spliced
+# into the note by scripts/details/render-manifest.py --changelog.
+#
+# Read at the commit the note is rendered for, not from the default branch, so a release carries
+# the configuration of the tree it was built from.
+#
+# No `categories:` on purpose. Grouping is only honest when every pull request is labeled, and
+# about half of this repository's are not, so a category set would file most of a changelog under
+# a catch-all. A plain list is what the API emits with no configuration at all; this file exists
+# for the exclusion below.
+changelog:
+  exclude:
+    labels:
+      # Promotion bookkeeping, opened by docker-publish.yml and merged to ship a release.
+      # A release tag sits at its rc's commit, so the merge that promotes it lands after the tag
+      # and would otherwise open the next release's changelog.
+      - release-candidate

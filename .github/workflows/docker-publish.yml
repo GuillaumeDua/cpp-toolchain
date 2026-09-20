@@ -85,6 +85,32 @@ jobs:
           python3 scripts/details/check-release-file.py "${FILE}" --print-targets > plan.txt
           cat plan.txt
 
+      # With the asserts, before any tag moves: the changelog half reaches over the network, and a
+      # failure once the re-tag has run leaves the registries on the new release with no release page.
+      # Rendered at the recorded commit, not the merge commit:
+      # if main moved between the rc and the merge, the merge commit's Dockerfile is newer than the image,
+      # and rendering from it would describe pins the image does not have.
+      # `target_commitish` carries that through to the changelog half: it bounds the pull request range,
+      # and it is the ref generate-notes reads .github/release.yml from.
+      - name: Render the release note
+        if: steps.record.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.record.outputs.version }}
+          RC_COMMIT: ${{ steps.record.outputs.commit }}
+        run: |
+          set -euo pipefail
+          # `previous` is empty only for a first release, where generate-notes bounds the range itself.
+          previous=$(python3 scripts/details/check-release-file.py --print-newest-release --tag "${VERSION}")
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="${VERSION}" \
+            -f target_commitish="${RC_COMMIT}" \
+            ${previous:+-f "previous_tag_name=${previous}"} \
+            --jq .body > changelog.md
+          python3 scripts/details/render-manifest.py \
+            --tag "${VERSION}" --ref "${RC_COMMIT}" --changelog changelog.md > note.md
+          cat note.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Log in to both registries
         if: steps.record.outputs.skip != 'true'
         uses: ./.github/actions/registry-login
@@ -128,19 +154,6 @@ jobs:
               echo "::endgroup::"
             done
           done < plan.txt
-
-      # Rendered at the recorded commit, not the merge commit:
-      # if main moved between the rc and the merge, the merge commit's Dockerfile is newer than the image,
-      # and rendering from it would describe pins the image does not have.
-      - name: Render the release note
-        if: steps.record.outputs.skip != 'true'
-        env:
-          VERSION: ${{ steps.record.outputs.version }}
-          RC_COMMIT: ${{ steps.record.outputs.commit }}
-        run: |
-          set -euo pipefail
-          python3 scripts/details/render-manifest.py --tag "${VERSION}" --ref "${RC_COMMIT}" > note.md
-          cat note.md >> "$GITHUB_STEP_SUMMARY"
 
       # The human's action was the merge, so no release exists yet - this job creates it, at the recorded commit (the exact tree the image was built from).
       # GITHUB_TOKEN-created releases fire no workflow runs, so this cannot re-trigger the release path. Upserts throughout,
@@ -322,6 +335,28 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Before anything is pushed: a renderer or API failure after the 15-to-25-minute build would
+      # leave images in both registries under a tag git never learns about.
+      # Nothing in the note comes from the built image - the pins are read straight from the Dockerfile
+      # and diffed against the previous release's, which makes "what moved" exact rather than inferred,
+      # and generate-notes answers for a tag that does not exist yet.
+      - name: Render the release note
+        if: steps.changed.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+        run: |
+          set -euo pipefail
+          # `previous` is empty only for a first release, where generate-notes bounds the range itself.
+          previous=$(python3 scripts/details/check-release-file.py --print-newest-release --tag "${PRIMARY}")
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="${PRIMARY}" \
+            -f target_commitish="${GITHUB_SHA}" \
+            ${previous:+-f "previous_tag_name=${previous}"} \
+            --jq .body > changelog.md
+          python3 scripts/details/render-manifest.py --tag "${PRIMARY}" --changelog changelog.md > note.md
+          cat note.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Set up Docker Buildx
         if: steps.changed.outputs.skip != 'true'
         uses: ./.github/actions/setup-buildx
@@ -380,18 +415,6 @@ jobs:
             sleep $(( attempt * 60 ))
             attempt=$(( attempt + 1 ))
           done
-
-      # Read straight from the Dockerfile:
-      #   the pins are the manifest, so there is nothing to extract from a built image.
-      # Diffed against the previous release's Dockerfile, which makes the "what moved" column exact rather than inferred.
-      - name: Render the release note
-        if: steps.changed.outputs.skip != 'true'
-        env:
-          PRIMARY: ${{ steps.meta.outputs.primary }}
-        run: |
-          set -euo pipefail
-          python3 scripts/details/render-manifest.py --tag "${PRIMARY}" > note.md
-          cat note.md >> "$GITHUB_STEP_SUMMARY"
 
       # The rc pre-release is what mints the v1.2-rc.N git tag:
       #   candidate verification, the skip check and the rc counter all key off it.
@@ -502,10 +525,13 @@ jobs:
           git commit -m "${title}"
           git push -f origin "${branch}"
 
+          # The label is what keeps this bookkeeping out of the next release's changelog - see .github/release.yml.
           if gh pr list --state open --head "${branch}" --json number --jq length | grep -qx 0; then
-            gh pr create --base main --head "${branch}" --title "${title}" --body-file pr-body.md
+            gh pr create --base main --head "${branch}" --title "${title}" --body-file pr-body.md \
+              --label release-candidate
           else
-            gh pr edit "${branch}" --title "${title}" --body-file pr-body.md
+            gh pr edit "${branch}" --title "${title}" --body-file pr-body.md \
+              --add-label release-candidate
           fi
 
       # One open candidate at all times, so there is never doubt about which rc is current.
