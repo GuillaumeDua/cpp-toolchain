@@ -127,33 +127,80 @@ jobs:
         if: steps.record.outputs.skip != 'true'
         run: |
           set -euo pipefail
+          images=$(python3 scripts/details/check-release-file.py --print-registries)
           while read -r digest source release latest; do
-            for registry in docker.io/guillaumedua ghcr.io/guillaumedua; do
-              actual=$(docker buildx imagetools inspect "${registry}/cpp-toolchain:${source}" --format '{{.Manifest.Digest}}')
+            for image in ${images}; do
+              actual=$(docker buildx imagetools inspect "${image}:${source}" --format '{{.Manifest.Digest}}')
               if [ "${actual}" != "${digest}" ]; then
-                echo "::error::${registry}/cpp-toolchain:${source} is ${actual}, but the record says ${digest} - the rc moved since it was built. This is not the artifact you validated: cut a fresh rc."
+                echo "::error::${image}:${source} is ${actual}, but the record says ${digest} - the rc moved since it was built. This is not the artifact you validated: cut a fresh rc."
                 exit 1
               fi
             done
           done < plan.txt
           echo "all recorded digests verified on both registries"
 
-      # Manifest copies within a registry - no layer transfer, and `imagetools create` onto identical content is a no-op,
-      # which is what makes a re-run of this job safe.
+      # `docker buildx imagetools create` cannot re-tag without rewriting: given one manifest it
+      # publishes a fresh single-entry index wrapping it, so the release tag resolves to a digest that
+      # appears nowhere in releases/.
+      # `crane tag` re-puts the manifest bytes untouched instead.
+      #   Pinned by version and checksum rather than installed by a setup action: every action here is
+      #   digest-pinned, and one that downloads an unverified binary would undo that for this step.
+      #   Version and checksum move together, by hand, from the release's checksums.txt.
+      - name: Install crane
+        if: steps.record.outputs.skip != 'true'
+        env:
+          CRANE_VERSION: v0.22.1
+          CRANE_SHA256: 0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0
+        run: |
+          set -euo pipefail
+          archive=go-containerregistry_Linux_x86_64.tar.gz
+          curl -fsSL --retry 5 --retry-all-errors -o "${archive}" \
+            "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/${archive}"
+          echo "${CRANE_SHA256}  ${archive}" | sha256sum --check --status
+          mkdir -p "${RUNNER_TEMP}/bin"
+          tar -xzf "${archive}" -C "${RUNNER_TEMP}/bin" crane
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          "${RUNNER_TEMP}/bin/crane" version
+
+      # A tag is a pointer to a manifest, so moving one must not rewrite what it points at:
+      # `crane tag` PUTs the bytes it fetched, and a digest is the hash of those bytes, so the release
+      # tag resolves to exactly what releases/v*.yaml records. The step below asserts it did.
+      #   Re-putting identical bytes is a no-op, which is what makes a re-run of this job safe.
+      #   crane reads the credentials `registry-login` wrote to ~/.docker/config.json.
       - name: Re-tag the digests
         if: steps.record.outputs.skip != 'true'
         run: |
           set -euo pipefail
+          images=$(python3 scripts/details/check-release-file.py --print-registries)
           while read -r digest source release latest; do
-            for registry in docker.io/guillaumedua ghcr.io/guillaumedua; do
-              echo "::group::${registry}/cpp-toolchain:${release} + :${latest} <- ${digest}"
-              docker buildx imagetools create \
-                --tag "${registry}/cpp-toolchain:${release}" \
-                --tag "${registry}/cpp-toolchain:${latest}" \
-                "${registry}/cpp-toolchain@${digest}"
+            for image in ${images}; do
+              echo "::group::${image}:${release} + :${latest} <- ${digest}"
+              crane tag "${image}@${digest}" "${release}"
+              crane tag "${image}@${digest}" "${latest}"
               echo "::endgroup::"
             done
           done < plan.txt
+
+      # The promotion guarantee, checked rather than argued: what a consumer pulls under the release
+      # tag is the digest git holds for the rc that was validated.
+      # Late by necessity - it is the only assert here that describes state this job created.
+      - name: Assert the release tags resolve to the recorded digests
+        if: steps.record.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          images=$(python3 scripts/details/check-release-file.py --print-registries)
+          while read -r digest source release latest; do
+            for image in ${images}; do
+              for tag in "${release}" "${latest}"; do
+                actual=$(docker buildx imagetools inspect "${image}:${tag}" --format '{{.Manifest.Digest}}')
+                if [ "${actual}" != "${digest}" ]; then
+                  echo "::error::${image}:${tag} resolves to ${actual}, not the recorded ${digest} - the re-tag rewrote the manifest instead of pointing at it."
+                  exit 1
+                fi
+              done
+            done
+          done < plan.txt
+          echo "every release tag resolves to its recorded digest on both registries"
 
       # The human's action was the merge, so no release exists yet - this job creates it, at the recorded commit (the exact tree the image was built from).
       # GITHUB_TOKEN-created releases fire no workflow runs, so this cannot re-trigger the release path. Upserts throughout,
