@@ -73,7 +73,9 @@ The promotion guarantee, stated precisely:
 
 - **a release is byte-identical to the rc** it came from,
 - because promotion re-tags a digest recorded in git and refuses to proceed if that digest moved,  
-  not merely because it re-tags rather than rebuilds.
+  not merely because it re-tags rather than rebuilds,
+- and **the release tag resolves to that digest**: re-tagging points a tag at a manifest rather than republishing it,  
+  so what `releases/v1.2.yaml` records is what pulling `v1.2` returns - asserted on both registries before the release is created.
 
 Every moving part lives in two workflows, one schema and one configuration file:
 
