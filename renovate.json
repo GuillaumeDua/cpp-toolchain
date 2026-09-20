@@ -41,6 +41,15 @@
         "ARG BASE_IMAGE=(?<depName>[^:@\\s]+):(?<currentValue>[^@\\s]+)(@(?<currentDigest>sha256:[a-f0-9]+))?"
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Tooling image a workflow runs, rather than one built into an image - `# renovate: datasource=docker` above the `env:` value holding the reference. Needs its own manager because the github-actions manager reads only `uses:`, `container:` and `services:`. currentValue and currentDigest are captured separately so docker:pinDigests moves the tag and the digest in one pull request",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.yml$/"],
+      "matchStrings": [
+        "# renovate: datasource=docker\\s+\\w+: (?<depName>[^:@\\s]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]+)"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
