@@ -383,12 +383,12 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # The note itself is rendered after the build, because the installed versions come out of the
-      # pushed images. Its two other inputs do not, so they are exercised here instead:
-      # a renderer or API failure found after a 15-to-25-minute build would leave images in both
-      # registries under a tag git never learns about.
-      #   generate-notes answers for a tag that does not exist yet, so the changelog half is
-      #   reachable this early - and it is also where .github/release.yml is parsed.
+      # The note is rendered after the build, because the installed versions come out of the pushed
+      # images. The pins and the changelog do not, so they are exercised here: a renderer or API
+      # failure found after a 15-to-25-minute build would leave images in both registries under a
+      # tag git never learns about.
+      #   generate-notes answers for a tag that does not exist yet, which is what makes the
+      #   changelog half reachable this early - and it is the call that parses .github/release.yml.
       - name: Validate the release note renders
         if: steps.changed.outputs.skip != 'true'
         env:
@@ -467,9 +467,8 @@ jobs:
 
       # The only place these answers exist: GCC and Clang pin a major and install from rolling apt
       # sources, and the standard libraries arrive as dependencies with no pin at all.
-      #   `buildx --push` leaves nothing in the local image store, so this pulls. Only the stages
-      #   check-release-file.py names are collected - everything above `build` inherits its compilers
-      #   and standard libraries unchanged, and `dev` is multi-GB against a runner's ~14 GB free.
+      #   `buildx --push` leaves nothing in the local image store, so this pulls - which is why
+      #   check-release-file.py names the stages worth collecting rather than every published one.
       #   scripts/ is mounted whole rather than scripts/details: the collector composes scripts/install
       #   and scripts/checks, in the layout the Dockerfile gives the validate stages.
       - name: Collect the installed versions

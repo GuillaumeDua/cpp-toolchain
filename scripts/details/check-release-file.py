@@ -196,7 +196,7 @@ def validate(path, data):
                 if not DIGEST_RE.match(str(value)):
                     errors.append(f"digests.{key}: '{value}' is not a sha256:<64-hex> digest")
 
-    # Absent from every record cut before the collector existed, so optional rather than required.
+    # Not every record carries one, so optional rather than required.
     versions = data.get("versions")
     if versions is not None:
         if not isinstance(versions, dict):

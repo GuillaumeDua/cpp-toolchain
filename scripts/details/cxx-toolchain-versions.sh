@@ -6,13 +6,13 @@ set -uo pipefail
 # License: see https://github.com/GuillaumeDua/cpp-toolchain/blob/main/LICENSE
 # =============================================================================================
 
-# The C++ toolchain a published image actually carries - the compilers and the standard library
+# The C++ toolchain a published image carries - the compilers and the standard library
 # implementations - as `key=value` lines, the shape cxx-stdlibs.sh already reports in.
 #
 # Runs *inside* an image, over a bind-mounted scripts/ - the published stages carry no checks,
 # and these versions are knowable nowhere else: GCC and Clang pin a major and install from
 # rolling apt sources, and the standard libraries arrive as dependencies with no ARG at all.
-# Every other pin in the Dockerfile is exact, so collecting it here would restate the Dockerfile.
+# Every other pin is exact, so collecting it here would restate the Dockerfile.
 #
 # Usage, from anywhere - the paths resolve against this script:
 #     bash cxx-toolchain-versions.sh
