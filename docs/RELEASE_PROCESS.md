@@ -94,7 +94,7 @@ Every moving part lives in two workflows, one schema and one configuration file:
 ## The normal path
 
 1. On the 8th or 22nd an rc is built and a **candidate PR** appears (branch `release/candidate/v1.2-rc.1`, adding `releases/v1.2.yaml`).
-   Its body is the release note: the versions that rc pins, what moved since the last release, and the pull requests merged since it.
+   Its body is the release note: what that rc pins, what its images installed, what moved since the last release, and the pull requests merged since it.
 2. **Validate**: read the diff, pull the rc (`docker pull ghcr.io/guillaumedua/cpp-toolchain:dev-v1.2-rc.1`), build something real against it, check the PR is green.
 3. **Merge**: that is the whole procedure - the promote job verifies the recorded digests against both registries,  
    re-tags them to `v1.2` + `latest`, and creates the GitHub release at the rc's commit.
