@@ -167,6 +167,9 @@ So the guarantees are not read as stronger than they are:
   it proves what this workflow built, not - to a third party - that this workflow built it.
 - Anything holding `packages: write` or the Docker Hub token can move a tag between rc and merge.  
   That is precisely what the digest assertion catches: promotion fails loudly rather than shipping moved bytes.
+- `versions:` is **collected once**, from the images the rc pushed, and never recomputed.  
+  Unlike `bumps:`, which [release-candidate-check.yml](../.github/workflows/release-candidate-check.yml) re-derives, it can only be re-read by pulling those images again.
+  It records what the build saw, not an independently verified fact.
 - `releases/v*.yaml` is a file like any other:  
   A hand-written *real* digest that was never tested cannot be caught mechanically.  
   The smoke check covers `dev` by digest; the rest rides on review and branch protection.
