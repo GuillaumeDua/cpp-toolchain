@@ -96,6 +96,7 @@ jobs:
         if: steps.record.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FILE: ${{ steps.record.outputs.file }}
           VERSION: ${{ steps.record.outputs.version }}
           RC_COMMIT: ${{ steps.record.outputs.commit }}
         run: |
@@ -108,7 +109,7 @@ jobs:
             ${previous:+-f "previous_tag_name=${previous}"} \
             --jq .body > changelog.md
           python3 scripts/details/render-manifest.py \
-            --tag "${VERSION}" --ref "${RC_COMMIT}" --changelog changelog.md > note.md
+            --tag "${VERSION}" --ref "${RC_COMMIT}" --changelog changelog.md --versions "${FILE}" > note.md
           cat note.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Log in to both registries
@@ -382,12 +383,13 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # Before anything is pushed: a renderer or API failure after the 15-to-25-minute build would
-      # leave images in both registries under a tag git never learns about.
-      # Nothing in the note comes from the built image - the pins are read straight from the Dockerfile
-      # and diffed against the previous release's, which makes "what moved" exact rather than inferred,
-      # and generate-notes answers for a tag that does not exist yet.
-      - name: Render the release note
+      # The note itself is rendered after the build, because the installed versions come out of the
+      # pushed images. Its two other inputs do not, so they are exercised here instead:
+      # a renderer or API failure found after a 15-to-25-minute build would leave images in both
+      # registries under a tag git never learns about.
+      #   generate-notes answers for a tag that does not exist yet, so the changelog half is
+      #   reachable this early - and it is also where .github/release.yml is parsed.
+      - name: Validate the release note renders
         if: steps.changed.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -401,8 +403,8 @@ jobs:
             -f target_commitish="${GITHUB_SHA}" \
             ${previous:+-f "previous_tag_name=${previous}"} \
             --jq .body > changelog.md
-          python3 scripts/details/render-manifest.py --tag "${PRIMARY}" --changelog changelog.md > note.md
-          cat note.md >> "$GITHUB_STEP_SUMMARY"
+          python3 scripts/details/render-manifest.py --tag "${PRIMARY}" --changelog changelog.md > /dev/null
+          echo "the release note renders, and .github/release.yml parses"
 
       - name: Set up Docker Buildx
         if: steps.changed.outputs.skip != 'true'
@@ -463,6 +465,88 @@ jobs:
             attempt=$(( attempt + 1 ))
           done
 
+      # The only place these answers exist: GCC and Clang pin a major and install from rolling apt
+      # sources, and the standard libraries arrive as dependencies with no pin at all.
+      #   `buildx --push` leaves nothing in the local image store, so this pulls. Only the stages
+      #   check-release-file.py names are collected - everything above `build` inherits its compilers
+      #   and standard libraries unchanged, and `dev` is multi-GB against a runner's ~14 GB free.
+      #   scripts/ is mounted whole rather than scripts/details: the collector composes scripts/install
+      #   and scripts/checks, in the layout the Dockerfile gives the validate stages.
+      - name: Collect the installed versions
+        if: steps.changed.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          image=$(python3 scripts/details/check-release-file.py --print-registries ghcr)
+          for stage in $(python3 scripts/details/check-release-file.py --print-versioned-stages); do
+            digest=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' \
+              "build-metadata/${stage}.json")
+            echo "::group::${stage} ${digest}"
+            docker run --rm \
+              --volume "${PWD}/scripts:/opt/cpp-toolchain-scripts:ro" \
+              "${image}@${digest}" \
+              bash /opt/cpp-toolchain-scripts/details/cxx-toolchain-versions.sh \
+              | tee "build-metadata/versions-${stage}.txt"
+            echo "::endgroup::"
+          done
+
+      # The promotion record:
+      #   the digest of every stage just pushed, the generated bumps, and what the images installed.
+      #   Composed from the build metadata and validated on the spot - a partial build must fail here, not at promotion time.
+      - name: Compose the promotion record
+        if: success() && steps.changed.outputs.skip != 'true'
+        env:
+          MODE: ${{ steps.meta.outputs.mode }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+        run: |
+          set -euo pipefail
+          mkdir -p releases
+
+          digest_of() {
+            python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' \
+              "build-metadata/$1.json"
+          }
+
+          {
+            echo "version: \"${VERSION}\""
+            [ "${MODE}" = "rc" ] && echo "candidate: \"${PRIMARY}\""
+            echo "commit: \"${GITHUB_SHA}\""
+            echo "digests:"
+            for stage in $(python3 scripts/details/check-release-file.py --print-stages normal); do
+              echo "  ${stage}: \"$(digest_of "${stage}")\""
+            done
+            for stage in $(python3 scripts/details/check-release-file.py --print-stages cross); do
+              echo "  ${stage}-cross: \"$(digest_of "${stage}-cross")\""
+            done
+            python3 scripts/details/render-manifest.py --tag "${VERSION}" --bumps-yaml
+            python3 scripts/details/render-manifest.py --versions-dir build-metadata
+          } > "releases/${VERSION}.yaml"
+
+          cat "releases/${VERSION}.yaml"
+          python3 scripts/details/check-release-file.py "releases/${VERSION}.yaml"
+
+      # After the record, which is where the installed versions live: the note reports them, and the
+      # previous release's record is what it diffs them against.
+      # The pins and the changelog already rendered before the build - this is the same note with the
+      # half that needed the images, so a failure here costs a re-run rather than the build window.
+      - name: Render the release note
+        if: success() && steps.changed.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          PRIMARY: ${{ steps.meta.outputs.primary }}
+        run: |
+          set -euo pipefail
+          previous=$(python3 scripts/details/check-release-file.py --print-newest-release --tag "${PRIMARY}")
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="${PRIMARY}" \
+            -f target_commitish="${GITHUB_SHA}" \
+            ${previous:+-f "previous_tag_name=${previous}"} \
+            --jq .body > changelog.md
+          python3 scripts/details/render-manifest.py \
+            --tag "${PRIMARY}" --changelog changelog.md --versions "releases/${VERSION}.yaml" > note.md
+          cat note.md >> "$GITHUB_STEP_SUMMARY"
+
       # The rc pre-release is what mints the v1.2-rc.N git tag:
       #   candidate verification, the skip check and the rc counter all key off it.
       # Created only on success, so a failed build never mints a tag.
@@ -494,41 +578,6 @@ jobs:
           python3 scripts/details/render-manifest.py \
             --replace-region manifest --with note.md < body.md > merged.md
           gh release edit "${PRIMARY}" --notes-file merged.md
-
-      # The promotion record:
-      #   the digest of every stage just pushed, plus the generated bumps.
-      #   Composed from the build metadata and validated on the spot - a partial build must fail here, not at promotion time.
-      - name: Compose the promotion record
-        if: success() && steps.changed.outputs.skip != 'true'
-        env:
-          MODE: ${{ steps.meta.outputs.mode }}
-          VERSION: ${{ steps.meta.outputs.version }}
-          PRIMARY: ${{ steps.meta.outputs.primary }}
-        run: |
-          set -euo pipefail
-          mkdir -p releases
-
-          digest_of() {
-            python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' \
-              "build-metadata/$1.json"
-          }
-
-          {
-            echo "version: \"${VERSION}\""
-            [ "${MODE}" = "rc" ] && echo "candidate: \"${PRIMARY}\""
-            echo "commit: \"${GITHUB_SHA}\""
-            echo "digests:"
-            for stage in $(python3 scripts/details/check-release-file.py --print-stages normal); do
-              echo "  ${stage}: \"$(digest_of "${stage}")\""
-            done
-            for stage in $(python3 scripts/details/check-release-file.py --print-stages cross); do
-              echo "  ${stage}-cross: \"$(digest_of "${stage}-cross")\""
-            done
-            python3 scripts/details/render-manifest.py --tag "${VERSION}" --bumps-yaml
-          } > "releases/${VERSION}.yaml"
-
-          cat "releases/${VERSION}.yaml"
-          python3 scripts/details/check-release-file.py "releases/${VERSION}.yaml"
 
       # The branch is pushed with GITHUB_TOKEN (nothing subscribes to release/* branches),
       # but the PR itself is created with RELEASE_PR_TOKEN - see the token notes in the header.

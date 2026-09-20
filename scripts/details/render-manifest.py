@@ -14,7 +14,8 @@ so it is matched separately here and bumped by .github/workflows/ubuntu-snapshot
 
 Usage, from the repository root - `--dockerfile` and `--renovate` default to paths relative to it:
     python3 scripts/details/render-manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
-    python3 scripts/details/render-manifest.py --tag v1.2 --changelog changelog.md
+    python3 scripts/details/render-manifest.py --tag v1.2 --changelog changelog.md --versions releases/v1.2.yaml
+    python3 scripts/details/render-manifest.py --versions-dir build-metadata
     python3 scripts/details/render-manifest.py --replace-region manifest --with note.md < body.md
 
 `--previous-ref` defaults to the newest release before `--tag`, 
@@ -39,6 +40,11 @@ publishes, the base this manifest diffs against, and the reference it tells read
 `--ref` reads the Dockerfile and renovate.json from a git ref instead of the worktree,
 so the manifest can be rendered for the exact commit an image was built from,
 even when the checkout has moved past it.
+
+`--versions` reports what the images carry, out of the `versions:` cxx-toolchain-versions.sh filled in the
+record being cut, diffed against the previous release's record. Only GCC, Clang and the standard
+libraries are in there: every other pin is exact, so the table above already states what shipped.
+`--versions-dir` is the other end of that, turning the collected files into the record's mapping.
 
 `--bumps-yaml` emits the moved pins as a YAML `bumps:`
 - mapping instead of the markdown manifest, the shape recorded in releases/v*.yaml and re-checked by check-release-file.py.
@@ -202,6 +208,100 @@ def replace_region(body, name, replacement, when_absent):
     return "\n".join(lines[:starts[0]] + replacement.splitlines() + lines[ends[0] + 1:])
 
 
+def read_fields(text):
+    """`key=value` lines as a mapping - what cxx-toolchain-versions.sh reports, and cxx-stdlibs.sh before it."""
+    fields = {}
+    for line in text.splitlines():
+        name, separator, value = line.strip().partition("=")
+        if separator and name:
+            fields[name] = value
+    return fields
+
+
+def versions_yaml(directory, stages):
+    """The collected files as a YAML `versions:` mapping. JSON quoting, as bumps_yaml does.
+
+    A stage that collected nothing is a failed collection, not an image without compilers: the
+    runtime carries standard libraries, so every collected stage has something to say.
+    """
+    lines = ["versions:"]
+    for stage in stages:
+        path = pathlib.Path(directory) / f"versions-{stage}.txt"
+        if not path.exists():
+            raise SystemExit(f"::error::{path} is missing - the collector did not run for {stage}")
+        collected = read_fields(path.read_text(encoding="utf-8"))
+        if not collected:
+            raise SystemExit(f"::error::{path} is empty - the collector found nothing in {stage}")
+        lines.append(f"  {stage}:")
+        lines += [f"    {json.dumps(name)}: {json.dumps(collected[name])}" for name in sorted(collected)]
+    return "\n".join(lines)
+
+
+# What a collected key carries, longest first: `-cxxabi` also ends in `-abi`.
+VERSION_FIELDS = ("-cxxabi", "-abi")
+
+
+def split_key(name, collected):
+    """(package, field) for a collected key - a package, optionally suffixed with the field it holds.
+
+    A suffix only counts when the package it would belong to was collected too, so a package whose
+    own name ends in one of them keeps it.
+    """
+    for suffix in VERSION_FIELDS:
+        package = name[: -len(suffix)]
+        if name.endswith(suffix) and package in collected:
+            return package, suffix[1:]
+    return name, "version"
+
+
+def versions_rows(collected):
+    """(package, version, abi, cxxabi) per package, the companion keys folded into their row.
+
+    The record keeps them apart so each moves on its own in a diff; a table reads better paired.
+    """
+    rows = {}
+    for name, value in sorted(collected.items()):
+        package, field = split_key(name, collected)
+        rows.setdefault(package, {})[field] = value
+    return [(package, fields.get("version", ""), fields.get("abi", ""), fields.get("cxxabi", ""))
+            for package, fields in sorted(rows.items())]
+
+
+def versions_tables(versions):
+    """One table per collected stage.
+
+    Both ABI fields share a cell: which of the two carries the information depends on the
+    implementation, so a column per field would be half empty whichever way round it is read.
+    """
+    out = []
+    for stage, collected in versions.items():
+        out += ["", f"**`{stage}`**", "", "| Component | Version | ABI |", "| --- | --- | --- |"]
+        for package, version, abi, cxxabi in versions_rows(collected):
+            abis = ", ".join(f"`{field}`" for field in (abi, cxxabi) if field)
+            out.append(f"| `{package}` | `{version}` | {abis} |")
+    return out
+
+
+def versions_changes(current, previous):
+    """Bullets for every collected value that moved, grouped by stage.
+
+    change_lines formats the three forms already: with no labels and no Renovate schemes it renders
+    the collected name and the value verbatim, which is what these are.
+    """
+    lines = []
+    for stage, collected in current.items():
+        moved = moved_pins(collected, previous.get(stage, {}))
+        if moved:
+            lines.append(f"- `{stage}`")
+            lines += [f"  {bullet}" for bullet in change_lines(moved, {}, [], {})]
+    return lines
+
+
+def load_versions(path):
+    """The `versions:` mapping of a promotion record, or {} when it has none."""
+    return schema.load(path).get("versions") or {}
+
+
 def moved_pins(current, previous):
     """{name: (old, new)} for every pin whose value differs, `None` on the side it is absent from.
 
@@ -259,6 +359,10 @@ def main():
                         help="emit the moved pins as a YAML `bumps:` mapping instead of the markdown manifest")
     parser.add_argument("--changelog", metavar="FILE",
                         help="markdown to place inside the marked region, after the manifest")
+    parser.add_argument("--versions-dir", metavar="DIR",
+                        help="emit the collected versions-<stage>.txt files in DIR as a YAML `versions:` mapping")
+    parser.add_argument("--versions", metavar="RECORD",
+                        help="promotion record whose `versions:` the note reports, diffed against the previous release's")
     parser.add_argument("--replace-region", metavar="NAME",
                         help="replace the <!-- NAME:begin --> region of a release body read on stdin (no --tag needed)")
     parser.add_argument("--with", dest="replacement", metavar="FILE",
@@ -274,6 +378,10 @@ def main():
             parser.error("--replace-region needs --with FILE")
         replacement = pathlib.Path(args.replacement).read_text(encoding="utf-8")
         print(replace_region(sys.stdin.read(), args.replace_region, replacement, args.when_absent))
+        return
+
+    if args.versions_dir:
+        print(versions_yaml(args.versions_dir, schema.VERSIONED_STAGES))
         return
 
     if not args.tag:
@@ -322,6 +430,16 @@ def main():
         print(bumps_yaml(current, previous, diffing))
         return
 
+    # The previous record sits beside the one being cut, so the two are read the same way.
+    # A release predating the collector has no `versions:`, which is a stated case below rather
+    # than an empty diff: nothing moved and nothing is known read identically otherwise.
+    versions = load_versions(args.versions) if args.versions else {}
+    previous_versions = {}
+    if versions and previous_ref:
+        previous_record = pathlib.Path(args.versions).parent / f"{previous_ref}.yaml"
+        if previous_record.exists():
+            previous_versions = load_versions(previous_record)
+
     ordered = [name for name, _ in LABELS if name in current]
     ordered += sorted(name for name in current if name not in dict(LABELS))
     labels = dict(LABELS)
@@ -360,19 +478,38 @@ def main():
         "What a pinned version does and does not fix: [Tags & versioning](README.md#whats-inside-a-given-tag).",
     ]
 
+    if versions:
+        out += [
+            "",
+            "### Installed",
+            "",
+            "Read from the images rather than from the Dockerfile, for the two things a pin cannot say:  ",
+            "GCC and Clang pin a major, and the standard libraries arrive as dependencies with no pin at all.  ",
+            "Every other component above is pinned exactly, so the table is already what it ships.",
+        ]
+        out += versions_tables(versions)
+
     if diffing:
         out += ["", f"### Changes since {previous_ref}", ""]
         if undiffable:
-            # Never "No component moved." here: that is a claim, and this is the case where nothing is known.
+            # Never "nothing moved" here: that is a claim, and this is the case where nothing is known.
             out.append(f"Not comparable against `{previous_ref}` - {undiffable}.")
         else:
             moved = moved_pins(current, previous)
             if not moved:
-                out.append("No component moved.")
+                out.append("No pinned version moved.")
             else:
                 out += change_lines(moved, labels, ordered, schemes)
                 if any(name not in moved for name in ordered):
-                    out += ["", "All other components unchanged."]
+                    out += ["", "All other pins unchanged."]
+
+        if versions:
+            out += ["", "Installed:", ""]
+            if not previous_versions:
+                out.append(f"`{previous_ref}` predates installed-version collection, so this release sets the baseline.")
+            else:
+                installed = versions_changes(versions, previous_versions)
+                out += installed or ["No installed version moved."]
 
     if args.changelog:
         out += ["", pathlib.Path(args.changelog).read_text(encoding="utf-8").strip()]
