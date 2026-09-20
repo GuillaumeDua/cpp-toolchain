@@ -75,7 +75,7 @@ The promotion guarantee, stated precisely:
 - because promotion re-tags a digest recorded in git and refuses to proceed if that digest moved,  
   not merely because it re-tags rather than rebuilds.
 
-Every moving part lives in two workflows and one schema:
+Every moving part lives in two workflows, one schema and one configuration file:
 
 - [docker-publish.yml](../.github/workflows/docker-publish.yml) - builds rcs and majors,  
   opens the candidate PR, and promotes on merge.
@@ -85,12 +85,14 @@ Every moving part lives in two workflows and one schema:
   - bumps recompute
   - a smoke test of the image **by digest**.
     Make it a required status check on `main`.
-- [scripts/details/check-release-file.py](../scripts/details/check-release-file.py) - the single definition of the `releases/v*.yaml` schema and of the stage lists.
+- [scripts/details/check-release-file.py](../scripts/details/check-release-file.py) - the single definition of the `releases/v*.yaml` schema, of the version grammar, and of the stage and registry lists.
+- [.github/release.yml](../.github/release.yml) - shapes the changelog half of a release note.
+  Read from the commit the note is rendered for rather than from `main`, so a release carries the configuration of the tree it was built from.
 
 ## The normal path
 
 1. On the 8th or 22nd an rc is built and a **candidate PR** appears (branch `release/candidate/v1.2-rc.1`, adding `releases/v1.2.yaml`).
-   Its body is the manifest - what moved since the last release.
+   Its body is the release note: the versions that rc pins, what moved since the last release, and the pull requests merged since it.
 2. **Validate**: read the diff, pull the rc (`docker pull ghcr.io/guillaumedua/cpp-toolchain:dev-v1.2-rc.1`), build something real against it, check the PR is green.
 3. **Merge**: that is the whole procedure - the promote job verifies the recorded digests against both registries,  
    re-tags them to `v1.2` + `latest`, and creates the GitHub release at the rc's commit.
