@@ -102,6 +102,24 @@ def repository_with_tags(tags):
             yield
 
 
+def render(*arguments, changelog=None):
+    """render-manifest.py over the inline fixtures, in a throwaway directory."""
+    with tempfile.TemporaryDirectory() as directory:
+        root = pathlib.Path(directory)
+        (root / "Dockerfile").write_text(DOCKERFILE, encoding="utf-8")
+        (root / "renovate.json").write_text(RENOVATE, encoding="utf-8")
+        if changelog is not None:
+            (root / "changelog.md").write_text(changelog, encoding="utf-8")
+            arguments += ("--changelog", str(root / "changelog.md"))
+        done = subprocess.run(
+            [sys.executable, str(HERE / "render-manifest.py"),
+             "--dockerfile", str(root / "Dockerfile"),
+             "--renovate", str(root / "renovate.json"), *arguments],
+            capture_output=True, text=True, check=True,
+        )
+        return done.stdout
+
+
 class RenderVersion(unittest.TestCase):
     def test_renovate_scheme_names_the_parts(self):
         # Doxygen pins the git tag while the image reports a dotted version.
@@ -224,30 +242,17 @@ class DiffingGuard(unittest.TestCase):
     """The `--previous-ref ''` path: the sanctioned way to ask for a manifest with no diff, and the
     only diffing case reachable without a git checkout."""
 
-    def render(self, *arguments):
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            (root / "Dockerfile").write_text(DOCKERFILE, encoding="utf-8")
-            (root / "renovate.json").write_text(RENOVATE, encoding="utf-8")
-            done = subprocess.run(
-                [sys.executable, str(HERE / "render-manifest.py"),
-                 "--dockerfile", str(root / "Dockerfile"),
-                 "--renovate", str(root / "renovate.json"), *arguments],
-                capture_output=True, text=True, check=True,
-            )
-            return done.stdout
-
     def test_no_previous_ref_renders_no_changes_section(self):
-        out = self.render("--tag", "v1.4", "--previous-ref", "")
+        out = render("--tag", "v1.4", "--previous-ref", "")
         self.assertIn("## What's inside v1.4", out)
         self.assertNotIn("### Changes since", out)
 
     def test_no_previous_ref_records_no_bump(self):
-        self.assertEqual(self.render("--tag", "v1.4", "--previous-ref", "", "--bumps-yaml").strip(),
+        self.assertEqual(render("--tag", "v1.4", "--previous-ref", "", "--bumps-yaml").strip(),
                          "bumps: {}")
 
     def test_the_table_carries_every_pin_including_the_exempt_one(self):
-        out = self.render("--tag", "v1.4", "--previous-ref", "")
+        out = render("--tag", "v1.4", "--previous-ref", "")
         self.assertIn("| `20260825T000000Z` |", out)
         self.assertIn("| GCC | `15` |", out)
         self.assertIn("| Doxygen | `1.18.0` |", out)
@@ -255,13 +260,31 @@ class DiffingGuard(unittest.TestCase):
     def test_an_unreadable_previous_ref_fails_the_record(self):
         # An unverifiable `bumps: {}` in an immutable record reads exactly like a verified one.
         with self.assertRaises(subprocess.CalledProcessError) as raised:
-            self.render("--tag", "v1.4", "--previous-ref", "v0.0-absent", "--bumps-yaml")
+            render("--tag", "v1.4", "--previous-ref", "v0.0-absent", "--bumps-yaml")
         self.assertIn("::error::cannot diff against v0.0-absent", raised.exception.stderr)
 
     def test_an_unreadable_previous_ref_is_stated_in_the_note(self):
-        out = self.render("--tag", "v1.4", "--previous-ref", "v0.0-absent")
+        out = render("--tag", "v1.4", "--previous-ref", "v0.0-absent")
         self.assertIn("Not comparable against `v0.0-absent`", out)
         self.assertNotIn("No component moved.", out)
+
+
+class Changelog(unittest.TestCase):
+    """What the changelog says is GitHub's answer; where it lands in the note is this script's."""
+
+    BLOCK = ("## What's Changed\n"
+             "* a merged pull request by @someone in https://example.invalid/pull/1\n\n"
+             "**Full Changelog**: https://example.invalid/compare/v1.3...v1.4")
+
+    def test_it_lands_inside_the_marked_region(self):
+        # Outside it, --replace-region would keep the old changelog and stack the new one under it.
+        out = render("--tag", "v1.4", "--previous-ref", "", changelog=self.BLOCK)
+        region = out.split("<!-- manifest:begin -->")[1].split("<!-- manifest:end -->")[0]
+        self.assertIn("**Full Changelog**", region)
+
+    def test_whats_inside_precedes_whats_changed(self):
+        out = render("--tag", "v1.4", "--previous-ref", "", changelog=self.BLOCK)
+        self.assertLess(out.index("## What's inside v1.4"), out.index("## What's Changed"))
 
 
 class ReplaceRegion(unittest.TestCase):

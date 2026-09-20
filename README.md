@@ -127,7 +127,7 @@ Every other stage must be named explicitly.
 
 ### What's inside a given tag
 
-Every release note lists the versions that release pins - compilers, build systems, dependency managers, documentation tooling - and what moved since the previous one.
+Every release note lists the versions that release pins - compilers, build systems, dependency managers, documentation tooling - what moved since the previous one, and the pull requests merged in between.
 Those pins are what the image **requests**, which is not always what it resolves to.
 GCC and Clang pin a **major** and install from rolling apt sources (`ppa:ubuntu-toolchain-r/test` and `apt.llvm.org`), so two builds of the same commit weeks apart can carry different patch releases of the same compiler major.
 The Ubuntu archive is pinned by `UBUNTU_SNAPSHOT`; the rest pins an upstream version.

@@ -14,29 +14,34 @@ so it is matched separately here and bumped by .github/workflows/ubuntu-snapshot
 
 Usage, from the repository root - `--dockerfile` and `--renovate` default to paths relative to it:
     python3 scripts/details/render-manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
+    python3 scripts/details/render-manifest.py --tag v1.2 --changelog changelog.md
     python3 scripts/details/render-manifest.py --replace-region manifest --with note.md < body.md
 
-`--previous-ref` defaults to the newest release before `--tag`, which is the base every caller
-wants, so no caller computes one. Pass `--previous-ref ''` for a manifest with no changes section.
-A named ref that cannot be read, or that parses to no pins, is never silently rendered as "nothing
-moved": `--bumps-yaml` fails, because an unverifiable `{}` in an immutable record reads as a
-verified one, and the markdown says it is not comparable.
+`--previous-ref` defaults to the newest release before `--tag`, 
+which is the base every caller wants, so no caller computes one.
+Pass `--previous-ref ''` for a manifest with no changes section.
+A named ref that cannot be read, or that parses to no pins, is never silently rendered as "nothing moved":
+- `--bumps-yaml` fails, because an unverifiable `{}` in an immutable record reads as a verified one, and the markdown says it is not comparable.
 
 `--replace-region` edits a release body in place around the `<!-- name:begin -->` markers this
 script emits, and refuses an unbalanced pair. Every caller that upserts a release body goes
 through it, so hand-written prose outside the region survives a re-run.
 
+`--changelog` places a block of markdown inside that same region, after the manifest:
+- what the repository changed, which only GitHub's generate-notes API can answer.
+Fetching it belongs to the caller, which already holds a token - this script reads files and git, and nothing over the network.
+Inside the region rather than after it, so a re-run replaces both halves instead of stacking a second changelog under the first.
+
 Which tags count as releases, how they order, and where the images are published are all
 check-release-file.py's, read from here rather than restated: the tag docker-publish.yml
-publishes, the base this manifest diffs against, and the reference it tells readers to pull
-cannot disagree.
+publishes, the base this manifest diffs against, and the reference it tells readers to pull cannot disagree.
 
 `--ref` reads the Dockerfile and renovate.json from a git ref instead of the worktree,
 so the manifest can be rendered for the exact commit an image was built from,
 even when the checkout has moved past it.
 
-`--bumps-yaml` emits the moved pins as a YAML `bumps:` mapping instead of the markdown manifest -
-the shape recorded in releases/v*.yaml and re-checked by check-release-file.py.
+`--bumps-yaml` emits the moved pins as a YAML `bumps:`
+- mapping instead of the markdown manifest, the shape recorded in releases/v*.yaml and re-checked by check-release-file.py.
 """
 
 import argparse
@@ -252,6 +257,8 @@ def main():
                         help="git ref to read the Dockerfile and renovate.json from (default: the worktree)")
     parser.add_argument("--bumps-yaml", action="store_true",
                         help="emit the moved pins as a YAML `bumps:` mapping instead of the markdown manifest")
+    parser.add_argument("--changelog", metavar="FILE",
+                        help="markdown to place inside the marked region, after the manifest")
     parser.add_argument("--replace-region", metavar="NAME",
                         help="replace the <!-- NAME:begin --> region of a release body read on stdin (no --tag needed)")
     parser.add_argument("--with", dest="replacement", metavar="FILE",
@@ -366,6 +373,9 @@ def main():
                 out += change_lines(moved, labels, ordered, schemes)
                 if any(name not in moved for name in ordered):
                     out += ["", "All other components unchanged."]
+
+    if args.changelog:
+        out += ["", pathlib.Path(args.changelog).read_text(encoding="utf-8").strip()]
 
     out += ["", "<!-- manifest:end -->"]
     print("\n".join(out))
