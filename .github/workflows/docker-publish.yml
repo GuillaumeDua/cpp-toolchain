@@ -143,22 +143,22 @@ jobs:
       # publishes a fresh single-entry index wrapping it, so the release tag resolves to a digest that
       # appears nowhere in releases/.
       # `crane tag` re-puts the manifest bytes untouched instead.
-      #   Pinned by version and checksum rather than installed by a setup action: every action here is
-      #   digest-pinned, and one that downloads an unverified binary would undo that for this step.
-      #   Version and checksum move together, by hand, from the release's checksums.txt.
+      #   Taken out of the published image rather than from a setup action or a release tarball:
+      #   a digest is the only pin Renovate can move together with the version it belongs to, and
+      #   an action whose body downloads an unverified binary would undo the digest-pinning every
+      #   other action here carries. The binary is copied out and run natively - the image is
+      #   distroless, so there is no shell in it to run a loop with.
       - name: Install crane
         if: steps.record.outputs.skip != 'true'
         env:
-          CRANE_VERSION: v0.22.1
-          CRANE_SHA256: 0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0
+          # renovate: datasource=docker
+          CRANE_IMAGE: gcr.io/go-containerregistry/crane:v0.22.1@sha256:1f968817b95790bed063f71175aa6b8ff879fa17064020415f3e18bb6e6a36e1
         run: |
           set -euo pipefail
-          archive=go-containerregistry_Linux_x86_64.tar.gz
-          curl -fsSL --retry 5 --retry-all-errors -o "${archive}" \
-            "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/${archive}"
-          echo "${CRANE_SHA256}  ${archive}" | sha256sum --check --status
           mkdir -p "${RUNNER_TEMP}/bin"
-          tar -xzf "${archive}" -C "${RUNNER_TEMP}/bin" crane
+          container=$(docker create "${CRANE_IMAGE}")
+          docker cp "${container}:/ko-app/crane" "${RUNNER_TEMP}/bin/crane"
+          docker rm --volumes "${container}" > /dev/null
           echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
           "${RUNNER_TEMP}/bin/crane" version
 
