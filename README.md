@@ -119,6 +119,7 @@ Every version in the image is **pinned** in the [Dockerfile](Dockerfile) and upd
 
 > [!NOTE]
 > A minor is not rebuilt from its rc's commit - it **is** the rc: promotion re-tags the exact image digests that were validated, so `v1.2` is byte-identical to the `v1.2-rc.<n>` it was promoted from.
+> Both tags resolve to that one digest, which is the digest `releases/v1.2.yaml` records.
 > rc tags stay published and cost nothing (shared digests).
 > How releases are cut is documented in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md).
 
