@@ -459,33 +459,26 @@ def main():
     # so an rc cannot link it - once promoted, its banner points at the release, which can.
     if not re.search(r"-rc\.\d+$", args.tag):
         out += [
-            f"Scripts can read the promotion record, the manifest digest of every stage:"
+            f"Promotion record, with the manifest digest of every stage:"
             f" [releases/{args.tag}.yaml]"
             f"({REPOSITORY_PAGE}/blob/main/releases/{args.tag}.yaml)",
             "",
         ]
     out += [
-        "### Toolchain versions",
+        "### Pinned",
         "",
         "| Component | Version |",
         "| --- | --- |",
     ]
     out += [f"| {labels.get(name, name)} | `{render_version(current[name], schemes.get(name))}` |" for name in ordered]
-    out += [
-        "",
-        "Every version listed above is pinned in the [Dockerfile](Dockerfile) and kept current by Renovate.  ",
-        "GCC and Clang pin a major and install from rolling apt sources, so their patch level is the one those sources served on the build date.  ",
-        "What a pinned version does and does not fix: [Tags & versioning](README.md#whats-inside-a-given-tag).",
-    ]
 
     if versions:
-        out += [
-            "",
-            "### Installed",
-            "",
-            "Read from the published images rather than the pins above.",
-        ]
+        out += ["", "### Installed"]
         out += versions_tables(versions)
+
+    # The one line that is not manifest, and what lets every explanation around these tables go:
+    # a reader who wants to know what a pin fixes follows it.
+    out += ["", "[Tags & versioning](README.md#whats-inside-a-given-tag) - what a pin fixes, and what it does not."]
 
     if diffing:
         out += ["", f"### Changes since {previous_ref}", ""]
