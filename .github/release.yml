@@ -7,8 +7,7 @@
 #
 # No `categories:` on purpose. Grouping is only honest when every pull request is labeled, and
 # about half of this repository's are not, so a category set would file most of a changelog under
-# a catch-all. A plain list is what the API emits with no configuration at all; this file exists
-# for the exclusion below.
+# a catch-all. A plain list is what the API emits with no configuration at all.
 changelog:
   exclude:
     labels:

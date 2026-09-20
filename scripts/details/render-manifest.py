@@ -41,10 +41,10 @@ publishes, the base this manifest diffs against, and the reference it tells read
 so the manifest can be rendered for the exact commit an image was built from,
 even when the checkout has moved past it.
 
-`--versions` reports what the images carry, out of the `versions:` cxx-toolchain-versions.sh filled in the
-record being cut, diffed against the previous release's record. Only GCC, Clang and the standard
-libraries are in there: every other pin is exact, so the table above already states what shipped.
-`--versions-dir` is the other end of that, turning the collected files into the record's mapping.
+`--versions` reports what the images carry, from the `versions:` mapping of the record being cut,
+diffed against the previous release's record. Only GCC, Clang and the standard libraries: every
+other pin is exact, so the table above already states what shipped.
+`--versions-dir` turns the collected files into that mapping.
 
 `--bumps-yaml` emits the moved pins as a YAML `bumps:`
 - mapping instead of the markdown manifest, the shape recorded in releases/v*.yaml and re-checked by check-release-file.py.
@@ -271,7 +271,7 @@ def versions_tables(versions):
     """One table per collected stage.
 
     Both ABI fields share a cell: which of the two carries the information depends on the
-    implementation, so a column per field would be half empty whichever way round it is read.
+    implementation, so a column per field would be half empty.
     """
     out = []
     for stage, collected in versions.items():
@@ -483,9 +483,7 @@ def main():
             "",
             "### Installed",
             "",
-            "Read from the images rather than from the Dockerfile, for the two things a pin cannot say:  ",
-            "GCC and Clang pin a major, and the standard libraries arrive as dependencies with no pin at all.  ",
-            "Every other component above is pinned exactly, so the table is already what it ships.",
+            "Read from the published images rather than the pins above.",
         ]
         out += versions_tables(versions)
 

@@ -129,10 +129,10 @@ Every other stage must be named explicitly.
 ### What's inside a given tag
 
 Every release note lists the versions that release pins - compilers, build systems, dependency managers, documentation tooling - what moved since the previous one, and the pull requests merged in between.
-Where a pin cannot say what shipped, the note also carries what the images installed: the GCC and Clang versions the rolling apt sources served, and the standard libraries with their ABI levels.
 Those pins are what the image **requests**, which is not always what it resolves to.
 GCC and Clang pin a **major** and install from rolling apt sources (`ppa:ubuntu-toolchain-r/test` and `apt.llvm.org`), so two builds of the same commit weeks apart can carry different patch releases of the same compiler major.
 The Ubuntu archive is pinned by `UBUNTU_SNAPSHOT`; the rest pins an upstream version.
+So the note records what each image resolved to as well: the compiler versions those sources served, and the standard libraries with their ABI levels.
 
 > [!NOTE]
 > **On host architecture**:
