@@ -170,7 +170,7 @@ So the guarantees are not read as stronger than they are:
 - `versions:` is **collected once**, from the `build` image the rc pushed, and never recomputed.  
   Unlike `bumps:`, which [release-candidate-check.yml](../.github/workflows/release-candidate-check.yml) re-derives, it can only be re-read by pulling that image again.
   It records what the build saw, not an independently verified fact.
-  Every stage above `build` inherits those standard libraries, and the [validation gate](IMAGES_VALIDATION.md) fails a `runtime` carrying different ones, so one collection answers for all of them.
+  Every stage above `build` inherits those compilers and standard libraries, and the [validation gate](IMAGES_VALIDATION.md) fails a `runtime` carrying different ones, so one collection answers for all of them.
 - `releases/v*.yaml` is a file like any other:  
   A hand-written *real* digest that was never tested cannot be caught mechanically.  
   The smoke check covers `dev` by digest; the rest rides on review and branch protection.

@@ -147,7 +147,7 @@ class MovedPins(unittest.TestCase):
         self.assertEqual(render_manifest.moved_pins({"gcc": "15"}, {"gcc": "15"}), {})
 
 
-class ChangeLines(unittest.TestCase):
+class ChangeRows(unittest.TestCase):
     LABELS = {"gcc-mirror/gcc": "GCC", "doxygen/doxygen": "Doxygen"}
     ORDER = ["gcc-mirror/gcc", "doxygen/doxygen"]
 
@@ -158,24 +158,24 @@ class ChangeLines(unittest.TestCase):
             "dropped": ("1.0", None),
         }
         self.assertEqual(
-            render_manifest.change_lines(moved, self.LABELS, self.ORDER, {}),
+            render_manifest.change_rows(moved, self.LABELS, self.ORDER, {}),
             [
-                "- GCC: `15` → `16`",
-                "- Doxygen: added, `Release_1_18_0`",
-                "- dropped: removed, was `1.0`",
+                "| GCC | `15` | `16` |",
+                "| Doxygen | - | `Release_1_18_0` |",
+                "| dropped | `1.0` | - |",
             ],
         )
 
     def test_display_order_wins_over_the_sorted_input(self):
         moved = {"doxygen/doxygen": ("1", "2"), "gcc-mirror/gcc": ("15", "16")}
-        lines = render_manifest.change_lines(moved, self.LABELS, self.ORDER, {})
-        self.assertEqual([line.split(":")[0] for line in lines], ["- GCC", "- Doxygen"])
+        rows = render_manifest.change_rows(moved, self.LABELS, self.ORDER, {})
+        self.assertEqual([row.split(" | ")[0] for row in rows], ["| GCC", "| Doxygen"])
 
-    def test_the_renovate_scheme_reaches_the_bullet(self):
+    def test_the_renovate_scheme_reaches_the_row(self):
         moved = {"doxygen/doxygen": ("Release_1_17_0", "Release_1_18_0")}
         self.assertEqual(
-            render_manifest.change_lines(moved, self.LABELS, self.ORDER, {"doxygen/doxygen": DOXYGEN_SCHEME}),
-            ["- Doxygen: `1.17.0` → `1.18.0`"],
+            render_manifest.change_rows(moved, self.LABELS, self.ORDER, {"doxygen/doxygen": DOXYGEN_SCHEME}),
+            ["| Doxygen | `1.17.0` | `1.18.0` |"],
         )
 
 
@@ -324,6 +324,7 @@ class Versions(unittest.TestCase):
     """What the images carry. Collected by cxx-toolchain-versions.sh, recorded, diffed record to record."""
 
     COLLECTED = {
+        "distribution": {"ubuntu": "24.04.3"},
         "compilers": {"gcc-15": "15.2.0", "clang-22": "22.1.8"},
         "libraries": {
             "libstdc++6": "15",
@@ -363,27 +364,35 @@ class Versions(unittest.TestCase):
         # Only a suffix whose package was collected too is a companion key.
         self.assertEqual(render_manifest.library_rows({"weird-abi": "1"}), [("weird-abi", "1", "", "")])
 
-    def test_compilers_carry_no_abi_column(self):
-        rendered = "\n".join(render_manifest.versions_tables(self.COLLECTED))
-        self.assertIn("| Compiler | Version |", rendered)
-        self.assertIn("| Library | Version | ABI | C++ ABI |", rendered)
+    def test_only_the_libraries_keep_a_table_of_their_own(self):
+        # The compilers and the distribution merge into the pin table; the libraries carry no pin.
+        self.assertEqual(render_manifest.libraries_table(self.COLLECTED)[1],
+                         "| Library | Version | ABI | C++ ABI |")
 
     def test_changes_are_flat_and_in_group_order(self):
         previous = {
+            "distribution": {"ubuntu": "24.04.2"},
             "compilers": dict(self.COLLECTED["compilers"], **{"gcc-15": "15.1.0"}),
             "libraries": dict(self.COLLECTED["libraries"], **{"libstdc++6-abi": "GLIBCXX_3.4.33"}),
         }
         self.assertEqual(
-            render_manifest.versions_changes(self.COLLECTED, previous),
-            ["- gcc-15: `15.1.0` → `15.2.0`",
-             "- libstdc++6-abi: `GLIBCXX_3.4.33` → `GLIBCXX_3.4.34`"],
+            render_manifest.installed_changes(self.COLLECTED, previous),
+            ["| Ubuntu | `24.04.2` | `24.04.3` |",
+             "| gcc-15 | `15.1.0` | `15.2.0` |",
+             "| libstdc++6 (ABI) | `GLIBCXX_3.4.33` | `GLIBCXX_3.4.34` |"],
         )
 
-    def test_nothing_moved_is_no_bullets(self):
-        self.assertEqual(render_manifest.versions_changes(self.COLLECTED, self.COLLECTED), [])
+    def test_a_library_version_keeps_the_bare_package_name(self):
+        previous = dict(self.COLLECTED,
+                        libraries=dict(self.COLLECTED["libraries"], **{"libstdc++6": "14"}))
+        self.assertEqual(render_manifest.installed_changes(self.COLLECTED, previous),
+                         ["| libstdc++6 | `14` | `15` |"])
+
+    def test_nothing_moved_is_no_rows(self):
+        self.assertEqual(render_manifest.installed_changes(self.COLLECTED, self.COLLECTED), [])
 
     def test_a_group_absent_from_the_previous_record_reads_as_added(self):
-        self.assertIn("- gcc-15: added, `15.2.0`", render_manifest.versions_changes(self.COLLECTED, {}))
+        self.assertIn("| gcc-15 | - | `15.2.0` |", render_manifest.installed_changes(self.COLLECTED, {}))
 
     def test_an_ungrouped_key_is_refused(self):
         with self.assertRaises(SystemExit):
@@ -391,7 +400,8 @@ class Versions(unittest.TestCase):
 
     def test_an_unknown_group_is_refused(self):
         with self.assertRaises(SystemExit):
-            self.emit("compilers.gcc-15=15.2.0\nlibraries.libstdc++6=15\ntools.cmake=4.4.0\n")
+            self.emit("distribution.ubuntu=24.04.3\ncompilers.gcc-15=15.2.0\n"
+                      "libraries.libstdc++6=15\ntools.cmake=4.4.0\n")
 
     def test_a_group_reporting_nothing_fails_rather_than_recording_an_empty_one(self):
         # An empty group in an immutable record reads exactly like a collection that found nothing.
@@ -399,11 +409,76 @@ class Versions(unittest.TestCase):
             self.emit("compilers.gcc-15=15.2.0\n")
 
     def test_the_emitted_mapping_quotes_names_carrying_a_plus(self):
-        emitted = self.emit("compilers.gcc-15=15.2.0\nlibraries.libstdc++6=15\n")
+        emitted = self.emit("distribution.ubuntu=24.04.3\ncompilers.gcc-15=15.2.0\nlibraries.libstdc++6=15\n")
         self.assertEqual(
             emitted,
-            'versions:\n  compilers:\n    "gcc-15": "15.2.0"\n  libraries:\n    "libstdc++6": "15"',
+            'versions:\n  distribution:\n    "ubuntu": "24.04.3"'
+            '\n  compilers:\n    "gcc-15": "15.2.0"\n  libraries:\n    "libstdc++6": "15"',
         )
+
+
+class Content(unittest.TestCase):
+    """The pin table and the installed values that share its rows."""
+
+    LABELS = {"gcc-mirror/gcc": "GCC", "conan": "Conan"}
+
+    def test_a_pin_naming_several_majors_reads_one_key_each(self):
+        versions = {"compilers": {"gcc-14": "14.3.0", "gcc-15": "15.2.0"}}
+        self.assertEqual(render_manifest.installed_values("gcc-mirror/gcc", "14 15", versions),
+                         ["14.3.0", "15.2.0"])
+
+    def test_the_two_columns_line_up_for_a_multi_major_pin(self):
+        versions = {"compilers": {"gcc-14": "14.3.0", "gcc-15": "15.2.0"}}
+        rows = render_manifest.content_table({"gcc-mirror/gcc": "14 15"}, ["gcc-mirror/gcc"],
+                                             self.LABELS, {}, versions)
+        self.assertEqual(rows[-1], "| GCC | `14 15` | `14.3.0`, `15.2.0` |")
+
+    def test_an_exact_pin_leaves_the_installed_cell_empty(self):
+        rows = render_manifest.content_table({"conan": "2.31.1"}, ["conan"], self.LABELS, {}, {})
+        self.assertEqual(rows[-1], "| Conan | `2.31.1` |  |")
+
+    def test_a_compiler_no_pin_accounts_for_is_still_reported(self):
+        # Installed with no pin is what a reader cannot learn from the Dockerfile.
+        versions = {"compilers": {"gcc-15": "15.2.0", "gcc-13": "13.4.0"}}
+        rows = render_manifest.content_table({"gcc-mirror/gcc": "15"}, ["gcc-mirror/gcc"],
+                                             self.LABELS, {}, versions)
+        self.assertIn("| gcc-13 | | `13.4.0` |", rows)
+
+    def test_the_distribution_pin_reads_its_single_key(self):
+        versions = {"distribution": {"ubuntu": "24.04.3"}}
+        self.assertEqual(render_manifest.installed_values("ubuntu", "24.04", versions), ["24.04.3"])
+
+
+class Images(unittest.TestCase):
+    """The tag surface of one release, generated from the record's own stage keys."""
+
+    def test_every_published_stage_gets_a_row(self):
+        rows = render_manifest.images_table("v1.4")
+        self.assertEqual(len(rows) - 2, len(check_release_file.NORMAL_STAGES))
+
+    def test_runtime_has_no_cross_variant(self):
+        runtime = next(row for row in render_manifest.images_table("v1.4") if row.startswith("| `runtime`"))
+        self.assertTrue(runtime.endswith("|  |"))
+
+    def test_dev_carries_its_unprefixed_aliases(self):
+        dev = next(row for row in render_manifest.images_table("v1.4") if row.startswith("| `dev`"))
+        self.assertIn("`v1.4`", dev)
+        self.assertIn("`cross-v1.4`", dev)
+
+
+class NoteHeading(unittest.TestCase):
+    def test_the_date_reaches_the_heading(self):
+        self.assertIn("## What's inside v1.4 - 2026-08-25",
+                      render("--tag", "v1.4", "--previous-ref", "", "--date", "2026-08-25"))
+
+    def test_no_date_asked_no_date_rendered(self):
+        # A local render stays byte-comparable with the one before it.
+        self.assertIn("## What's inside v1.4\n", render("--tag", "v1.4", "--previous-ref", ""))
+
+    def test_the_cross_targets_are_the_ones_binutils_resolves(self):
+        note = render("--tag", "v1.4", "--previous-ref", "")
+        for target in render_manifest.cross_targets():
+            self.assertIn(f"`{target}`", note)
 
 
 class Validate(unittest.TestCase):

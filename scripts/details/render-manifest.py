@@ -14,7 +14,7 @@ so it is matched separately here and bumped by .github/workflows/ubuntu-snapshot
 
 Usage, from the repository root - `--dockerfile` and `--renovate` default to paths relative to it:
     python3 scripts/details/render-manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
-    python3 scripts/details/render-manifest.py --tag v1.2 --changelog changelog.md --versions releases/v1.2.yaml
+    python3 scripts/details/render-manifest.py --tag v1.2 --changelog changelog.md --versions releases/v1.2.yaml --date 2026-08-25
     python3 scripts/details/render-manifest.py --collected build-metadata/versions.txt
     python3 scripts/details/render-manifest.py --replace-region manifest --with note.md < body.md
 
@@ -41,10 +41,14 @@ publishes, the base this manifest diffs against, and the reference it tells read
 so the manifest can be rendered for the exact commit an image was built from,
 even when the checkout has moved past it.
 
-`--versions` reports what the images carry, from the `versions:` mapping of the record being cut,
-diffed against the previous release's record. Only GCC, Clang and the standard libraries: every
-other pin is exact, so the table above already states what shipped.
+`--versions` reads the record being cut: its `versions:` fills the `Installed` column beside the
+pins and diffs against the previous release's record, and its `build` digest is the digest-pinned
+pull. Only the distribution, GCC, Clang and the standard libraries have one - every other pin is
+exact.
 `--collected` turns the collector's output into that mapping.
+
+`--date` stamps the heading with the day the release is produced. Left out, the note carries no
+date, so a local render stays byte-comparable with the one before it.
 
 `--bumps-yaml` emits the moved pins as a YAML `bumps:`
 - mapping instead of the markdown manifest, the shape recorded in releases/v*.yaml and re-checked by check-release-file.py.
@@ -79,6 +83,19 @@ LABELS = [
     ("https://github.com/ohmyzsh/ohmyzsh", "oh-my-zsh"),
     ("romkatv/powerlevel10k", "powerlevel10k"),
 ]
+
+# The pins an image can disagree with, and where the collector answers for them:
+# depName -> (group, key template). `{}` takes each major the pin names, so `GCC | 14 15` reads two
+# keys and the two table columns line up.
+COLLECTED_BY_PIN = {
+    "gcc-mirror/gcc": ("compilers", "gcc-{}"),
+    "llvm/llvm-project": ("compilers", "clang-{}"),
+    "ubuntu": ("distribution", "ubuntu"),
+}
+
+# What the published images run on. build-stages.sh passes no `--platform`, so there is exactly one.
+PLATFORM = "linux/amd64"
+
 
 def load_check_release_file():
     """check-release-file.py, imported by path - the hyphen makes it not a normal module name.
@@ -249,6 +266,9 @@ def versions_yaml(path):
 # What a collected library key carries, longest first: `-cxxabi` also ends in `-abi`.
 LIBRARY_FIELDS = ("-cxxabi", "-abi")
 
+# How a library's companion keys read once a table has named the package.
+FIELD_LABELS = {"abi": "(ABI)", "cxxabi": "(C++ ABI)"}
+
 
 def split_key(name, collected):
     """(package, field) for a collected library key - a package, optionally suffixed with a field.
@@ -276,37 +296,129 @@ def library_rows(collected):
             for package, fields in sorted(rows.items())]
 
 
-def versions_tables(versions):
-    """A table per group. They carry different columns because they answer different questions:
-    a compiler has a version, a library also has the two ABI levels a binary is linked against."""
-    out = []
+def collected_keys(name, pinned):
+    """(group, [key]) the `Installed` cell of a pin reads, in pin order, or None for an exact pin."""
+    source = COLLECTED_BY_PIN.get(name)
+    if not source:
+        return None
+    group, template = source
+    majors = pinned.split() if "{}" in template else [""]
+    return group, [template.format(major) for major in majors]
 
-    compilers = versions.get("compilers") or {}
-    if compilers:
-        out += ["", "**Compilers**", "", "| Compiler | Version |", "| --- | --- |"]
-        out += [f"| `{name}` | `{compilers[name]}` |" for name in sorted(compilers)]
 
-    libraries = versions.get("libraries") or {}
-    if libraries:
-        out += ["", "**Standard libraries**", "",
-                "| Library | Version | ABI | C++ ABI |", "| --- | --- | --- | --- |"]
-        for package, version, abi, cxxabi in library_rows(libraries):
-            cells = " | ".join(f"`{field}`" if field else "" for field in (version, abi, cxxabi))
-            out.append(f"| `{package}` | {cells} |")
+def installed_values(name, pinned, versions):
+    """What the images report for a pin, in pin order. Empty when the pin is exact."""
+    source = collected_keys(name, pinned)
+    if not source:
+        return []
+    group, keys = source
+    collected = versions.get(group) or {}
+    return [collected[key] for key in keys if key in collected]
 
+
+def unpinned_rows(current, versions):
+    """(name, version) for every collected compiler or distribution no pin accounts for.
+
+    Not dropped: the note's subject is what the images carry, and something installed without a
+    pin is what a reader cannot learn from the Dockerfile.
+    """
+    claimed = set()
+    for name, pinned in current.items():
+        source = collected_keys(name, pinned)
+        if source:
+            group, keys = source
+            claimed |= {(group, key) for key in keys}
+    return [(key, value)
+            for group in ("distribution", "compilers")
+            for key, value in sorted((versions.get(group) or {}).items())
+            if (group, key) not in claimed]
+
+
+def content_table(current, ordered, labels, schemes, versions):
+    """What the release pins, and what the images resolved it to.
+
+    One table rather than two: a pin and its installed value belong on one row. An `Installed`
+    cell is empty when the pin is exact, because nothing the collector could report would differ
+    from the cell beside it.
+    """
+    out = ["| Component | Pinned | Installed |", "| --- | --- | --- |"]
+    for name in ordered:
+        pinned = render_version(current[name], schemes.get(name))
+        installed = ", ".join(f"`{value}`" for value in installed_values(name, current[name], versions))
+        out.append(f"| {labels.get(name, name)} | `{pinned}` | {installed} |")
+    out += [f"| {name} | | `{value}` |" for name, value in unpinned_rows(current, versions)]
     return out
 
 
-def versions_changes(current, previous):
-    """Bullets for every collected value that moved, in group order.
+def libraries_table(versions):
+    """The standard libraries, with the two ABI levels a binary is linked against.
+
+    A table of their own: they carry no pin, so there is no `Pinned` column for them to sit in.
+    """
+    libraries = versions.get("libraries") or {}
+    if not libraries:
+        return []
+    out = ["", "| Library | Version | ABI | C++ ABI |", "| --- | --- | --- | --- |"]
+    for package, version, abi, cxxabi in library_rows(libraries):
+        cells = " | ".join(f"`{field}`" if field else "" for field in (version, abi, cxxabi))
+        out.append(f"| `{package}` | {cells} |")
+    return out
+
+
+def images_table(tag):
+    """Every tag this release answers to, one row per published stage.
+
+    Generated from the record's own stage keys, so it cannot name a tag the promotion did not push.
+    Only the first tag of a cell is linked - the rest are aliases of the same image, and Docker Hub
+    filters tags by substring, so an alias link lands on the page its cell already points at.
+    """
+    def cell(key):
+        tags = [f"{prefix}{tag}" for prefix in schema.prefixes(key)]
+        return ", ".join([f"[`{tags[0]}`]({DOCKERHUB_PAGE}/tags?name={tags[0]})"]
+                         + [f"`{alias}`" for alias in tags[1:]])
+
+    keys = set(schema.expected_digest_keys())
+    out = ["| Stage | Tag | Cross variant |", "| --- | --- | --- |"]
+    for stage in schema.NORMAL_STAGES:
+        cross = cell(f"{stage}-cross") if f"{stage}-cross" in keys else ""
+        out.append(f"| `{stage}` | {cell(stage)} | {cross} |")
+    return out
+
+
+def cross_targets():
+    """The triplets the `-cross` images carry, resolved by the script that owns the `common` alias.
+
+    `--list-targets` reads no apt index and needs no root, and the cross build passes that same
+    alias as BINUTILS_TARGETS, so the note cannot name a target the build did not install.
+    Read from the worktree rather than from `--ref`: it is a build input, not a pin, and the
+    promote job renders for a recorded commit while checked out on main.
+    """
+    script = HERE.parent / "install" / "binutils.sh"
+    listed = subprocess.run(["bash", str(script), "--list-targets", "--targets=common"],
+                            capture_output=True, text=True)
+    if listed.returncode != 0 or not listed.stdout.split():
+        raise SystemExit(f"::error::cannot resolve the cross targets - {script.name} --list-targets failed")
+    return listed.stdout.split()
+
+
+def installed_changes(current, previous):
+    """A table row per collected value that moved, in group order.
 
     Flat rather than nested under the group: a collected name already says which one it is in.
     """
-    lines = []
+    labels = dict(LABELS)
+    rows = []
     for group in schema.VERSION_GROUPS:
-        moved = moved_pins(current.get(group, {}), previous.get(group, {}))
-        lines += change_lines(moved, {}, [], {})
-    return lines
+        now, before = current.get(group) or {}, previous.get(group) or {}
+        known = {**before, **now}
+        for name, (old, new) in moved_pins(now, before).items():
+            if group == "libraries":
+                package, field = split_key(name, known)
+                label = package if field == "version" else f"{package} {FIELD_LABELS[field]}"
+            else:
+                label = labels.get(name, name)
+            rows.append(f"| {label} | {f'`{old}`' if old else '-'} | {f'`{new}`' if new else '-'} |")
+    return rows
 
 
 def load_versions(path):
@@ -327,25 +439,21 @@ def moved_pins(current, previous):
     }
 
 
-def change_lines(moved, labels, order, schemes):
-    """One markdown bullet per moved pin, in the manifest's display order, dropped pins last.
+def change_rows(moved, labels, order, schemes):
+    """A table row per moved pin, in the manifest's display order, dropped pins last.
 
-    Both values sit in the bullet, so the move reads left to right and needs no direction glyph.
+    A pin present on one side only gets `-` on the other, rather than a word for it.
     """
     names = [name for name in order if name in moved]
     names += [name for name in moved if name not in order]
-    lines = []
+    rows = []
     for name in names:
         old, new = moved[name]
-        label = labels.get(name, name)
         versioning = schemes.get(name)
-        if old is None:
-            lines.append(f"- {label}: added, `{render_version(new, versioning)}`")
-        elif new is None:
-            lines.append(f"- {label}: removed, was `{render_version(old, versioning)}`")
-        else:
-            lines.append(f"- {label}: `{render_version(old, versioning)}` → `{render_version(new, versioning)}`")
-    return lines
+        cells = [f"`{render_version(value, versioning)}`" if value is not None else "-"
+                 for value in (old, new)]
+        rows.append(f"| {labels.get(name, name)} | {cells[0]} | {cells[1]} |")
+    return rows
 
 
 def bumps_yaml(current, previous, diffing):
@@ -374,7 +482,10 @@ def main():
     parser.add_argument("--collected", metavar="FILE",
                         help="emit the collected key=value file as a YAML `versions:` mapping")
     parser.add_argument("--versions", metavar="RECORD",
-                        help="promotion record whose `versions:` the note reports, diffed against the previous release's")
+                        help="promotion record the note reports from: its `versions:` diffed against the"
+                             " previous release's, and its `build` digest as the digest-pinned pull")
+    parser.add_argument("--date", metavar="YYYY-MM-DD",
+                        help="the date the release is produced, for the heading (default: no date)")
     parser.add_argument("--replace-region", metavar="NAME",
                         help="replace the <!-- NAME:begin --> region of a release body read on stdin (no --tag needed)")
     parser.add_argument("--with", dest="replacement", metavar="FILE",
@@ -445,7 +556,8 @@ def main():
     # The previous record sits beside the one being cut, so the two are read the same way.
     # A release predating the collector has no `versions:`, which is a stated case below rather
     # than an empty diff: nothing moved and nothing is known read identically otherwise.
-    versions = load_versions(args.versions) if args.versions else {}
+    record = schema.load(args.versions) if args.versions else {}
+    versions = record.get("versions") or {}
     previous_versions = {}
     if versions and previous_ref:
         previous_record = pathlib.Path(args.versions).parent / f"{previous_ref}.yaml"
@@ -455,42 +567,48 @@ def main():
     ordered = [name for name, _ in LABELS if name in current]
     ordered += sorted(name for name in current if name not in dict(LABELS))
     labels = dict(LABELS)
+    targets = cross_targets()
 
     # GHCR URLs cannot filter versions by tag name (its per-tag pages are keyed by a numeric
     # version id only the Packages API knows), so the closest deep link is the tagged-only view.
     out = [
         "<!-- manifest:begin -->",
-        f"## What's inside {args.tag}",
+        f"## What's inside {args.tag}" + (f" - {args.date}" if args.date else ""),
         "",
         f"Published to [GHCR]({GHCR_PAGE}/versions?filters%5Bversion_type%5D=tagged)"
-        f" and [Docker Hub]({DOCKERHUB_PAGE}/tags?name={args.tag}) -"
-        f" `docker pull {GHCR_REFERENCE}:{args.tag}`",
+        f" and [Docker Hub]({DOCKERHUB_PAGE}/tags?name={args.tag}).",
+        "",
+        f"The images run on `{PLATFORM}`.",
+        "The `-cross` variants compile and link for "
+        + ", ".join(f"`{target}`" for target in targets[:-1])
+        + f" and `{targets[-1]}`.",
+        "",
+        "### Images",
         "",
     ]
+    out += images_table(args.tag)
+
+    pull = [f"docker pull {GHCR_REFERENCE}:build-{args.tag}  # by tag"]
+    build_digest = (record.get("digests") or {}).get("build")
+    if build_digest:
+        pull.append(f"docker pull {GHCR_REFERENCE}@{build_digest}  # digest-pinned, byte-exact")
+    out += ["", "```bash", *pull, "```", ""]
+
     # The promotion record lands on main only when the candidate merges,
     # so an rc cannot link it - once promoted, its banner points at the release, which can.
     if not re.search(r"-rc\.\d+$", args.tag):
-        out += [
-            f"Promotion record, with the manifest digest of every stage:"
-            f" [releases/{args.tag}.yaml]"
-            f"({REPOSITORY_PAGE}/blob/main/releases/{args.tag}.yaml)",
-            "",
-        ]
+        out.append(f"- Every stage's manifest digest:"
+                   f" [releases/{args.tag}.yaml]({REPOSITORY_PAGE}/blob/main/releases/{args.tag}.yaml)")
     out += [
-        "### Pinned",
+        f"- What each stage carries: [What's inside]({REPOSITORY_PAGE}#whats-inside)",
+        f"- What a pin fixes, and what it does not:"
+        f" [Tags & versioning]({REPOSITORY_PAGE}#whats-inside-a-given-tag)",
         "",
-        "| Component | Version |",
-        "| --- | --- |",
+        "### Content",
+        "",
     ]
-    out += [f"| {labels.get(name, name)} | `{render_version(current[name], schemes.get(name))}` |" for name in ordered]
-
-    if versions:
-        out += ["", "### Installed"]
-        out += versions_tables(versions)
-
-    # The one line that is not manifest, and what lets every explanation around these tables go:
-    # a reader who wants to know what a pin fixes follows it.
-    out += ["", "[Tags & versioning](README.md#whats-inside-a-given-tag) - what a pin fixes, and what it does not."]
+    out += content_table(current, ordered, labels, schemes, versions)
+    out += libraries_table(versions)
 
     if diffing:
         out += ["", f"### Changes since {previous_ref}", ""]
@@ -502,17 +620,17 @@ def main():
             if not moved:
                 out.append("No pinned version moved.")
             else:
-                out += change_lines(moved, labels, ordered, schemes)
-                if any(name not in moved for name in ordered):
-                    out += ["", "All other pins unchanged."]
+                out += ["| Pinned | from | to |", "| --- | --- | --- |"]
+                out += change_rows(moved, labels, ordered, schemes)
 
         if versions:
-            out += ["", "Installed:", ""]
             if not previous_versions:
-                out.append(f"`{previous_ref}` predates installed-version collection, so this release sets the baseline.")
+                out += ["", f"`{previous_ref}` predates installed-version collection,"
+                            " so this release sets the baseline."]
             else:
-                installed = versions_changes(versions, previous_versions)
-                out += installed or ["No installed version moved."]
+                rows = installed_changes(versions, previous_versions)
+                out += ["", "| Installed | from | to |", "| --- | --- | --- |", *rows] if rows \
+                    else ["", "No installed version moved."]
 
     if args.changelog:
         out += ["", pathlib.Path(args.changelog).read_text(encoding="utf-8").strip()]

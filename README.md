@@ -128,11 +128,11 @@ Every other stage must be named explicitly.
 
 ### What's inside a given tag
 
-Every release note lists the versions that release pins - compilers, build systems, dependency managers, documentation tooling - what moved since the previous one, and the pull requests merged in between.
-Those pins are what the image **requests**, which is not always what it resolves to.
+Every release note lists the versions that release pins - compilers, build systems, dependency managers, documentation tooling - beside what the images resolved them to, what moved since the previous release, and the pull requests merged in between.
+A pin is what the image **requests**, which is not always what it carries.
 GCC and Clang pin a **major** and install from rolling apt sources (`ppa:ubuntu-toolchain-r/test` and `apt.llvm.org`), so two builds of the same commit weeks apart can carry different patch releases of the same compiler major.
-The Ubuntu archive is pinned by `UBUNTU_SNAPSHOT`; the rest pins an upstream version.
-So the note records what each image resolved to as well: the compiler versions those sources served, and the standard libraries with their ABI levels.
+`ubuntu:24.04` is a rolling tag that resolves to whichever point release is current, and the Ubuntu archive behind it is pinned by `UBUNTU_SNAPSHOT`; the rest pins an upstream version.
+The standard libraries carry no pin at all, so they get a table of their own, with the ABI levels a binary is linked against.
 
 > [!NOTE]
 > **On host architecture**:

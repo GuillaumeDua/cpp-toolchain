@@ -108,8 +108,13 @@ jobs:
             -f target_commitish="${RC_COMMIT}" \
             ${previous:+-f "previous_tag_name=${previous}"} \
             --jq .body > changelog.md
+          # A release already carrying a date keeps it: a rollback re-runs an old promotion, and
+          # re-dating the note there would say the release shipped on the day it was restored.
+          date=$(gh release view "${VERSION}" --json body --jq .body 2>/dev/null \
+                 | grep -oP "^## What.s inside \\S+ - \\K[0-9-]+" || true)
           python3 scripts/details/render-manifest.py \
-            --tag "${VERSION}" --ref "${RC_COMMIT}" --changelog changelog.md --versions "${FILE}" > note.md
+            --tag "${VERSION}" --ref "${RC_COMMIT}" --date "${date:-$(date -u +%F)}" \
+            --changelog changelog.md --versions "${FILE}" > note.md
           cat note.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Log in to both registries
@@ -541,7 +546,8 @@ jobs:
             ${previous:+-f "previous_tag_name=${previous}"} \
             --jq .body > changelog.md
           python3 scripts/details/render-manifest.py \
-            --tag "${PRIMARY}" --changelog changelog.md --versions "releases/${VERSION}.yaml" > note.md
+            --tag "${PRIMARY}" --date "$(date -u +%F)" \
+            --changelog changelog.md --versions "releases/${VERSION}.yaml" > note.md
           cat note.md >> "$GITHUB_STEP_SUMMARY"
 
       # The rc pre-release is what mints the v1.2-rc.N git tag:
