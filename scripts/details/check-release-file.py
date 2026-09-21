@@ -24,7 +24,7 @@ Usage, from the repository root - the git checks and the bumps recompute both re
     python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-digest dev   # one recorded digest
     python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-fields       # version/commit/candidate as key=value
     python3 scripts/details/check-release-file.py --print-stages normal|cross             # canonical stage lists
-    python3 scripts/details/check-release-file.py --print-versioned-stages                # stages installed versions come from
+    python3 scripts/details/check-release-file.py --print-versioned-stage                 # stage installed versions come from
     python3 scripts/details/check-release-file.py --print-stages validate-normal|validate-cross
     python3 scripts/details/check-release-file.py --print-registries [dockerhub|ghcr]     # both references, or one
     python3 scripts/details/check-release-file.py --print-newest-release [--tag v1.4]     # the release before a tag
@@ -77,10 +77,15 @@ VERSION_HEAD_RE = re.compile(r"^v(\d+)\.(\d+)")
 
 TOP_LEVEL_KEYS = {"version", "candidate", "commit", "digests", "bumps", "versions"}
 
-# Stages worth collecting installed versions from. Everything above `build` inherits its compilers
-# and standard libraries unchanged, so it would answer identically, and collecting means pulling the
-# pushed image - `buildx --push` leaves nothing in the local store, and `dev` is multi-GB.
-VERSIONED_STAGES = ("runtime", "build")
+# What `versions:` groups its entries by, and how each group is read: a compiler has a version, a
+# library also carries the two ABI levels a binary is linked against.
+VERSION_GROUPS = ("compilers", "libraries")
+
+# The one stage collected from. `build` is a superset: every stage above it inherits its compilers
+# and standard libraries, and validate-runtime verifies against what validate-build recorded, so a
+# runtime carrying different standard libraries fails the build gate
+# (scripts/checks/details/cxx-stdlib-parity.sh).
+VERSIONED_STAGE = "build"
 
 
 def version_order(tag):
@@ -202,18 +207,18 @@ def validate(path, data):
         if not isinstance(versions, dict):
             errors.append("versions: expected a mapping of stage -> {package: version}")
         else:
-            unexpected = set(versions) - set(VERSIONED_STAGES)
+            unexpected = set(versions) - set(VERSION_GROUPS)
             if unexpected:
-                errors.append(f"versions: unexpected stages: {', '.join(sorted(unexpected))}")
-            for stage, collected in sorted(versions.items()):
+                errors.append(f"versions: unexpected groups: {', '.join(sorted(unexpected))}")
+            for group, collected in sorted(versions.items()):
                 if not isinstance(collected, dict):
-                    errors.append(f"versions.{stage}: expected a mapping of package -> version")
+                    errors.append(f"versions.{group}: expected a mapping of name -> version")
                     continue
                 if not collected:
-                    errors.append(f"versions.{stage}: empty - the collector found nothing to report")
+                    errors.append(f"versions.{group}: empty - the collector found nothing to report")
                 for name, value in sorted(collected.items()):
                     if not isinstance(value, str) or not value:
-                        errors.append(f"versions.{stage}.{name}: expected a non-empty string")
+                        errors.append(f"versions.{group}.{name}: expected a non-empty string")
 
     bumps = data.get("bumps")
     if bumps is not None and not isinstance(bumps, dict):
@@ -334,8 +339,8 @@ def main():
                         help="print version, commit and candidate as key=value lines, for $GITHUB_OUTPUT")
     parser.add_argument("--print-stages", choices=sorted(STAGE_LISTS),
                         help="print a canonical stage list (no file needed)")
-    parser.add_argument("--print-versioned-stages", action="store_true",
-                        help="print the stages installed versions are collected from (no file needed)")
+    parser.add_argument("--print-versioned-stage", action="store_true",
+                        help="print the stage installed versions are collected from (no file needed)")
     parser.add_argument("--print-registries", nargs="?", const="all", choices=["all", *REGISTRIES],
                         help="print the image reference of every registry, or of the named one (no file needed)")
     parser.add_argument("--print-newest-release", action="store_true",
@@ -351,8 +356,8 @@ def main():
         print(" ".join(STAGE_LISTS[args.print_stages]))
         return
 
-    if args.print_versioned_stages:
-        print(" ".join(VERSIONED_STAGES))
+    if args.print_versioned_stage:
+        print(VERSIONED_STAGE)
         return
 
     if args.print_registries:

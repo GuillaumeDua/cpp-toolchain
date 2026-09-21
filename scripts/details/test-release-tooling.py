@@ -321,19 +321,25 @@ class ReplaceRegion(unittest.TestCase):
 
 
 class Versions(unittest.TestCase):
-    """What the images carry. Collected by cxx-toolchain-versions.sh, recorded, and diffed record to record."""
+    """What the images carry. Collected by cxx-toolchain-versions.sh, recorded, diffed record to record."""
 
     COLLECTED = {
-        "build": {
-            "gcc-15": "15.2.0",
-            "libstdc++6": "16",
-            "libstdc++6-abi": "GLIBCXX_3.4.35",
-            "libstdc++6-cxxabi": "CXXABI_1.3.17",
-            "libc++1": "22.1.8",
-            "libc++1-abi": "LIBCPP_ABI_1",
-            "libc++1-cxxabi": "libc++abi.so.1",
+        "compilers": {"gcc-15": "15.2.0", "clang-22": "22.1.8"},
+        "libraries": {
+            "libstdc++6": "15",
+            "libstdc++6-abi": "GLIBCXX_3.4.34",
+            "libstdc++6-cxxabi": "CXXABI_1.3.16",
+            "libc++1-22": "22.1.8",
+            "libc++1-22-abi": "LIBCPP_ABI_1",
+            "libc++1-22-cxxabi": "libc++abi.so.1",
         },
     }
+
+    def emit(self, body):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "versions.txt"
+            path.write_text(body, encoding="utf-8")
+            return render_manifest.versions_yaml(path)
 
     def test_fields_survive_a_value_containing_no_separator(self):
         self.assertEqual(render_manifest.read_fields("a=1\n\nb=\nnot a field\n"),
@@ -341,57 +347,63 @@ class Versions(unittest.TestCase):
 
     def test_both_abi_fields_fold_into_the_row_they_belong_to(self):
         self.assertEqual(
-            render_manifest.versions_rows(self.COLLECTED["build"]),
+            render_manifest.library_rows(self.COLLECTED["libraries"]),
             [
-                ("gcc-15", "15.2.0", "", ""),
-                ("libc++1", "22.1.8", "LIBCPP_ABI_1", "libc++abi.so.1"),
-                ("libstdc++6", "16", "GLIBCXX_3.4.35", "CXXABI_1.3.17"),
+                ("libc++1-22", "22.1.8", "LIBCPP_ABI_1", "libc++abi.so.1"),
+                ("libstdc++6", "15", "GLIBCXX_3.4.34", "CXXABI_1.3.16"),
             ],
         )
 
     def test_cxxabi_is_not_read_as_the_abi_of_a_package_ending_in_cxx(self):
-        # `-cxxabi` also ends in `-abi`, so the shorter suffix would invent `libc++1-cxx`.
-        packages = [row[0] for row in render_manifest.versions_rows(self.COLLECTED["build"])]
-        self.assertNotIn("libc++1-cxx", packages)
+        # `-cxxabi` also ends in `-abi`, so the shorter suffix would invent `libc++1-22-cxx`.
+        packages = [row[0] for row in render_manifest.library_rows(self.COLLECTED["libraries"])]
+        self.assertNotIn("libc++1-22-cxx", packages)
 
     def test_a_package_whose_name_ends_in_a_field_keeps_it(self):
         # Only a suffix whose package was collected too is a companion key.
-        self.assertEqual(render_manifest.versions_rows({"weird-abi": "1"}), [("weird-abi", "1", "", "")])
+        self.assertEqual(render_manifest.library_rows({"weird-abi": "1"}), [("weird-abi", "1", "", "")])
 
-    def test_a_moved_abi_is_its_own_bullet(self):
-        # The version and the ABI move independently: a rebuilt libstdc++6 can keep its version and
-        # gain a GLIBCXX symbol, which is what breaks a consumer.
-        previous = {"build": dict(self.COLLECTED["build"], **{"libstdc++6-abi": "GLIBCXX_3.4.33"})}
-        self.assertEqual(render_manifest.versions_changes(self.COLLECTED, previous),
-                         ["- `build`", "  - libstdc++6-abi: `GLIBCXX_3.4.33` → `GLIBCXX_3.4.35`"])
+    def test_compilers_carry_no_abi_column(self):
+        rendered = "\n".join(render_manifest.versions_tables(self.COLLECTED))
+        self.assertIn("| Compiler | Version |", rendered)
+        self.assertIn("| Library | Version | ABI | C++ ABI |", rendered)
+
+    def test_changes_are_flat_and_in_group_order(self):
+        previous = {
+            "compilers": dict(self.COLLECTED["compilers"], **{"gcc-15": "15.1.0"}),
+            "libraries": dict(self.COLLECTED["libraries"], **{"libstdc++6-abi": "GLIBCXX_3.4.33"}),
+        }
+        self.assertEqual(
+            render_manifest.versions_changes(self.COLLECTED, previous),
+            ["- gcc-15: `15.1.0` → `15.2.0`",
+             "- libstdc++6-abi: `GLIBCXX_3.4.33` → `GLIBCXX_3.4.34`"],
+        )
 
     def test_nothing_moved_is_no_bullets(self):
         self.assertEqual(render_manifest.versions_changes(self.COLLECTED, self.COLLECTED), [])
 
-    def test_a_stage_absent_from_the_previous_record_reads_as_added(self):
-        bullets = render_manifest.versions_changes(self.COLLECTED, {})
-        self.assertIn("  - gcc-15: added, `15.2.0`", bullets)
+    def test_a_group_absent_from_the_previous_record_reads_as_added(self):
+        self.assertIn("- gcc-15: added, `15.2.0`", render_manifest.versions_changes(self.COLLECTED, {}))
 
-    def test_an_empty_collected_file_fails_rather_than_recording_nothing(self):
-        # Every collected stage has something to say - the runtime carries standard libraries.
-        # An empty mapping in an immutable record reads exactly like a verified one.
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            (root / "versions-build.txt").write_text("", encoding="utf-8")
-            with self.assertRaises(SystemExit):
-                render_manifest.versions_yaml(root, ["build"])
+    def test_an_ungrouped_key_is_refused(self):
+        with self.assertRaises(SystemExit):
+            self.emit("gcc-15=15.2.0\n")
 
-    def test_a_missing_collected_file_fails(self):
-        with tempfile.TemporaryDirectory() as directory:
-            with self.assertRaises(SystemExit):
-                render_manifest.versions_yaml(pathlib.Path(directory), ["build"])
+    def test_an_unknown_group_is_refused(self):
+        with self.assertRaises(SystemExit):
+            self.emit("compilers.gcc-15=15.2.0\nlibraries.libstdc++6=15\ntools.cmake=4.4.0\n")
+
+    def test_a_group_reporting_nothing_fails_rather_than_recording_an_empty_one(self):
+        # An empty group in an immutable record reads exactly like a collection that found nothing.
+        with self.assertRaises(SystemExit):
+            self.emit("compilers.gcc-15=15.2.0\n")
 
     def test_the_emitted_mapping_quotes_names_carrying_a_plus(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            (root / "versions-build.txt").write_text("libstdc++6=16\n", encoding="utf-8")
-            self.assertEqual(render_manifest.versions_yaml(root, ["build"]),
-                             'versions:\n  build:\n    "libstdc++6": "16"')
+        emitted = self.emit("compilers.gcc-15=15.2.0\nlibraries.libstdc++6=15\n")
+        self.assertEqual(
+            emitted,
+            'versions:\n  compilers:\n    "gcc-15": "15.2.0"\n  libraries:\n    "libstdc++6": "15"',
+        )
 
 
 class Validate(unittest.TestCase):
@@ -442,22 +454,22 @@ class Validate(unittest.TestCase):
         self.assertEqual(check_release_file.validate("releases/v1.4.yaml", record()), [])
 
     def test_versions_accepts_a_collected_stage(self):
-        sound = record(versions={"build": {"gcc-15": "15.2.0"}})
+        sound = record(versions={"compilers": {"gcc-15": "15.2.0"}})
         self.assertEqual(check_release_file.validate("releases/v1.4.yaml", sound), [])
 
-    def test_versions_refuses_a_stage_nothing_collects(self):
+    def test_versions_refuses_a_group_nothing_collects(self):
         errors = check_release_file.validate("releases/v1.4.yaml",
-                                             record(versions={"dev": {"gcc-15": "15.2.0"}}))
-        self.assertTrue(any("versions: unexpected stages" in error for error in errors))
+                                             record(versions={"tools": {"cmake": "4.4.0"}}))
+        self.assertTrue(any("versions: unexpected groups" in error for error in errors))
 
-    def test_versions_refuses_an_empty_stage(self):
-        errors = check_release_file.validate("releases/v1.4.yaml", record(versions={"build": {}}))
-        self.assertTrue(any("versions.build: empty" in error for error in errors))
+    def test_versions_refuses_an_empty_group(self):
+        errors = check_release_file.validate("releases/v1.4.yaml", record(versions={"compilers": {}}))
+        self.assertTrue(any("versions.compilers: empty" in error for error in errors))
 
     def test_versions_refuses_a_non_string_value(self):
         errors = check_release_file.validate("releases/v1.4.yaml",
-                                             record(versions={"build": {"gcc-15": 15}}))
-        self.assertTrue(any("versions.build.gcc-15" in error for error in errors))
+                                             record(versions={"compilers": {"gcc-15": 15}}))
+        self.assertTrue(any("versions.compilers.gcc-15" in error for error in errors))
 
 
 class Targets(unittest.TestCase):

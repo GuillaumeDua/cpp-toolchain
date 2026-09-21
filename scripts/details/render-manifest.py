@@ -15,7 +15,7 @@ so it is matched separately here and bumped by .github/workflows/ubuntu-snapshot
 Usage, from the repository root - `--dockerfile` and `--renovate` default to paths relative to it:
     python3 scripts/details/render-manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
     python3 scripts/details/render-manifest.py --tag v1.2 --changelog changelog.md --versions releases/v1.2.yaml
-    python3 scripts/details/render-manifest.py --versions-dir build-metadata
+    python3 scripts/details/render-manifest.py --collected build-metadata/versions.txt
     python3 scripts/details/render-manifest.py --replace-region manifest --with note.md < body.md
 
 `--previous-ref` defaults to the newest release before `--tag`, 
@@ -44,7 +44,7 @@ even when the checkout has moved past it.
 `--versions` reports what the images carry, from the `versions:` mapping of the record being cut,
 diffed against the previous release's record. Only GCC, Clang and the standard libraries: every
 other pin is exact, so the table above already states what shipped.
-`--versions-dir` turns the collected files into that mapping.
+`--collected` turns the collector's output into that mapping.
 
 `--bumps-yaml` emits the moved pins as a YAML `bumps:`
 - mapping instead of the markdown manifest, the shape recorded in releases/v*.yaml and re-checked by check-release-file.py.
@@ -218,43 +218,52 @@ def read_fields(text):
     return fields
 
 
-def versions_yaml(directory, stages):
-    """The collected files as a YAML `versions:` mapping. JSON quoting, as bumps_yaml does.
+def versions_yaml(path):
+    """The collected file as a YAML `versions:` mapping, grouped as the collector prefixed it.
 
-    A stage that collected nothing is a failed collection, not an image without compilers: the
-    runtime carries standard libraries, so every collected stage has something to say.
+    JSON quoting, as bumps_yaml does. Every group must report something: an empty one in an
+    immutable record is indistinguishable from a collection that ran and found nothing.
     """
+    collected = read_fields(pathlib.Path(path).read_text(encoding="utf-8"))
+    grouped = {}
+    for key, value in collected.items():
+        group, separator, name = key.partition(".")
+        if not separator:
+            raise SystemExit(f"::error::{path}: '{key}' carries no group prefix")
+        grouped.setdefault(group, {})[name] = value
+
+    unexpected = set(grouped) - set(schema.VERSION_GROUPS)
+    if unexpected:
+        raise SystemExit(f"::error::{path}: unknown group(s): {', '.join(sorted(unexpected))}")
+
     lines = ["versions:"]
-    for stage in stages:
-        path = pathlib.Path(directory) / f"versions-{stage}.txt"
-        if not path.exists():
-            raise SystemExit(f"::error::{path} is missing - the collector did not run for {stage}")
-        collected = read_fields(path.read_text(encoding="utf-8"))
-        if not collected:
-            raise SystemExit(f"::error::{path} is empty - the collector found nothing in {stage}")
-        lines.append(f"  {stage}:")
-        lines += [f"    {json.dumps(name)}: {json.dumps(collected[name])}" for name in sorted(collected)]
+    for group in schema.VERSION_GROUPS:
+        if not grouped.get(group):
+            raise SystemExit(f"::error::{path} reports no {group}")
+        lines.append(f"  {group}:")
+        lines += [f"    {json.dumps(name)}: {json.dumps(grouped[group][name])}"
+                  for name in sorted(grouped[group])]
     return "\n".join(lines)
 
 
-# What a collected key carries, longest first: `-cxxabi` also ends in `-abi`.
-VERSION_FIELDS = ("-cxxabi", "-abi")
+# What a collected library key carries, longest first: `-cxxabi` also ends in `-abi`.
+LIBRARY_FIELDS = ("-cxxabi", "-abi")
 
 
 def split_key(name, collected):
-    """(package, field) for a collected key - a package, optionally suffixed with the field it holds.
+    """(package, field) for a collected library key - a package, optionally suffixed with a field.
 
     A suffix only counts when the package it would belong to was collected too, so a package whose
     own name ends in one of them keeps it.
     """
-    for suffix in VERSION_FIELDS:
+    for suffix in LIBRARY_FIELDS:
         package = name[: -len(suffix)]
         if name.endswith(suffix) and package in collected:
             return package, suffix[1:]
     return name, "version"
 
 
-def versions_rows(collected):
+def library_rows(collected):
     """(package, version, abi, cxxabi) per package, the companion keys folded into their row.
 
     The record keeps them apart so each moves on its own in a diff; a table reads better paired.
@@ -268,32 +277,35 @@ def versions_rows(collected):
 
 
 def versions_tables(versions):
-    """One table per collected stage.
-
-    Both ABI fields share a cell: which of the two carries the information depends on the
-    implementation, so a column per field would be half empty.
-    """
+    """A table per group. They carry different columns because they answer different questions:
+    a compiler has a version, a library also has the two ABI levels a binary is linked against."""
     out = []
-    for stage, collected in versions.items():
-        out += ["", f"**`{stage}`**", "", "| Component | Version | ABI |", "| --- | --- | --- |"]
-        for package, version, abi, cxxabi in versions_rows(collected):
-            abis = ", ".join(f"`{field}`" for field in (abi, cxxabi) if field)
-            out.append(f"| `{package}` | `{version}` | {abis} |")
+
+    compilers = versions.get("compilers") or {}
+    if compilers:
+        out += ["", "**Compilers**", "", "| Compiler | Version |", "| --- | --- |"]
+        out += [f"| `{name}` | `{compilers[name]}` |" for name in sorted(compilers)]
+
+    libraries = versions.get("libraries") or {}
+    if libraries:
+        out += ["", "**Standard libraries**", "",
+                "| Library | Version | ABI | C++ ABI |", "| --- | --- | --- | --- |"]
+        for package, version, abi, cxxabi in library_rows(libraries):
+            cells = " | ".join(f"`{field}`" if field else "" for field in (version, abi, cxxabi))
+            out.append(f"| `{package}` | {cells} |")
+
     return out
 
 
 def versions_changes(current, previous):
-    """Bullets for every collected value that moved, grouped by stage.
+    """Bullets for every collected value that moved, in group order.
 
-    change_lines formats the three forms already: with no labels and no Renovate schemes it renders
-    the collected name and the value verbatim, which is what these are.
+    Flat rather than nested under the group: a collected name already says which one it is in.
     """
     lines = []
-    for stage, collected in current.items():
-        moved = moved_pins(collected, previous.get(stage, {}))
-        if moved:
-            lines.append(f"- `{stage}`")
-            lines += [f"  {bullet}" for bullet in change_lines(moved, {}, [], {})]
+    for group in schema.VERSION_GROUPS:
+        moved = moved_pins(current.get(group, {}), previous.get(group, {}))
+        lines += change_lines(moved, {}, [], {})
     return lines
 
 
@@ -359,8 +371,8 @@ def main():
                         help="emit the moved pins as a YAML `bumps:` mapping instead of the markdown manifest")
     parser.add_argument("--changelog", metavar="FILE",
                         help="markdown to place inside the marked region, after the manifest")
-    parser.add_argument("--versions-dir", metavar="DIR",
-                        help="emit the collected versions-<stage>.txt files in DIR as a YAML `versions:` mapping")
+    parser.add_argument("--collected", metavar="FILE",
+                        help="emit the collected key=value file as a YAML `versions:` mapping")
     parser.add_argument("--versions", metavar="RECORD",
                         help="promotion record whose `versions:` the note reports, diffed against the previous release's")
     parser.add_argument("--replace-region", metavar="NAME",
@@ -380,8 +392,8 @@ def main():
         print(replace_region(sys.stdin.read(), args.replace_region, replacement, args.when_absent))
         return
 
-    if args.versions_dir:
-        print(versions_yaml(args.versions_dir, schema.VERSIONED_STAGES))
+    if args.collected:
+        print(versions_yaml(args.collected))
         return
 
     if not args.tag:
