@@ -205,7 +205,7 @@ def validate(path, data):
     versions = data.get("versions")
     if versions is not None:
         if not isinstance(versions, dict):
-            errors.append("versions: expected a mapping of stage -> {package: version}")
+            errors.append("versions: expected a mapping of group -> {name: version}")
         else:
             unexpected = set(versions) - set(VERSION_GROUPS)
             if unexpected:
