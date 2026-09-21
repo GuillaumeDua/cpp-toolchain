@@ -467,8 +467,8 @@ jobs:
 
       # The only place these answers exist: GCC and Clang pin a major and install from rolling apt
       # sources, and the standard libraries arrive as dependencies with no pin at all.
-      #   `buildx --push` leaves nothing in the local image store, so this pulls - which is why
-      #   check-release-file.py names the stages worth collecting rather than every published one.
+      #   One stage, named by check-release-file.py, because `buildx --push` leaves nothing in the
+      #   local image store and collecting therefore means pulling.
       #   scripts/ is mounted whole rather than scripts/details: the collector composes scripts/install
       #   and scripts/checks, in the layout the Dockerfile gives the validate stages.
       - name: Collect the installed versions
@@ -476,17 +476,15 @@ jobs:
         run: |
           set -euo pipefail
           image=$(python3 scripts/details/check-release-file.py --print-registries ghcr)
-          for stage in $(python3 scripts/details/check-release-file.py --print-versioned-stages); do
-            digest=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' \
-              "build-metadata/${stage}.json")
-            echo "::group::${stage} ${digest}"
-            docker run --rm \
-              --volume "${PWD}/scripts:/opt/cpp-toolchain-scripts:ro" \
-              "${image}@${digest}" \
-              bash /opt/cpp-toolchain-scripts/details/cxx-toolchain-versions.sh \
-              | tee "build-metadata/versions-${stage}.txt"
-            echo "::endgroup::"
-          done
+          stage=$(python3 scripts/details/check-release-file.py --print-versioned-stage)
+          digest=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' \
+            "build-metadata/${stage}.json")
+          echo "collecting from ${stage} ${digest}"
+          docker run --rm \
+            --volume "${PWD}/scripts:/opt/cpp-toolchain-scripts:ro" \
+            "${image}@${digest}" \
+            bash /opt/cpp-toolchain-scripts/details/cxx-toolchain-versions.sh \
+            | tee build-metadata/versions.txt
 
       # The promotion record:
       #   the digest of every stage just pushed, the generated bumps, and what the images installed.
@@ -518,7 +516,7 @@ jobs:
               echo "  ${stage}-cross: \"$(digest_of "${stage}-cross")\""
             done
             python3 scripts/details/render-manifest.py --tag "${VERSION}" --bumps-yaml
-            python3 scripts/details/render-manifest.py --versions-dir build-metadata
+            python3 scripts/details/render-manifest.py --collected build-metadata/versions.txt
           } > "releases/${VERSION}.yaml"
 
           cat "releases/${VERSION}.yaml"

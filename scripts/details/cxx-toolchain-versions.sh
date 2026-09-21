@@ -19,6 +19,10 @@ set -uo pipefail
 #
 # It takes no stage: it reports what it finds, so a runtime image answers with standard libraries
 # alone and nothing here has to be kept in step with the canonical stage lists.
+#
+# Keys are prefixed with the kind of thing they describe, `compilers.` or `libraries.`, because the
+# two are read differently: a compiler has a version and nothing else, a library carries the two ABI
+# levels a binary is linked against.
 
 this_script_name=$(basename "$0")
 this_script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -42,7 +46,7 @@ collect_compilers(){
 
     for major in $(bash "${install_scripts_dir}/${lister}" --list-installed 2>/dev/null); do
         version=$("${driver}-${major}" "${version_flag}" 2>/dev/null)
-        [ -n "${version}" ] && echo "${driver}-${major}=${version}"
+        [ -n "${version}" ] && echo "compilers.${driver}-${major}=${version}"
     done
 }
 
@@ -71,9 +75,9 @@ collect_stdlibs(){
         package="${field[package]:--}"
         [ "${package}" = '-' ] && continue
 
-        [ "${field[version]:--}" != '-' ] && echo "${package}=${field[version]}"
-        [ "${field[abi]:--}"     != '-' ] && echo "${package}-abi=${field[abi]}"
-        [ "${field[cxxabi]:--}"  != '-' ] && echo "${package}-cxxabi=${field[cxxabi]}"
+        [ "${field[version]:--}" != '-' ] && echo "libraries.${package}=${field[version]}"
+        [ "${field[abi]:--}"     != '-' ] && echo "libraries.${package}-abi=${field[abi]}"
+        [ "${field[cxxabi]:--}"  != '-' ] && echo "libraries.${package}-cxxabi=${field[cxxabi]}"
     done < <(bash "${stdlibs_script}" --view=library --format=fields 2>/dev/null)
 }
 
