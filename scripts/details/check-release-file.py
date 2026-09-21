@@ -78,8 +78,10 @@ VERSION_HEAD_RE = re.compile(r"^v(\d+)\.(\d+)")
 TOP_LEVEL_KEYS = {"version", "candidate", "commit", "digests", "bumps", "versions"}
 
 # What `versions:` groups its entries by, and how each group is read: a compiler has a version, a
-# library also carries the two ABI levels a binary is linked against.
-VERSION_GROUPS = ("compilers", "libraries")
+# library also carries the two ABI levels a binary is linked against, and the distribution resolves
+# the base image's rolling tag to the point release it was built from.
+# The order is the one a release note reports changes in.
+VERSION_GROUPS = ("distribution", "compilers", "libraries")
 
 # The one stage collected from. `build` is a superset: every stage above it inherits its compilers
 # and standard libraries, and validate-runtime verifies against what validate-build recorded, so a
