@@ -296,23 +296,31 @@ def library_rows(collected):
             for package, fields in sorted(rows.items())]
 
 
-def collected_key(name, pinned):
-    """(group, key) the `Installed` cell of a pin reads, or None for a pin nothing collects.
+def collected_keys(name, pinned, versions):
+    """(group, [key]) the `Installed` cell of a pin reads, or None for a pin nothing collects.
 
-    One key, because one `ARG` carries one version: check-dependencies-pins.py rejects a
-    multi-token pin, and the Renovate manager matching these `ARG`s captures a single
-    whitespace-delimited token anyway.
+    A pin naming one major reads that major's key, and check-dependencies-pins.py keeps a pin to
+    one token so there is only ever one. The installers also take selectors - `>=15`,
+    `latest-stable`, `all` (docs/IMAGES_VALIDATION.md) - which name no major, so those read every
+    key the component left in the group, ordered by major rather than as text: `gcc-9` before
+    `gcc-10`.
     """
     source = COLLECTED_BY_PIN.get(name)
     if not source:
         return None
     group, template = source
-    # `gcc-{}` needs the pin to name one major. gcc.sh and llvm.sh also take selectors - `>=15`,
-    # `latest-stable`, `all` (docs/IMAGES_VALIDATION.md) - which name no single key, so what one
-    # of those resolved to is reported by unpinned_rows rather than missing from this cell.
-    if "{}" in template and not pinned.isdigit():
-        return None
-    return group, template.format(pinned)
+    if "{}" not in template:
+        return group, [template]
+    if pinned.isdigit():
+        return group, [template.format(pinned)]
+
+    prefix = template.format("")
+    def by_major(key):
+        major = key[len(prefix):]
+        return (0, int(major), "") if major.isdigit() else (1, 0, major)
+
+    return group, sorted((key for key in (versions.get(group) or {}) if key.startswith(prefix)),
+                         key=by_major)
 
 
 def installed_cell(name, pinned, versions):
@@ -320,18 +328,18 @@ def installed_cell(name, pinned, versions):
 
     Empty for a pin nothing collects, and for a group nothing was collected for: an exact pin has
     nothing to add beside it, and a dry run has no record to read.
-    `-` when the group was collected and this pin is not in it, which is a pin naming something
-    the images do not carry. Never empty there, which would read as an exact pin.
+    `-` when the group was collected and the pin is not in it, which is a pin naming something the
+    images do not carry. Never empty there, which would read as an exact pin.
     """
-    source = collected_key(name, pinned)
+    source = collected_keys(name, pinned, versions)
     if source is None:
         return ""
-    group, key = source
+    group, keys = source
     collected = versions.get(group)
     if collected is None:
         return ""
-    value = collected.get(key)
-    return f"`{value}`" if value else "-"
+    values = [collected[key] for key in keys if key in collected]
+    return ", ".join(f"`{value}`" for value in values) if values else "-"
 
 
 def unpinned_rows(current, versions):
@@ -339,11 +347,15 @@ def unpinned_rows(current, versions):
 
     Not dropped: the note's subject is what the images carry, and something installed without a
     pin is what a reader cannot learn from the Dockerfile.
-    Reachable through the pin values gcc.sh and llvm.sh accept beside a major - `latest-stable`,
-    `>=14`, `all` - which no collected key can match, so every installed compiler arrives here.
+    Reachable when an image carries a major no pin asked for, which a selector pin does not
+    produce: one resolving to several majors claims all of them.
     """
-    claimed = {collected_key(name, pinned) for name, pinned in current.items()}
-    claimed.discard(None)
+    claimed = set()
+    for name, pinned in current.items():
+        source = collected_keys(name, pinned, versions)
+        if source:
+            group, keys = source
+            claimed |= {(group, key) for key in keys}
     return [(key, value)
             for group in ("distribution", "compilers")
             for key, value in sorted((versions.get(group) or {}).items())

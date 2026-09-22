@@ -432,13 +432,22 @@ class Content(unittest.TestCase):
         versions = {"compilers": {"clang-22": "22.1.8"}}
         self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", "15", versions), "-")
 
-    def test_a_selector_pin_reports_nothing_missing(self):
-        # `>=15` names no single key (docs/IMAGES_VALIDATION.md), so what it resolved to is listed
-        # as its own rows rather than reported absent here.
+    def test_a_selector_pin_reports_every_major_it_resolved_to(self):
+        # `>=15` names no major (docs/IMAGES_VALIDATION.md), so the cell reports what the
+        # installer chose, and no row is left over.
         versions = {"compilers": {"gcc-15": "15.2.0", "gcc-16": "16.0.1"}}
-        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", ">=15", versions), "")
-        self.assertEqual(render_manifest.unpinned_rows({"gcc-mirror/gcc": ">=15"}, versions),
-                         [("gcc-15", "15.2.0"), ("gcc-16", "16.0.1")])
+        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", ">=15", versions),
+                         "`15.2.0`, `16.0.1`")
+        self.assertEqual(render_manifest.unpinned_rows({"gcc-mirror/gcc": ">=15"}, versions), [])
+
+    def test_a_selector_orders_by_major_rather_than_as_text(self):
+        versions = {"compilers": {"gcc-9": "9.5.0", "gcc-10": "10.5.0"}}
+        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", "all", versions),
+                         "`9.5.0`, `10.5.0`")
+
+    def test_a_selector_that_resolved_to_nothing_reads_as_missing(self):
+        versions = {"compilers": {"clang-22": "22.1.8"}}
+        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", ">=15", versions), "-")
 
     def test_a_group_nothing_was_collected_for_leaves_the_cell_empty(self):
         # A dry run renders with no record, and has nothing to report rather than a missing pin.
