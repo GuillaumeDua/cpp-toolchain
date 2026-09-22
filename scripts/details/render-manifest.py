@@ -296,24 +296,42 @@ def library_rows(collected):
             for package, fields in sorted(rows.items())]
 
 
-def collected_keys(name, pinned):
-    """(group, [key]) the `Installed` cell of a pin reads, in pin order, or None for an exact pin."""
+def collected_key(name, pinned):
+    """(group, key) the `Installed` cell of a pin reads, or None for a pin nothing collects.
+
+    One key, because one `ARG` carries one version: check-dependencies-pins.py rejects a
+    multi-token pin, and the Renovate manager matching these `ARG`s captures a single
+    whitespace-delimited token anyway.
+    """
     source = COLLECTED_BY_PIN.get(name)
     if not source:
         return None
     group, template = source
-    majors = pinned.split() if "{}" in template else [""]
-    return group, [template.format(major) for major in majors]
+    # `gcc-{}` needs the pin to name one major. gcc.sh and llvm.sh also take selectors - `>=15`,
+    # `latest-stable`, `all` (docs/IMAGES_VALIDATION.md) - which name no single key, so what one
+    # of those resolved to is reported by unpinned_rows rather than missing from this cell.
+    if "{}" in template and not pinned.isdigit():
+        return None
+    return group, template.format(pinned)
 
 
-def installed_values(name, pinned, versions):
-    """What the images report for a pin, in pin order. Empty when the pin is exact."""
-    source = collected_keys(name, pinned)
-    if not source:
-        return []
-    group, keys = source
-    collected = versions.get(group) or {}
-    return [collected[key] for key in keys if key in collected]
+def installed_cell(name, pinned, versions):
+    """The `Installed` cell of a pin row.
+
+    Empty for a pin nothing collects, and for a group nothing was collected for: an exact pin has
+    nothing to add beside it, and a dry run has no record to read.
+    `-` when the group was collected and this pin is not in it, which is a pin naming something
+    the images do not carry. Never empty there, which would read as an exact pin.
+    """
+    source = collected_key(name, pinned)
+    if source is None:
+        return ""
+    group, key = source
+    collected = versions.get(group)
+    if collected is None:
+        return ""
+    value = collected.get(key)
+    return f"`{value}`" if value else "-"
 
 
 def unpinned_rows(current, versions):
@@ -321,13 +339,11 @@ def unpinned_rows(current, versions):
 
     Not dropped: the note's subject is what the images carry, and something installed without a
     pin is what a reader cannot learn from the Dockerfile.
+    Reachable through the pin values gcc.sh and llvm.sh accept beside a major - `latest-stable`,
+    `>=14`, `all` - which no collected key can match, so every installed compiler arrives here.
     """
-    claimed = set()
-    for name, pinned in current.items():
-        source = collected_keys(name, pinned)
-        if source:
-            group, keys = source
-            claimed |= {(group, key) for key in keys}
+    claimed = {collected_key(name, pinned) for name, pinned in current.items()}
+    claimed.discard(None)
     return [(key, value)
             for group in ("distribution", "compilers")
             for key, value in sorted((versions.get(group) or {}).items())
@@ -344,7 +360,7 @@ def content_table(current, ordered, labels, schemes, versions):
     out = ["| Component | Pinned | Installed |", "| --- | --- | --- |"]
     for name in ordered:
         pinned = render_version(current[name], schemes.get(name))
-        installed = ", ".join(f"`{value}`" for value in installed_values(name, current[name], versions))
+        installed = installed_cell(name, current[name], versions)
         out.append(f"| {labels.get(name, name)} | `{pinned}` | {installed} |")
     out += [f"| {name} | | `{value}` |" for name, value in unpinned_rows(current, versions)]
     return out
@@ -417,7 +433,8 @@ def installed_changes(current, previous):
                 label = package if field == "version" else f"{package} {FIELD_LABELS[field]}"
             else:
                 label = labels.get(name, name)
-            rows.append(f"| {label} | {f'`{old}`' if old else '-'} | {f'`{new}`' if new else '-'} |")
+            cells = [f"`{value}`" if value is not None else "-" for value in (old, new)]
+            rows.append(f"| {label} | {cells[0]} | {cells[1]} |")
     return rows
 
 

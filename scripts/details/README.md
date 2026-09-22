@@ -4,7 +4,7 @@ Implementation details of *this* repository - unlike the [toolchain installers](
 
 | Script | Purpose |
 | ------ | ------- |
-| `check-dependencies-pins.py` | Asserts every global `ARG` is pinned to an exact version, matched by a [renovate.json](../../renovate.json) manager, and not shadowed by a stage-local re-declaration |
+| `check-dependencies-pins.py` | Asserts every global `ARG` is pinned to a single exact version, matched by a [renovate.json](../../renovate.json) manager, and not shadowed by a stage-local re-declaration |
 | `check-action-pins.py` | Asserts every third-party GitHub Action a workflow or composite action uses is pinned to a commit digest, carrying the tag it was pinned from |
 | `render-manifest.py` | Renders those pins as the markdown "what's inside" note used for the GitHub release description, or (`--bumps-yaml`) as the `bumps:` mapping of a promotion record. `--versions` fills the `Installed` column from a record and diffs it against the previous one, `--collected` turns the collector output into that mapping, `--date` stamps the heading; `--changelog` splices a merged-pull-request list into the same marked region; `--replace-region` edits a release body around those markers, refusing an unbalanced pair |
 | `check-install-script-parity.py` | Asserts the helper functions copied between [`scripts/install/`](../install/) scripts are byte-identical, so the standalone guarantee does not cost silent divergence |

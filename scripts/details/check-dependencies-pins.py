@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Assert every version the images install is pinned, watched by Renovate, and declared exactly once.
 
-Three invariants, all cheap, all failing long before a 40-minute build:
+Four invariants, all cheap, all failing long before a 40-minute build:
 
   1. nothing floats         - a `latest` / `master` value makes two builds of one commit differ
   2. nothing is unwatched   - a pin nobody updates silently rots
   3. nothing is shadowed    - a stage re-declaring `ARG FOO=<value>` overrides the global pin,
                               leaving a second value for Renovate to keep in step
+  4. nothing carries two    - the manager regexes capture one whitespace-delimited token, so
+                              `ARG GCC_VERSIONS=14 15` leaves `15` untracked and invisible to
+                              both Renovate and the release note. The installers take a list;
+                              a pin does not, so a second version is a second ARG
 
 "Watched" is not decided by guessing which ARG names look like versions.
 The renovate.json manager regexes are run over the Dockerfile and the matched character spans recorded;
@@ -43,7 +47,7 @@ EXEMPT = {
 # Values that mean "whatever is newest at build time".
 FLOATING = re.compile(r"latest|master")
 
-ARG_DECL = re.compile(r"^ARG ([A-Za-z_][A-Za-z0-9_]*)=(\S+)")
+ARG_DECL = re.compile(r"^ARG ([A-Za-z_][A-Za-z0-9_]*)=(\S+)(?P<tail>.*)$")
 
 
 def load_render_manifest():
@@ -106,6 +110,18 @@ def check(dockerfile, renovate_config, render_manifest):
 
         if FLOATING.search(value):
             problems.append((lineno, f"{name}={value} floats - pin it to an exact version"))
+
+        # A pin is one token. The manager that matches these ARG lines captures currentValue as
+        # `\S+`, so in `ARG GCC_VERSIONS=14 15` only `14` is the dependency Renovate tracks, and
+        # only `14` reaches the release note. The installers accept a list; the pin cannot carry
+        # one, so a second version needs a second ARG with its own `# renovate:` annotation.
+        if match.group("tail").strip():
+            problems.append((
+                lineno,
+                f"{name}={value}{match.group('tail')} carries more than one token - "
+                "only the first is tracked by Renovate and shown in the release note; "
+                "declare one ARG per version",
+            ))
 
         if name in EXEMPT:
             continue
