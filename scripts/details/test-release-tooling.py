@@ -422,16 +422,27 @@ class Content(unittest.TestCase):
 
     LABELS = {"gcc-mirror/gcc": "GCC", "conan": "Conan"}
 
-    def test_a_pin_naming_several_majors_reads_one_key_each(self):
-        versions = {"compilers": {"gcc-14": "14.3.0", "gcc-15": "15.2.0"}}
-        self.assertEqual(render_manifest.installed_values("gcc-mirror/gcc", "14 15", versions),
-                         ["14.3.0", "15.2.0"])
+    def test_a_pin_the_images_carry_reads_its_version(self):
+        versions = {"compilers": {"gcc-15": "15.2.0"}}
+        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", "15", versions), "`15.2.0`")
 
-    def test_the_two_columns_line_up_for_a_multi_major_pin(self):
-        versions = {"compilers": {"gcc-14": "14.3.0", "gcc-15": "15.2.0"}}
-        rows = render_manifest.content_table({"gcc-mirror/gcc": "14 15"}, ["gcc-mirror/gcc"],
-                                             self.LABELS, {}, versions)
-        self.assertEqual(rows[-1], "| GCC | `14 15` | `14.3.0`, `15.2.0` |")
+    def test_a_pin_the_images_do_not_carry_reads_as_missing(self):
+        # Never an empty cell here: that is what an exact pin renders, so it would claim the pin
+        # fixes what shipped.
+        versions = {"compilers": {"clang-22": "22.1.8"}}
+        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", "15", versions), "-")
+
+    def test_a_selector_pin_reports_nothing_missing(self):
+        # `>=15` names no single key (docs/IMAGES_VALIDATION.md), so what it resolved to is listed
+        # as its own rows rather than reported absent here.
+        versions = {"compilers": {"gcc-15": "15.2.0", "gcc-16": "16.0.1"}}
+        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", ">=15", versions), "")
+        self.assertEqual(render_manifest.unpinned_rows({"gcc-mirror/gcc": ">=15"}, versions),
+                         [("gcc-15", "15.2.0"), ("gcc-16", "16.0.1")])
+
+    def test_a_group_nothing_was_collected_for_leaves_the_cell_empty(self):
+        # A dry run renders with no record, and has nothing to report rather than a missing pin.
+        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", "15", {}), "")
 
     def test_an_exact_pin_leaves_the_installed_cell_empty(self):
         rows = render_manifest.content_table({"conan": "2.31.1"}, ["conan"], self.LABELS, {}, {})
@@ -444,9 +455,10 @@ class Content(unittest.TestCase):
                                              self.LABELS, {}, versions)
         self.assertIn("| gcc-13 | | `13.4.0` |", rows)
 
-    def test_the_distribution_pin_reads_its_single_key(self):
+    def test_the_distribution_pin_reads_a_key_its_value_does_not_complete(self):
+        # `ubuntu` is the whole key; `gcc-{}` takes the pin. Both go through one template.
         versions = {"distribution": {"ubuntu": "24.04.3"}}
-        self.assertEqual(render_manifest.installed_values("ubuntu", "24.04", versions), ["24.04.3"])
+        self.assertEqual(render_manifest.installed_cell("ubuntu", "24.04", versions), "`24.04.3`")
 
 
 class Images(unittest.TestCase):
