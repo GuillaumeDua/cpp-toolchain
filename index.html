@@ -339,15 +339,15 @@ Tags &amp; versioning</h1>
 <p>The three channels differ in <em>who decides</em>, not in what they contain:</p>
 <ul>
 <li><b>major</b> = the image contract changed - a base-image bump, a stage added or removed, a tool dropped. Only a human decides that.</li>
-<li><b>minor</b> = a validated rc, promoted. Renovate moved versions, the rc proved they hold up, a human shipped it.</li>
+<li><b>minor</b> = a validated rc, promoted. Renovate moved versions, the rc proved they hold up, a human shipped it. A compiler major bump arrives this way too: GCC or Clang moving to a new major ships as a minor, so <span class="tt">latest</span> can change compiler major. Pin <span class="tt">v&lt;major&gt;.&lt;minor&gt;</span> when that matters.</li>
 <li><b>rc</b> = a fresh build from <span class="tt">main</span>, published early for validation.</li>
 </ul>
 <p>Every version in the image is <b>pinned</b> in the <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/Dockerfile">Dockerfile</a> and updated by <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/renovate.json">Renovate</a>, so a scheduled run <b>publishes nothing when nothing changed</b> - no release is cut just because a date arrived.</p>
-<dl class="section note"><dt>Note</dt><dd>A minor is not rebuilt from its rc's commit - it <b>is</b> the rc: promotion re-tags the exact image digests that were validated, so <span class="tt">v1.2</span> is byte-identical to the <span class="tt">v1.2-rc.&lt;n&gt;</span> it was promoted from. rc tags stay published and cost nothing (shared digests). How releases are cut is documented in <a class="el" href="release-process.html#md_docs_2RELEASE__PROCESS" title="docs/RELEASE_PROCESS.md">docs/RELEASE_PROCESS.md</a>.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>A minor is not rebuilt from its rc's commit - it <b>is</b> the rc: promotion re-tags the exact image digests that were validated, so <span class="tt">v1.2</span> is byte-identical to the <span class="tt">v1.2-rc.&lt;n&gt;</span> it was promoted from. Both tags resolve to that one digest, which is the digest <span class="tt">releases/v1.2.yaml</span> records. rc tags stay published and cost nothing (shared digests). How releases are cut is documented in <a class="el" href="release-process.html#md_docs_2RELEASE__PROCESS" title="docs/RELEASE_PROCESS.md">docs/RELEASE_PROCESS.md</a>.</dd></dl>
 <p><span class="tt">dev</span> is the Dockerfile's default target, so it also answers to the <b>unprefixed</b> versions - <span class="tt">cpp-toolchain:latest</span> is the same digest as <span class="tt">cpp-toolchain:dev-latest</span>, and likewise for <span class="tt">v1.0</span> / <span class="tt">v1.2-rc.1</span> (and <span class="tt">cross-latest</span> = <span class="tt">dev-cross-latest</span>). Every other stage must be named explicitly.</p>
 <h2 class="doxsection"><a class="anchor" id="whats-inside-a-given-tag"></a>
 What's inside a given tag</h2>
-<p>Every release note lists the exact versions that release contains - compilers, build systems, dependency managers, documentation tooling - and what moved since the previous one. Because the versions are pinned rather than resolved at build time, that list is the image's contents rather than a snapshot of them, and <b>two builds of the same commit produce the same image</b>.</p>
+<p>Every release note lists the versions that release pins - compilers, build systems, dependency managers, documentation tooling - beside what the images resolved them to, what moved since the previous release, and the pull requests merged in between. A pin is what the image <b>requests</b>, which is not always what it carries. GCC and Clang pin a <b>major</b> and install from rolling apt sources (<span class="tt">ppa:ubuntu-toolchain-r/test</span> and <span class="tt">apt.llvm.org</span>), so two builds of the same commit weeks apart can carry different patch releases of the same compiler major. <span class="tt">ubuntu:24.04</span> is a rolling tag that resolves to whichever point release is current, and the Ubuntu archive behind it is pinned by <span class="tt">UBUNTU_SNAPSHOT</span>; the rest pins an upstream version. The standard libraries carry no pin at all, so they get a table of their own, with the ABI levels a binary is linked against.</p>
 <dl class="section note"><dt>Note</dt><dd><b>On host architecture</b>: <br  />
 <br  />
  The published images are <span class="tt">linux/amd64</span> (not yet multi-platform manifests), so on an <b>arm64</b> host they run under emulation. <br  />
@@ -406,8 +406,9 @@ Dependency updates</h1>
 </ul>
 <dl class="section note"><dt>Note</dt><dd><b>On reproducibility</b> <br  />
 <br  />
- Two builds of the same commit produce the same image. <br  />
- Rebuilding a <em>years-old</em> tag is a weaker promise: GCC, Clang and CMake come from a PPA and two third-party apt repositories, none of which keep superseded versions. <br  />
+ Two builds of the same commit install the same distro package set, frozen by the archive snapshot, and the same exactly-pinned tools. <br  />
+ They do <b>not</b> produce the same image: GCC and Clang pin a major, so each build takes whatever patch level the PPA and <span class="tt">apt.llvm.org</span> serve that day. <br  />
+ Rebuilding a <em>years-old</em> tag is weaker still: those repositories keep no superseded versions. <br  />
  The published image is the durable artifact, not the ability to recreate it.</dd></dl>
 <h1 class="doxsection"><a class="anchor" id="contributing"></a>
 Contributing</h1>

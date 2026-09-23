@@ -262,9 +262,11 @@ The model</h1>
 <ul>
 <li><b>a release is byte-identical to the rc</b> it came from,</li>
 <li>because promotion re-tags a digest recorded in git and refuses to proceed if that digest moved, <br  />
- not merely because it re-tags rather than rebuilds.</li>
+ not merely because it re-tags rather than rebuilds,</li>
+<li>and <b>the release tag resolves to that digest</b>: re-tagging points a tag at a manifest rather than republishing it, <br  />
+ so what <span class="tt">releases/v1.2.yaml</span> records is what pulling <span class="tt">v1.2</span> returns - asserted on both registries before the release is created.</li>
 </ul>
-<p>Every moving part lives in two workflows and one schema:</p>
+<p>Every moving part lives in two workflows, one schema and one configuration file:</p>
 <ul>
 <li><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-publish.yml">docker-publish.yml</a> - builds rcs and majors, <br  />
  opens the candidate PR, and promotes on merge.</li>
@@ -275,12 +277,13 @@ The model</h1>
 <li>a smoke test of the image <b>by digest</b>. Make it a required status check on <span class="tt">main</span>.</li>
 </ul>
 </li>
-<li><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/details/check-release-file.py">scripts/details/check-release-file.py</a> - the single definition of the <span class="tt">releases/v*.yaml</span> schema and of the stage lists.</li>
+<li><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/details/check-release-file.py">scripts/details/check-release-file.py</a> - the single definition of the <span class="tt">releases/v*.yaml</span> schema, of the version grammar, and of the stage and registry lists.</li>
+<li><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/release.yml">.github/release.yml</a> - shapes the changelog half of a release note. Read from the commit the note is rendered for rather than from <span class="tt">main</span>, so a release carries the configuration of the tree it was built from.</li>
 </ul>
 <h1 class="doxsection"><a class="anchor" id="the-normal-path"></a>
 The normal path</h1>
 <ol type="1">
-<li>On the 8th or 22nd an rc is built and a <b>candidate PR</b> appears (branch <span class="tt">release/candidate/v1.2-rc.1</span>, adding <span class="tt">releases/v1.2.yaml</span>). Its body is the manifest - what moved since the last release.</li>
+<li>On the 8th or 22nd an rc is built and a <b>candidate PR</b> appears (branch <span class="tt">release/candidate/v1.2-rc.1</span>, adding <span class="tt">releases/v1.2.yaml</span>). Its body is the release note: what that rc pins, what its images installed, what moved since the last release, and the pull requests merged since it.</li>
 <li><b>Validate</b>: read the diff, pull the rc (<span class="tt">docker pull ghcr.io/guillaumedua/cpp-toolchain:dev-v1.2-rc.1</span>), build something real against it, check the PR is green.</li>
 <li><b>Merge</b>: that is the whole procedure - the promote job verifies the recorded digests against both registries, <br  />
  re-tags them to <span class="tt">v1.2</span> + <span class="tt">latest</span>, and creates the GitHub release at the rc's commit.</li>
@@ -343,6 +346,8 @@ What the release process assumes</h1>
  it proves what this workflow built, not - to a third party - that this workflow built it.</li>
 <li>Anything holding <span class="tt">packages: write</span> or the Docker Hub token can move a tag between rc and merge. <br  />
  That is precisely what the digest assertion catches: promotion fails loudly rather than shipping moved bytes.</li>
+<li><span class="tt">versions:</span> is <b>collected once</b>, from the <span class="tt">build</span> image the rc pushed, and never recomputed. <br  />
+ Unlike <span class="tt">bumps:</span>, which <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/release-candidate-check.yml">release-candidate-check.yml</a> re-derives, it can only be re-read by pulling that image again. It records what the build saw, not an independently verified fact. Every stage above <span class="tt">build</span> inherits those compilers and standard libraries, and the <a class="el" href="images-validation.html#md_docs_2IMAGES__VALIDATION" title="docs/IMAGES_VALIDATION.md">validation gate</a> fails a <span class="tt">runtime</span> carrying different ones, so one collection answers for all of them.</li>
 <li><span class="tt">releases/v*.yaml</span> is a file like any other: <br  />
  A hand-written <em>real</em> digest that was never tested cannot be caught mechanically. <br  />
  The smoke check covers <span class="tt">dev</span> by digest; the rest rides on review and branch protection.</li>

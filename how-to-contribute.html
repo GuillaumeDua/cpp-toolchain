@@ -271,11 +271,11 @@ How images get published</h1>
 <li>The twice-monthly <b>rc schedule</b> and manual dispatch cut a <b>release candidate</b> (<span class="tt">v1.2-rc.1</span>) and open a candidate PR; it never moves <span class="tt">latest</span>.</li>
 <li>A <b>minor</b> (<span class="tt">v1.1</span>, <span class="tt">v1.2</span>, ...) ships when the maintainer <b>merges that candidate PR</b>: the rc's image digests are re-tagged, so the release is byte-identical to the rc that was validated - no rebuild.</li>
 <li>A GitHub <b>release</b> cut by hand from <span class="tt">main</span> publishes a <b>major</b> (<span class="tt">v&lt;major&gt;.0</span>, e.g. <span class="tt">v2.0</span>) plus the <span class="tt">latest</span> alias.</li>
-<li>The scheduled rc <b>publishes nothing when nothing changed</b>: every version is pinned, so an unchanged commit would rebuild to an identical image.</li>
+<li>The scheduled rc <b>publishes nothing when nothing changed</b>: an unchanged tree has nothing new to ship, so no release is cut just because a date arrived.</li>
 <li>Images go to both <b>Docker Hub</b> and <b>GHCR</b>.</li>
 </ul>
 <p>The full release procedure (promotion, urgent fixes, rollback, failure modes) is in <a class="el" href="release-process.html#md_docs_2RELEASE__PROCESS" title="docs/RELEASE_PROCESS.md">docs/RELEASE_PROCESS.md</a> - the cadence is stated there and nowhere else.</p>
-<p>Release notes are generated from the Dockerfile's pinned <span class="tt">ARG</span>s by <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/details/render-manifest.py">scripts/details/render-manifest.py</a>, so each release states exactly what it contains and what moved since the previous one.</p>
+<p>Release notes are composed by <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/details/render-manifest.py">scripts/details/render-manifest.py</a> from three things: the versions a release pins, read from the Dockerfile's <span class="tt">ARG</span>s; what the images installed where a pin cannot say, read from the promotion record; and the pull requests merged since the previous release. That last part is a plain list of PR titles, so the title you give a PR is what a release note shows. What a pin does and does not fix is in <a class="el" href="index.html#whats-inside-a-given-tag" title="What&#39;s inside a given tag">Tags &amp; versioning</a>.</p>
 <p>Guards protecting the registries:</p>
 <ul>
 <li><b>Tag format</b> - a hand-cut release tag that is not a major (<span class="tt">v&lt;major&gt;.0</span>) is rejected before anything is published: minors ship by merging a candidate PR, never by cutting a release.</li>

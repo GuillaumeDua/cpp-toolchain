@@ -202,6 +202,7 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('release-record
 <li>the rc it was promoted from</li>
 <li>the exact commit that was built</li>
 <li>the manifest digest of every published stage</li>
+<li>what the <span class="tt">build</span> image installed where a pin cannot say it: the distribution point release, the compilers, and the standard libraries with their ABI levels</li>
 </ul>
 <p>Merging a pull request that adds one <b>is</b> the promotion: the digests are re-tagged as the release, byte-identical to the candidate that was validated.</p>
 <dl class="section attention"><dt>Caution</dt><dd>The <b>files are immutable once merged</b> editing one is how an already-shipped version would get silently re-promoted to different bytes, so the workflows refuse modified or deleted records. <br  />
