@@ -13,6 +13,7 @@ The two under [`details/`](details/) are also the image validation gate:
 | ------------------ | -------------------------------------------------------------------- |
 | `cxx-standards.sh` | Which C++ standards a compiler accepts, ordered by `__cplusplus`     |
 | `cxx-stdlibs.sh`   | Which C++ standard libraries are installed, and what ABI they expose |
+| `c-stdlibs.sh`     | Which C standard library is installed, and what ABI it exposes       |
 
 These depend on nothing in this repository - point them at any compiler on any machine.  
 Fetch either on its own when you want the answer without an image or a checkout:
@@ -21,6 +22,7 @@ Fetch either on its own when you want the answer without an image or a checkout:
 base=https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/checks
 wget "${base}/cxx-standards.sh"
 wget "${base}/cxx-stdlibs.sh"
+wget "${base}/c-stdlibs.sh"
 ```
 
 ### `cxx-standards.sh`
@@ -199,6 +201,36 @@ Narrow to a view, and `--stdlib` narrows the rest of the way:
 ```
 
 `--format=soname` is refused against the compiler view for the same reason: a compiler names the headers it reaches, and headers have no `SONAME`.
+
+`--help` is the full reference.
+
+### `c-stdlibs.sh`
+
+The same library view, asked of C:
+
+```bash
+scripts/checks/c-stdlibs.sh
+glibc 2.39 -> soname=libc.so.6 abi=GLIBC_2.39 package=libc6
+glibc 2.39 -> soname=libc.so.6 abi=GLIBC_2.39 package=libc6-i386
+glibc 2.39 -> soname=libc.so.6 abi=GLIBC_2.39 package=libc6-x32
+```
+
+Rows repeat for the same reason they do above: one package is one row, and the secondary ABIs ship
+their own `libc.so.6` under `/usr/lib32` and `/usr/libx32`.
+
+`abi` is the greatest `GLIBC_` symbol version in the ELF - what a `GLIBC_2.38 not found` at load time
+names, and the marker that decides whether a binary built here runs on an older distribution:
+
+```bash
+scripts/checks/c-stdlibs.sh --format=abi
+GLIBC_2.39
+```
+
+`version` and `abi` answer two questions that usually give the same number: what is installed, and the
+newest contract it offers. A release that adds no symbol version leaves `abi` one release behind.
+
+There is no `--view` and no `--stdlib`, unlike its C++ counterpart: one view, one implementation, and a
+flag with a single legal value answers nothing. `--format` takes `default`, `version`, `abi` and `fields`.
 
 `--help` is the full reference.
 

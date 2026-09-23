@@ -191,6 +191,7 @@ The gate uses both, but they answer on any machine, checkout or not:
 | --- | --- | --- |
 | <code>cxx-standards.sh [\-\-stable] [\-\-greatest] [\-\-format=&lt;default\|std\|cplusplus&gt;] [compiler]</code> | which C++ standards a compiler accepts | `cxx-runtime.sh compile` |
 | `cxx-stdlibs.sh [--view] [--stdlib] [--compilers] [--format]` | which standard libraries are installed, and what ABI they expose | `cxx-stdlib-parity.sh`, `package-origins.sh` |
+| `c-stdlibs.sh [--format]` | which C standard library is installed, and what ABI it exposes | `cxx-toolchain-versions.sh` |
 
 `package-origins.sh` uses it for the one thing it cannot write down: apt.llvm.org has spelled the libc++ runtime three ways - `libc++1-17t64`, `libc++1-18`, then plain `libc++1` from LLVM 20, where the major left the name altogether.
 A check naming one of those keeps passing on the two it cannot see, so the package is discovered from the installed library instead and origin asserted on whatever answer comes back.

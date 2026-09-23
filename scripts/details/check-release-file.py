@@ -24,7 +24,6 @@ Usage, from the repository root - the git checks and the bumps recompute both re
     python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-digest dev   # one recorded digest
     python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-fields       # version/commit/candidate as key=value
     python3 scripts/details/check-release-file.py --print-stages normal|cross             # canonical stage lists
-    python3 scripts/details/check-release-file.py --print-versioned-stage                 # stage installed versions come from
     python3 scripts/details/check-release-file.py --print-stages validate-normal|validate-cross
     python3 scripts/details/check-release-file.py --print-registries [dockerhub|ghcr]     # both references, or one
     python3 scripts/details/check-release-file.py --print-newest-release [--tag v1.4]     # the release before a tag
@@ -75,19 +74,33 @@ DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 # The head of any tag this repository cuts, release or rc, so both order alike.
 VERSION_HEAD_RE = re.compile(r"^v(\d+)\.(\d+)")
 
-TOP_LEVEL_KEYS = {"version", "candidate", "commit", "digests", "bumps", "versions"}
+TOP_LEVEL_KEYS = {"version", "candidate", "commit", "digests", "bumps", "versions", "introduced"}
 
 # What `versions:` groups its entries by, and how each group is read: a compiler has a version, a
 # library also carries the two ABI levels a binary is linked against, and the distribution resolves
 # the base image's rolling tag to the point release it was built from.
 # The order is the one a release note reports changes in.
-VERSION_GROUPS = ("distribution", "compilers", "libraries")
+VERSION_GROUPS = ("distribution", "compilers", "libraries", "tools")
 
-# The one stage collected from. `build` is a superset: every stage above it inherits its compilers
-# and standard libraries, and validate-runtime verifies against what validate-build recorded, so a
-# runtime carrying different standard libraries fails the build gate
-# (scripts/checks/details/cxx-stdlib-parity.sh).
-VERSIONED_STAGE = "build"
+# Every published stage is collected from, because `introduced:` answers which one first carries a
+# component, and that is a question no single image can be asked. The stage lists above are the
+# canonical set, so nothing here restates them.
+
+# What a collected library key carries beyond its package, longest first: `-cxxabi` also ends in `-abi`.
+LIBRARY_FIELDS = ("-cxxabi", "-abi")
+
+
+def split_key(name, collected):
+    """(component, field) for a collected key - a component, optionally suffixed with a field.
+
+    A suffix only counts when the component it would belong to was collected too, so a package
+    whose own name ends in one of them keeps it.
+    """
+    for suffix in LIBRARY_FIELDS:
+        component = name[: -len(suffix)]
+        if name.endswith(suffix) and component in collected:
+            return component, suffix[1:]
+    return name, "version"
 
 
 def version_order(tag):
@@ -222,6 +235,51 @@ def validate(path, data):
                     if not isinstance(value, str) or not value:
                         errors.append(f"versions.{group}.{name}: expected a non-empty string")
 
+    # `introduced:` says which stage first carries each component, and is a superset of `versions:`
+    # rather than a mirror of it: a component whose version no package states - vcpkg, conan and
+    # doxygen are installed outside apt - still has a stage.
+    # It is keyed per component, so a library's `-abi` and `-cxxabi` keys fold onto their package
+    # instead of repeating its stage three times.
+    introduced = data.get("introduced")
+    if introduced is not None:
+        if not isinstance(introduced, dict):
+            errors.append("introduced: expected a mapping of group -> {component: stages}")
+        else:
+            unexpected = set(introduced) - set(VERSION_GROUPS)
+            if unexpected:
+                errors.append(f"introduced: unexpected groups: {', '.join(sorted(unexpected))}")
+            for group, components in sorted(introduced.items()):
+                if not isinstance(components, dict):
+                    errors.append(f"introduced.{group}: expected a mapping of component -> stages")
+                    continue
+                for name, value in sorted(components.items()):
+                    if not isinstance(value, str) or not value:
+                        errors.append(f"introduced.{group}.{name}: expected a non-empty string")
+                        continue
+                    stages = value.split()
+                    unknown_stages = [stage for stage in stages if stage not in NORMAL_STAGES]
+                    if unknown_stages:
+                        errors.append(f"introduced.{group}.{name}: not a published stage:"
+                                      f" {', '.join(unknown_stages)}")
+                    elif stages != sorted(set(stages), key=NORMAL_STAGES.index):
+                        # Ordered and deduplicated, so two records diff as text rather than as sets.
+                        errors.append(f"introduced.{group}.{name}: '{value}' is not a deduplicated"
+                                      f" stage list in build order")
+
+        # One way only: every measured version belongs to a component with a stage.
+        if isinstance(introduced, dict) and isinstance(versions, dict):
+            for group, collected in sorted(versions.items()):
+                if not isinstance(collected, dict):
+                    continue
+                known = introduced.get(group)
+                if not isinstance(known, dict):
+                    known = {}
+                for name in sorted(collected):
+                    component, _ = split_key(name, collected)
+                    if component not in known:
+                        errors.append(f"introduced.{group}.{component}: missing, although"
+                                      f" versions.{group}.{name} reports a version for it")
+
     bumps = data.get("bumps")
     if bumps is not None and not isinstance(bumps, dict):
         errors.append("bumps: expected a mapping (may be empty)")
@@ -341,8 +399,6 @@ def main():
                         help="print version, commit and candidate as key=value lines, for $GITHUB_OUTPUT")
     parser.add_argument("--print-stages", choices=sorted(STAGE_LISTS),
                         help="print a canonical stage list (no file needed)")
-    parser.add_argument("--print-versioned-stage", action="store_true",
-                        help="print the stage installed versions are collected from (no file needed)")
     parser.add_argument("--print-registries", nargs="?", const="all", choices=["all", *REGISTRIES],
                         help="print the image reference of every registry, or of the named one (no file needed)")
     parser.add_argument("--print-newest-release", action="store_true",
@@ -356,10 +412,6 @@ def main():
 
     if args.print_stages:
         print(" ".join(STAGE_LISTS[args.print_stages]))
-        return
-
-    if args.print_versioned_stage:
-        print(VERSIONED_STAGE)
         return
 
     if args.print_registries:
