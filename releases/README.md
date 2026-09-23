@@ -8,8 +8,10 @@ Each `v<major>.<minor>.yaml` here is the authoritative record of one release:
 - the rc it was promoted from
 - the exact commit that was built
 - the manifest digest of every published stage
-- what the `build` image installed where a pin cannot say it: the distribution point release,
-  the compilers, and the standard libraries with their ABI levels
+- what every published stage installed where a pin cannot say it: the distribution point release
+  and archive snapshot, the compilers, the standard libraries with their ABI levels, and the
+  toolchain commands
+- which stage first carries each of them, in `introduced:`, which no single image can be asked
 
 Merging a pull request that adds one **is** the promotion: the digests are re-tagged as the release, byte-identical to the candidate that was validated.
 

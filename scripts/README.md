@@ -6,7 +6,7 @@ The public scripts are self-contained: fetch one and run it on any Debian/Ubuntu
 | Directory | Scope | What lives there |
 | --------- | ----- | ---------------- |
 | [install/](install/) | **Public** - standalone | Toolchain installers - `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh`, `doxygen.sh`. Reusable on any Debian/Ubuntu-based system, with no dependency on this repository. See [install/README.md](install/README.md) for the full option reference. |
-| [checks/](checks/) | **Public** - standalone | `cxx-standards.sh` - which C++ standards a compiler accepts. `cxx-stdlibs.sh` - which C++ standard libraries are installed, with the `SONAME` and ABI version a binary will need to find. Point either at any machine, checkout or not. See [checks/README.md](checks/README.md). |
+| [checks/](checks/) | **Public** - standalone | `cxx-standards.sh` - which C++ standards a compiler accepts. `cxx-stdlibs.sh` - which C++ standard libraries are installed, with the `SONAME` and ABI version a binary will need to find. `c-stdlibs.sh` - the same, for the C standard library. Point either at any machine, checkout or not. See [checks/README.md](checks/README.md). |
 | [checks/details/](checks/details/) | Internal | The image validation gate, which runs *inside* a built image: it knows this repo's expected package origins and asks its installers what is present. See [docs/IMAGES_VALIDATION.md](../docs/IMAGES_VALIDATION.md). |
 | [details/](details/) | Internal | This repository's own tooling - the version-pin guard, the release-note renderer, the install-script parity check, the promotion-record schema and the image smoke test. Not reusable: they parse this repo's `Dockerfile`, `renovate.json` and `releases/` records. See [details/README.md](details/README.md). |
 
@@ -42,6 +42,11 @@ bash cxx-standards.sh --greatest --stable --format=std g++
 wget "${base}/checks/cxx-stdlibs.sh"
 bash cxx-stdlibs.sh --stdlib=libstdc++ --format=abi
 # -> GLIBCXX_3.4.35
+
+# The same question about the C standard library
+wget "${base}/checks/c-stdlibs.sh"
+bash c-stdlibs.sh --format=abi
+# -> GLIBC_2.39
 ```
 
 Every one of them describes itself with `--help`, so the fetched file is its own documentation.
