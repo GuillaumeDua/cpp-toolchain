@@ -1,0 +1,14 @@
+version: "v1.4"
+candidate: "v1.4-rc.1"
+commit: "2088499f7f97daf88010a2d70d0682b792ce5be8"
+digests:
+  runtime: "sha256:a68600a96aeaf81cd6219e27462c54d808f1e77de07843e9a23620b2db546a7e"
+  build: "sha256:5028e183322b0d520020a4e2e89e44a8caceb5b31ca5282acaaffdff0f0e5173"
+  static-analysis: "sha256:278730a2399a6fb1d10b4564e19542b493a1b310a8b4d676135f08fd0e883b52"
+  documentation: "sha256:7a460c7b3aceae2be6a6d0d2ee342298596b0eec62c3535dd6a76071cea48397"
+  dev: "sha256:02fb82674b74c73d367118a97da71e65b39bb86ca3d3d1f3d78313ebbc28b7ce"
+  build-cross: "sha256:18afcad266b8a9e846837eecfaeecb5a4b6f5f8335cb1b3f3f7d8da104890b93"
+  static-analysis-cross: "sha256:07742b94b8547e13cb53d61dbdcbee4159b6e6aa15ed3467c6723a48fd90300f"
+  documentation-cross: "sha256:45bdedcd96eef66ffef54655cf342e5d687f378cef576c17a9f5956a4c630507"
+  dev-cross: "sha256:c82e4c0d5cf596477f3a820a065832fdb90739c059c2a10f5d8ee504b1425b52"
+bumps: {}
