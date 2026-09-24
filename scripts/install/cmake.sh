@@ -48,6 +48,8 @@ clean(){
         rm -rf "${internal_script_path}"
     fi
 }
+# Every exit path, including the ones that bypass the explicit call below.
+trap clean EXIT
 error_diagnosis(){
     local sources
     sources=$(grep -rl 'apt\.kitware\.com' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | paste -sd' ' -)
@@ -60,11 +62,6 @@ error_diagnosis(){
         echo -e "\t- version requested:      [${arg_versions}]"
         echo -e "\t- apt.kitware.com source: [${sources:-<none registered>}]"
     } >> /dev/stderr
-}
-error(){
-    echo -e "[${this_script_name}]: $@" >> /dev/stderr
-    error_diagnosis
-    clean; exit 1
 }
 
 # The helpers shared with the other scripts. The standalone copy published for each release

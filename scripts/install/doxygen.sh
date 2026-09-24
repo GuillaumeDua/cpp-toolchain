@@ -45,7 +45,7 @@ USAGE
 }
 
 error(){
-    echo -e "[${this_script_name}]: $@" >> /dev/stderr
+    echo -e "[${this_script_name}]: $*" >> /dev/stderr
     echo -e "[${this_script_name}]: diagnosis helper:" >> /dev/stderr
     echo -e "\t- release tag:        [${tag:-<unset>}]" >> /dev/stderr
     echo -e "\t- host architecture:  [${arch:-<unresolved>}]" >> /dev/stderr

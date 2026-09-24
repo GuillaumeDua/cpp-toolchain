@@ -257,16 +257,10 @@ libcpp_headers_for(){
 # Files are resolved before anything else so that /lib and /usr/lib, which are the same
 # directory on a merged-usr host, cannot produce the same library twice.
 library_rows(){
-    local file real impl version soname abi cxxabi package headers
-    local -A seen_path=()
+    local real impl version soname abi cxxabi package headers
     local -A seen_package=()
 
-    while read -r file; do
-        real=$(readlink -f "${file}" 2>/dev/null)
-        [ -f "${real}" ] || continue
-        [ -z "${seen_path[${real}]:-}" ] || continue
-        seen_path[${real}]=1
-
+    while read -r real; do
         case "${real}" in
             *libstdc++.so.* ) impl='libstdc++' ;;
             *libc++.so.*    ) impl='libc++' ;;
@@ -315,7 +309,7 @@ library_rows(){
 
         printf '%s %s %s %s %s %s %s\n' \
             "${impl}" "${version}" "${soname}" "${real}" "${abi}" "${cxxabi}" "${package}"
-    done < <(discover_library_files)
+    done < <(discover_library_files | unique_library_files)
 }
 
 discover_compilers(){

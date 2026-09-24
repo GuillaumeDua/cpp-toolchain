@@ -73,6 +73,8 @@ help(){
 clean(){
     rm -f "${internal_script_path}" "${gpg_key_path}"
 }
+# Every exit path, including the ones that bypass the explicit call below.
+trap clean EXIT
 error_diagnosis(){
     local sources addresses
     sources=$(grep -rl 'apt\.llvm\.org' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | paste -sd' ' -)
@@ -89,11 +91,6 @@ error_diagnosis(){
         echo -e "\t- apt.llvm.org source: [${sources:-<none registered>}]"
         echo -e "\t- apt.llvm.org hosts:  [${addresses:-<unresolved>}]"
     } >> /dev/stderr
-}
-error(){
-    echo -e "[${this_script_name}]: $@" >> /dev/stderr
-    error_diagnosis
-    clean; exit 1
 }
 
 # The helpers shared with the other scripts. The standalone copy published for each release
@@ -188,35 +185,14 @@ list_installed_llvm_versions(){
 # Filter a set of majors by a --versions selector.
 #   This reports what is present rather than what could be installed, so an explicit list is intersected with the set rather than passed through.
 #   latest-stable is refused here: only the upstream index defines it, and fetching that is exactly what this query must not do.
-select_versions(){
-    local selector="$1"
-    local versions="$2"
-
-    case "${selector}" in
-        all )
-            echo "${versions}" ;;
-        latest )
-            echo "${versions}" | tail -1 ;;
-        latest-stable )
-            error "--list-installed cannot resolve [latest-stable] without the upstream index - use --versions=latest or --versions=all" ;;
-        '>='[0-9]* )
-            local from
-            from=$(echo "${selector}" | grep -oP '^>=\K[0-9]+$')
-            [ -n "${from}" ] || error "invalid version='>=[0-9]+' value: [${selector}]"
-            echo "${versions}" | awk -v from="${from}" '$1 >= from' ;;
-        * )
-            [[ "${selector}" =~ ^[0-9]+( [0-9]+)*$ ]] \
-                || error "invalid value for argument version [${selector}]"
-            local requested
-            for requested in ${selector}; do
-                grep -qx -- "${requested}" <<< "${versions}" && echo "${requested}"
-            done ;;
-    esac
-}
 
 if [[ ${arg_list_installed} == 1 ]]; then
     installed_versions=$(list_installed_llvm_versions)
     if [[ ${arg_versions_explicit} == 1 ]]; then
+        # dpkg lists what is installed, not what upstream calls stable, so this one selector has
+        # no answer here. gcc.sh reads the same list and resolves it as `latest`.
+        [ "${arg_versions}" != 'latest-stable' ] \
+            || error "--list-installed cannot resolve [latest-stable] without the upstream index - use --versions=latest or --versions=all"
         select_versions "${arg_versions}" "${installed_versions}"
     elif [ -n "${installed_versions}" ]; then
         echo "${installed_versions}"
@@ -304,7 +280,7 @@ fi
 if [ -z "$llvm_versions" ]; then
     log "empty versions range, nothing to do"
     echo -e "$(list_installed_llvm_versions)" # result for the caller
-    clean; exit 0
+    exit 0
 fi
 if [[ ! $(echo -n $llvm_versions) =~  ^[0-9]+( [0-9]+)*$ ]]; then
     error "invalid versions range: [$llvm_versions]"
@@ -313,7 +289,7 @@ fi
 ## --- list mod ? ---
 if [[ ${arg_list_available} == 1 ]]; then
     echo -e "${llvm_versions}"
-    clean; exit 0
+    exit 0
 fi
 
 log "LLVM version(s) to be installed: [${llvm_versions}]"
