@@ -241,6 +241,16 @@ jobs:
               --notes-file note.md
           fi
 
+      # Composed at the recorded commit, like the note above: if main moved between the rc and this
+      # merge, the merge commit's scripts are newer than the release they would be attached to.
+      - name: Attach the standalone scripts
+        if: steps.record.outputs.skip != 'true'
+        uses: ./.github/actions/upload-standalone-scripts
+        with:
+          tag: ${{ steps.record.outputs.version }}
+          ref: ${{ steps.record.outputs.commit }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
       # The rc pre-release is kept forever (its digests are shared with the release,
       # so deleting it is unsafe - see docs/RELEASE_PROCESS.md), which means readers can still land on it.
       # Point them at the stable release it became, in a marked region like the manifest,
@@ -570,6 +580,15 @@ jobs:
             --title  "${PRIMARY}" \
             --prerelease \
             --notes-file note.md
+
+      # On the rc too, not only on promotion: a candidate is what gets tested, and `latest` skips
+      # pre-releases, so this cannot pull the floating URL off the newest promoted release.
+      - name: Attach the standalone scripts
+        if: success() && steps.changed.outputs.skip != 'true' && steps.meta.outputs.mode == 'rc'
+        uses: ./.github/actions/upload-standalone-scripts
+        with:
+          tag: ${{ steps.meta.outputs.primary }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # Manual major:
       #   the release already exists and may carry hand-written prose.

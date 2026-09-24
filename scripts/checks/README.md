@@ -15,15 +15,19 @@ The two under [`details/`](details/) are also the image validation gate:
 | `cxx-stdlibs.sh`   | Which C++ standard libraries are installed, and what ABI they expose |
 | `c-stdlibs.sh`     | Which C standard library is installed, and what ABI it exposes       |
 
-These depend on nothing in this repository - point them at any compiler on any machine.  
+As published, these depend on nothing in this repository - point them at any compiler on any machine.  
 Fetch either on its own when you want the answer without an image or a checkout:
 
 ```bash
-base=https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/checks
+base=https://github.com/GuillaumeDua/cpp-toolchain/releases/latest/download
 wget "${base}/cxx-standards.sh"
 wget "${base}/cxx-stdlibs.sh"
 wget "${base}/c-stdlibs.sh"
 ```
+
+Swap `latest` for `download/<tag>` to pin the URL. The copy in this repository sources its shared
+helpers instead of carrying them, so fetch the published one rather than the file next door -
+[scripts/README.md](../README.md#using-a-public-script-on-its-own) has the detail.
 
 ### `cxx-standards.sh`
 

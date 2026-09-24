@@ -27,8 +27,28 @@ jobs:
       - name: Assert every version is pinned and watched
         run: python3 scripts/details/check-dependencies-pins.py
 
-      - name: Assert the install scripts' shared helpers have not drifted
-        run: python3 scripts/details/check-install-script-parity.py
+      # The composed scripts are what each release publishes, and nothing else exercises them until
+      # then. Composing here means a broken composer fails a pull request rather than a release.
+      # The directory holds nothing but the script under test: no shared.sh, no repository around it,
+      # which is the promise the published file makes.
+      - name: Assert the standalone scripts compose and run on their own
+        run: |
+          set -euo pipefail
+          island=$(mktemp -d)
+          python3 scripts/details/compose-standalone.py --all "${island}" scripts/install
+          python3 scripts/details/compose-standalone.py --all "${island}" scripts/checks
+          cd "${island}"
+          for script in *.sh; do
+            bash -n "${script}"
+            bash "${script}" --help > /dev/null 2>&1
+          done
+          bash gcc.sh      --list-installed > /dev/null
+          bash llvm.sh     --list-installed > /dev/null
+          bash binutils.sh --list-targets   > /dev/null
+          bash cxx-standards.sh --greatest  > /dev/null
+          bash c-stdlibs.sh     --format=abi > /dev/null
+          bash cxx-stdlibs.sh   --format=abi > /dev/null
+          echo "every standalone script composes and answers with nothing beside it"
 
       - name: Assert every action is pinned to a commit digest
         run: python3 scripts/details/check-action-pins.py

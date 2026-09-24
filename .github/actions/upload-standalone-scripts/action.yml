@@ -1,0 +1,55 @@
+name: Upload the standalone scripts
+description: >
+  Compose the install and checks scripts into self-contained files and attach them to a release.
+  A checkout holds scripts that source scripts/details/shared.sh; what is published carries it inlined.
+
+inputs:
+  tag:
+    description: Release or pre-release the assets are attached to.
+    required: true
+  ref:
+    description: >
+      Commit the scripts are composed at. The promotion path passes the recorded rc commit rather
+      than the merge commit, so the assets describe the release they ship with.
+    required: false
+    default: ${{ github.sha }}
+  github-token:
+    description: "Token carrying `contents: write`"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Read out of git rather than off the working tree, so the ref decides what is composed and
+    # nothing is left behind for the steps after this one.
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        TAG: ${{ inputs.tag }}
+        REF: ${{ inputs.ref }}
+      run: |
+        set -euo pipefail
+        tree=$(mktemp -d)
+        assets=$(mktemp -d)
+        git archive "${REF}" scripts | tar -x -C "${tree}"
+
+        composer="${tree}/scripts/details/compose-standalone.py"
+        python3 "${composer}" --all "${assets}" "${tree}/scripts/install"
+        python3 "${composer}" --all "${assets}" "${tree}/scripts/checks"
+
+        # The promise the published file makes, checked before it is published rather than after:
+        # every one of them has to answer with nothing beside it.
+        ( cd "${assets}" && for script in *.sh; do bash -n "${script}"; done )
+
+        gh release upload "${TAG}" "${assets}"/*.sh --clobber
+
+        # A failed upload leaves `latest` on the previous release, which still works, so nothing
+        # looks broken. Compare what the release carries against what was just composed.
+        expected=$(cd "${assets}" && ls -1 *.sh | sort | paste -sd' ' -)
+        attached=$(gh release view "${TAG}" --json assets --jq '.assets[].name' \
+                   | grep '\.sh$' | sort | paste -sd' ' -)
+        if [ "${expected}" != "${attached}" ]; then
+          echo "::error::${TAG} carries [${attached}], expected [${expected}]"
+          exit 1
+        fi
+        echo "${TAG}: attached ${expected}"

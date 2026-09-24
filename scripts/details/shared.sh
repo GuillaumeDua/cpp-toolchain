@@ -9,9 +9,10 @@
 # cannot source this one. Each carries its own copy of the helpers it uses.
 # The internal scripts already read their siblings by relative path, so they source this file instead.
 #
-# check-install-script-parity.py, beside this file, keeps those copies honest:
-#     python3 scripts/details/check-install-script-parity.py         # fails if a copy has drifted
-#     python3 scripts/details/check-install-script-parity.py --fix   # rewrites the copies from here
+# compose-standalone.py, beside this file, builds them:
+#     python3 scripts/details/compose-standalone.py scripts/install/gcc.sh > gcc.sh
+# It inlines only the helpers a script calls. The build gate composes all of them and runs each one
+# in an empty directory, and each release attaches the results.
 #
 # Two things every caller defines itself, because one value cannot serve all of them:
 #

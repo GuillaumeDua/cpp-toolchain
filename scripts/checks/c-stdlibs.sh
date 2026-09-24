@@ -13,7 +13,9 @@ arg_format='default'
 
 default_format='default'
 
-die() { echo "[${this_script_name}] error: $*" >&2; exit 1; }
+# The helpers shared with the other scripts. The standalone copy published for each release
+# carries them inlined here instead - scripts/details/compose-standalone.py.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
 
 help(){
     echo "Usage: ${this_script_name} [--format=<format>]" 1>&2
@@ -82,59 +84,11 @@ discover_library_files(){
     } | grep -E '/libc\.so\.[0-9]'
 }
 
-# binutils reads the SONAME straight out of the ELF. A runtime image ships none of it, so the name
-# up to the major stands in - an approximation, whose limits scripts/checks/README.md states.
-soname_of(){
-    [ -f "$1" ] || { printf '%s' '-'; return; }
 
-    local soname=''
-    command -v objdump >/dev/null 2>&1 \
-      && soname=$(objdump -p "$1" 2>/dev/null | awk '$1 == "SONAME" { print $2; exit }')
 
-    [ -n "${soname}" ] \
-      || { command -v readelf >/dev/null 2>&1 \
-        && soname=$(readelf -d "$1" 2>/dev/null \
-          | sed -n 's/.*SONAME.*\[\(.*\)\].*/\1/p' | head -n 1); }
-
-    [ -n "${soname}" ] \
-      || soname=$(sed 's|.*/||; s|\(\.so\.[0-9][0-9]*\).*|\1|' <<< "$1")
-
-    printf '%s' "${soname:--}"
-}
-
-# The greatest symbol version an ELF exposes. readelf is the direct read, but a runtime image
-# ships no binutils, and grepping the binary for the same strings agrees with it exactly.
-max_symbol_version(){
-    local found=''
-    command -v readelf >/dev/null 2>&1 \
-      && found=$(readelf --version-info "$1" 2>/dev/null \
-        | grep -oE "$2_[0-9][0-9.]*" | sort -uV | tail -n 1)
-
-    [ -n "${found}" ] \
-      || found=$(LC_ALL=C grep -ao "$2_[0-9][0-9.]*" "$1" 2>/dev/null | sort -uV | tail -n 1)
-
-    printf '%s' "${found:--}"
-}
-
-package_of(){
-    [ "${has_dpkg}" -eq 1 ] || { printf '%s' '-'; return; }
-
-    local package
-    package=$(dpkg -S "$1" 2>/dev/null | head -n 1 | sed 's/:.*//')
-    printf '%s' "${package:--}"
-}
 
 # Debian versions carry an epoch and a revision around the upstream release,
 # and only the release in the middle is what a C developer calls the version.
-version_of_package(){
-    [ "$1" != '-' ] || { printf '%s' '-'; return; }
-
-    local version
-    version=$(dpkg-query -W -f='${Version}' "$1" 2>/dev/null)
-    version="${version#*:}"
-    version="${version%%[-~]*}"
-    printf '%s' "${version:--}"
-}
 
 library_rows(){
     local file real soname version abi package

@@ -15,11 +15,9 @@ install_scripts_dir="${this_script_dir}/../../install"
 warning_flags=('-Wall' '-Wextra')
 
 payload_source=''
-failures=0
-
-die()  { echo "[${this_script_name}] error: $*" >&2; exit 1; }
-fail() { echo "[${this_script_name}] FAIL: $*" >&2; failures=$((failures + 1)); }
-pass() { echo "[${this_script_name}] ok:   $*"; }
+# The helpers shared with the other scripts. The standalone copy published for each release
+# carries them inlined here instead - scripts/details/compose-standalone.py.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../details/shared.sh"
 
 # Binaries are reported as <directory>/<name>, so the libstdc++ and libc++ passes stay distinct.
 label(){

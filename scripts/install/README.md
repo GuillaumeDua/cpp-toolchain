@@ -1,7 +1,8 @@
 # Toolchain installation scripts
 
-Standalone scripts to install `CMake`, `GCC`, `LLVM/Clang`, cross-compilation `binutils` (+ cross-libc), and `Doxygen`, reusable on any Debian/Ubuntu-based system.  
+Scripts to install `CMake`, `GCC`, `LLVM/Clang`, cross-compilation `binutils` (+ cross-libc), and `Doxygen`, reusable on any Debian/Ubuntu-based system.  
 All take no dependency on each other and describe themselves with `--help`.
+Each release publishes them as self-contained files; the copies here source their shared helpers from [../details/shared.sh](../details/shared.sh), so fetch the published one to run it outside a checkout - [scripts/README.md](../README.md#using-a-public-script-on-its-own) has the detail.
 Installing needs root. The exceptions run as any user: the `--list-installed` and `--list-targets` query modes, answered from `dpkg`, and `doxygen.sh --prefix=<directory>`, which installs under a directory of the caller's choosing.
 
 - `gcc.sh` and `llvm.sh` can install **multiple compiler versions side by side** in the same environment (one `apt-get install` per requested version, wired together with `update-alternatives`) - see their `--versions` option below.  
