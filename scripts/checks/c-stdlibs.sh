@@ -91,16 +91,10 @@ discover_library_files(){
 # and only the release in the middle is what a C developer calls the version.
 
 library_rows(){
-    local file real soname version abi package
-    local -A seen_path=()
+    local real soname version abi package
     local -A seen_package=()
 
-    while read -r file; do
-        real=$(readlink -f "${file}" 2>/dev/null)
-        [ -f "${real}" ] || continue
-        [ -z "${seen_path[${real}]:-}" ] || continue
-        seen_path[${real}]=1
-
+    while read -r real; do
         # One package is one row: the secondary ABIs ship their own libc.so.6, and the package is
         # what tells them apart and what a reader can install.
         package=$(package_of "${real}")
@@ -114,7 +108,7 @@ library_rows(){
         abi=$(max_symbol_version "${real}" 'GLIBC')
 
         printf '%s %s %s %s %s %s\n' 'glibc' "${version}" "${soname}" "${real}" "${abi}" "${package}"
-    done < <(discover_library_files)
+    done < <(discover_library_files | unique_library_files)
 }
 
 # 'view=library' is emitted although this script has only one: a caller reading both scripts into

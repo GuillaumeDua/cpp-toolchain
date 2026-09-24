@@ -14,15 +14,17 @@
 # It inlines only the helpers a script calls. The build gate composes all of them and runs each one
 # in an empty directory, and each release attaches the results.
 #
-# Two things every caller defines itself, because one value cannot serve all of them:
+# What a caller brings itself:
 #
-#   retry_backoff_seconds   how long run_with_retries waits between attempts. It has to outlast the
-#                           throttling window of the host that script downloads from, and those
-#                           differ. Deliberately left undefined here: under `set -u`, a script that
-#                           forgets it stops at the first retry instead of retrying with no wait.
-#   error()                 what to_boolean calls when handed something that is not a boolean.
-#                           Each script composes its own error_diagnosis, and its clean where it
-#                           has one.
+#   retry_backoff_seconds   required by run_with_retries. How long to wait between attempts, which
+#                           has to outlast the throttling window of the host that script downloads
+#                           from, and those differ. Deliberately left undefined here: under
+#                           `set -u`, a script that forgets it stops at the first retry instead of
+#                           retrying with no wait.
+#   error_diagnosis()       optional. error() calls it before exiting, to print the repository and
+#                           the arguments that script works with. A no-op when nothing defines it.
+#                           Cleanup is not a hook: register `trap <your cleanup> EXIT`, which covers
+#                           the paths that never reach error() as well.
 #
 # Sourced, never executed, hence no shebang.
 # =============================================================================================
@@ -46,15 +48,25 @@ fail() { echo "[${this_script_name}] FAIL: $*" >&2; failures=$((failures + 1)); 
 
 pass() { echo "[${this_script_name}] ok:   $*"; }
 
+error(){
+    echo -e "[${this_script_name}]: $*" >> /dev/stderr
+    # The customization point: a script defines error_diagnosis to report the repository and the
+    # arguments it works with. Tested here rather than defaulted above, so the hook works whichever
+    # side of the source line the script defines it on, and survives being inlined by
+    # compose-standalone.py, which carries functions and not the statements between them.
+    declare -F error_diagnosis >/dev/null && error_diagnosis
+    exit 1
+}
+
 warning(){
-    echo -e "[${this_script_name}]: $@" >> /dev/stderr
+    echo -e "[${this_script_name}]: $*" >> /dev/stderr
 }
 
 log(){
     if [[ "${arg_silent}" == 1 ]]; then
         return 0;
     fi
-    echo -e "[${this_script_name}]: $@"
+    echo -e "[${this_script_name}]: $*"
     return 0
 }
 
@@ -119,6 +131,33 @@ run_with_retries(){
     run "${what}" "$@"
 }
 
+# The majors a --versions selector picks out of the ones actually available, one per line.
+# `latest-stable` resolves as `latest` here. A script whose available list cannot answer it -
+# llvm.sh reading dpkg rather than the upstream index - refuses it before calling.
+select_versions(){
+    local selector="$1"
+    local versions="$2"
+
+    case "${selector}" in
+        all )
+            echo "${versions}" ;;
+        latest | latest-stable )
+            echo "${versions}" | tail -1 ;;
+        '>='[0-9]* )
+            local from
+            from=$(echo "${selector}" | grep -oP '^>=\K[0-9]+$')
+            [ -n "${from}" ] || error "invalid version='>=[0-9]+' value: [${selector}]"
+            echo "${versions}" | awk -v from="${from}" '$1 >= from' ;;
+        * )
+            [[ "${selector}" =~ ^[0-9]+( [0-9]+)*$ ]] \
+                || error "invalid value for argument version [${selector}]"
+            local requested
+            for requested in ${selector}; do
+                grep -qx -- "${requested}" <<< "${versions}" && echo "${requested}"
+            done ;;
+    esac
+}
+
 # binutils reads the SONAME straight out of the ELF. A runtime image ships none of it, so the name
 # up to the major stands in - an approximation, whose limits scripts/checks/README.md states.
 soname_of(){
@@ -171,4 +210,20 @@ version_of_package(){
     version="${version#*:}"
     version="${version%%[-~]*}"
     printf '%s' "${version:--}"
+}
+
+# Candidate library paths on stdin, resolved and deduplicated, one real file per line.
+# Resolving first is what stops /lib and /usr/lib - the same directory on a merged-usr host -
+# reporting one library twice.
+unique_library_files(){
+    local file real
+    local -A seen=()
+
+    while read -r file; do
+        real=$(readlink -f "${file}" 2>/dev/null)
+        [ -f "${real}" ] || continue
+        [ -z "${seen[${real}]:-}" ] || continue
+        seen[${real}]=1
+        printf '%s\n' "${real}"
+    done
 }

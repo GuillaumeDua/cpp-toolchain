@@ -69,11 +69,6 @@ error_diagnosis(){
         echo -e "\t- toolchain PPA source: [${sources:-<none registered>}]"
     } >> /dev/stderr
 }
-error(){
-    echo -e "[${this_script_name}]: $@" >> /dev/stderr
-    error_diagnosis
-    exit 1
-}
 
 # The helpers shared with the other scripts. The standalone copy published for each release
 # carries them inlined here instead - scripts/details/compose-standalone.py.
@@ -181,29 +176,6 @@ list_installed_gcc_versions(){
 # Filter a set of majors by a --versions selector.
 #   This reports what is present rather than what could be installed,
 #   so an explicit list is intersected with the set rather than passed through.
-select_versions(){
-    local selector="$1"
-    local versions="$2"
-
-    case "${selector}" in
-        all )
-            echo "${versions}" ;;
-        latest | latest-stable )
-            echo "${versions}" | tail -1 ;;
-        '>='[0-9]* )
-            local from
-            from=$(echo "${selector}" | grep -oP '^>=\K[0-9]+$')
-            [ -n "${from}" ] || error "invalid version='>=[0-9]+' value: [${selector}]"
-            echo "${versions}" | awk -v from="${from}" '$1 >= from' ;;
-        * )
-            [[ "${selector}" =~ ^[0-9]+( [0-9]+)*$ ]] \
-                || error "invalid value for argument version [${selector}]"
-            local requested
-            for requested in ${selector}; do
-                grep -qx -- "${requested}" <<< "${versions}" && echo "${requested}"
-            done ;;
-    esac
-}
 
 if [[ ${arg_list_installed} == 1 ]]; then
     installed_versions=$(list_installed_gcc_versions)

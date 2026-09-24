@@ -89,11 +89,6 @@ error_diagnosis(){
         echo -e "\t- with gcc:           [${arg_with_gcc}]"
     } >> /dev/stderr
 }
-error(){
-    echo -e "[${this_script_name}]: $@" >> /dev/stderr
-    error_diagnosis
-    exit 1
-}
 
 # The helpers shared with the other scripts. The standalone copy published for each release
 # carries them inlined here instead - scripts/details/compose-standalone.py.
