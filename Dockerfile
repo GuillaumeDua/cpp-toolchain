@@ -139,6 +139,10 @@ RUN apt-get update -qqy                                                         
 #   - g++ and clang++ linking with libstdc++,
 #   - `clang++ -stdlib=libc++` linking with libc++.
 ARG TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
+# The helpers the installer below sources. Its own directory is ${TOOLCHAIN_TMP_DIR}/scripts,
+#   so `../details/shared.sh` resolves here. .dockerignore carries the matching exception.
+COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
+
 COPY ./scripts/install/gcc.sh  ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
@@ -206,6 +210,10 @@ RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Build: CMake (https://apt.kitware.com/)
+# The helpers the installer below sources. Its own directory is ${TOOLCHAIN_TMP_DIR}/scripts,
+#   so `../details/shared.sh` resolves here. .dockerignore carries the matching exception.
+COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
+
 COPY ./scripts/install/cmake.sh ${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG CMAKE_VERSION
@@ -380,6 +388,10 @@ SHELL ["/bin/bash", "-c"]
 # C++ toolchain: LLVM/Clang - full toolchain (clang-tidy, clang-format, clangd, lldb, scan-build).
 #   Re-runs llvm.sh in `--mode=full` to install the analysis tools and register them alongside the
 #   clang/clang++ compilers the `build` stage already installed.
+# The helpers the installer below sources. Its own directory is ${TOOLCHAIN_TMP_DIR}/scripts,
+#   so `../details/shared.sh` resolves here. .dockerignore carries the matching exception.
+COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
+
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
@@ -411,6 +423,10 @@ SHELL ["/bin/bash", "-c"]
 #   The `build` stage took the compilers only; re-run llvm.sh in `--mode=coverage` to add llvm-<N>
 #   and its alternatives - the GCC side (gcov) already ships with GCC and lcov (`genhtml`) is
 #   installed below.
+# The helpers the installer below sources. Its own directory is ${TOOLCHAIN_TMP_DIR}/scripts,
+#   so `../details/shared.sh` resolves here. .dockerignore carries the matching exception.
+COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
+
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS

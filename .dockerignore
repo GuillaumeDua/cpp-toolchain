@@ -15,8 +15,12 @@ build
 .*
 
 # Repository tooling - pin guard, release-note renderer, promotion-record schema, smoke test.
-# Nothing here is COPYed by the Dockerfile; the smoke test reaches a built image by bind-mount.
+# The smoke test reaches a built image by bind-mount rather than being COPYed.
 scripts/details
+
+# The one exception: the install and checks scripts source it, so it has to reach every stage that
+# runs one of them. The standalone copies published per release carry it inlined instead.
+!scripts/details/shared.sh
 
 # Non-build content living at the repo root
 docs

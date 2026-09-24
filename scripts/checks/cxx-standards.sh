@@ -16,7 +16,9 @@ arg_cxx=''
 
 default_cxx='g++'
 
-die() { echo "[${this_script_name}] error: $*" >&2; exit 1; }
+# The helpers shared with the other scripts. The standalone copy published for each release
+# carries them inlined here instead - scripts/details/compose-standalone.py.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
 
 help(){
     echo "Usage: ${this_script_name} [--stable] [--greatest] [--format=<format>] [compiler]" 1>&2

@@ -66,74 +66,10 @@ error(){
     error_diagnosis
     clean; exit 1
 }
-warning(){
-    echo -e "[${this_script_name}]: $@" >> /dev/stderr
-}
-log(){
-    if [[ "${arg_silent}" == 1 ]]; then
-        return 0;
-    fi
-    echo -e "[${this_script_name}]: $@"
-    return 0
-}
-# Runs a command quietly, replaying its output only if it fails.
-run(){
-    local what="$1"; shift
-    local output streamed=0 status=0
 
-    output=$(mktemp)
-    if [[ "${arg_silent}" == 0 ]]; then
-        # stderr, because stdout carries the result to the caller.
-        streamed=1
-        "$@" 2>&1 | tee "${output}" >&2
-        status=${PIPESTATUS[0]}
-    else
-        "$@" > "${output}" 2>&1 || status=$?
-    fi
-
-    if [ "${status}" -eq 0 ]; then
-        rm -f "${output}"
-        return 0
-    fi
-
-    {
-        echo -e "[${this_script_name}]: ${what} failed - exit status [${status}]"
-        echo -e "[${this_script_name}]: command: [$*]"
-        if [ "${streamed}" -eq 0 ]; then
-            echo -e "[${this_script_name}]: --- output ---"
-            cat "${output}"
-            echo -e "[${this_script_name}]: --- end of output ---"
-        fi
-    } >> /dev/stderr
-    rm -f "${output}"
-    return "${status}"
-}
-# A third-party host can refuse a request transiently - that should not sink a whole image build.
-# Every step retried here is idempotent, and only the last attempt reports.
-run_with_retries(){
-    local attempts="$1" what="$2"; shift 2
-    local attempt=1
-
-    while [ "${attempt}" -lt "${attempts}" ]; do
-        "$@" > /dev/null 2>&1 && return 0
-        warning "${what} failed - retrying in $(( attempt * retry_backoff_seconds ))s (attempt $(( attempt + 1 ))/${attempts})"
-        sleep $(( attempt * retry_backoff_seconds ))
-        attempt=$(( attempt + 1 ))
-    done
-    run "${what}" "$@"
-}
-to_boolean(){
-    if [[ $# != 1 ]]; then
-        error "$0: missing argument"
-    fi
-    case "$1" in
-        [Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee]) echo 1;;
-        [Nn]|[Nn][Oo]|0|[Ff][Aa][Ll][Ss][Ee]) echo 0;;
-        *)
-            error "to_boolean: invalid conversion from [$1] to boolean"
-            ;;
-    esac
-}
+# The helpers shared with the other scripts. The standalone copy published for each release
+# carries them inlined here instead - scripts/details/compose-standalone.py.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
 
 # --- options management ---
 

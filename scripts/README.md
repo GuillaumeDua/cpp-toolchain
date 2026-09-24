@@ -1,6 +1,7 @@
 # Standalone scripts
 
-The public scripts are self-contained: fetch one and run it on any Debian/Ubuntu-based host, with no image and no checkout involved.
+The public scripts are published self-contained: fetch one from a release and run it on any Debian/Ubuntu-based host, with no image and no checkout involved.
+In this repository they source their shared helpers instead of carrying them, so fetch the published copy rather than the file here - see [Using a public script on its own](#using-a-public-script-on-its-own).
 [Using the images](../docs/IMAGES.md) is the Docker route instead.
 
 | Directory | Scope | What lives there |
@@ -24,34 +25,44 @@ Being repo-specific is what the two share; unlike the top-level one, these *must
 > - Optional value needs `<name>=<value>` semantic
 > - There are no positional arguments.
 
-Everything marked **Public** is a single file that needs nothing around it, so you can pull it straight from `raw.githubusercontent.com` and drop it into a project, a CI job or a plain shell - no image to pull, no repository to clone, no commitment to the rest of this toolchain:
+Everything marked **Public** is published as a single file that needs nothing around it, so you can drop it into a project, a CI job or a plain shell - no image to pull, no repository to clone, no commitment to the rest of this toolchain:
 
 ```bash
-base=https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts
+base=https://github.com/GuillaumeDua/cpp-toolchain/releases/latest/download
 
 # Install a toolchain on any Debian/Ubuntu-based host
-wget "${base}/install/gcc.sh"
+wget "${base}/gcc.sh"
 sudo bash gcc.sh --versions='>=13'
 
 # Ask a compiler which C++ standards it accepts - useful to drive a CI matrix
-wget "${base}/checks/cxx-standards.sh"
+wget "${base}/cxx-standards.sh"
 bash cxx-standards.sh --greatest --stable --format=std g++
 # -> c++26
 
 # Ask which ABI the installed libstdc++ exposes - the marker a 'GLIBCXX_... not found' names
-wget "${base}/checks/cxx-stdlibs.sh"
+wget "${base}/cxx-stdlibs.sh"
 bash cxx-stdlibs.sh --stdlib=libstdc++ --format=abi
 # -> GLIBCXX_3.4.35
 
 # The same question about the C standard library
-wget "${base}/checks/c-stdlibs.sh"
+wget "${base}/c-stdlibs.sh"
 bash c-stdlibs.sh --format=abi
 # -> GLIBC_2.39
 ```
 
 Every one of them describes itself with `--help`, so the fetched file is its own documentation.
 
-Swap `main` for a release tag when you want the URL pinned, which is what you usually want in CI - `main` moves.
+`latest` is the newest release, and skips the release candidates. Swap it for `download/<tag>` when you want the URL pinned, which is what you usually want in CI:
 
-The `Internal` rows are not fetchable this way.
+```bash
+base=https://github.com/GuillaumeDua/cpp-toolchain/releases/download/v1.3
+```
+
+> [!NOTE]
+> The file in this repository is not the file you download.
+> Here, each script sources its shared helpers from [details/shared.sh](details/shared.sh), so a helper is written once.
+> The published copy carries them inlined, which is what makes it runnable on its own - see [details/compose-standalone.py](details/compose-standalone.py).
+> Fetching `scripts/install/gcc.sh` out of the repository gets you a script that cannot find its helpers.
+
+The `Internal` rows are not published at all.
 They reach the rest of the tree by relative path and only work inside a checkout or an image.

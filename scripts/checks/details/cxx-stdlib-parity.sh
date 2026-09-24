@@ -8,11 +8,9 @@ this_script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 stdlibs_script="${this_script_dir}/../cxx-stdlibs.sh"
 
-failures=0
-
-die()  { echo "[${this_script_name}] error: $*" >&2; exit 1; }
-fail() { echo "[${this_script_name}] FAIL: $*" >&2; failures=$((failures + 1)); }
-pass() { echo "[${this_script_name}] ok:   $*"; }
+# The helpers shared with the other scripts. The standalone copy published for each release
+# carries them inlined here instead - scripts/details/compose-standalone.py.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../details/shared.sh"
 
 # What this image has, as '<impl> <soname> <version> <abi>', one line per distinct SONAME.
 #   The SONAME is the key rather than the package or the path: it is what the linker writes into a
