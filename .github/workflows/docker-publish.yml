@@ -549,6 +549,9 @@ jobs:
       # previous release's record is what it diffs them against.
       # The pins and the changelog already rendered before the build - this is the same note with the
       # half that needed the images, so a failure here costs a re-run rather than the build window.
+      # The changelog is fetched again rather than reusing that copy: render-manifest.py reads an
+      # empty --changelog as "no changelog", so a reference that stopped resolving would ship a note
+      # missing a section without failing anything.
       - name: Generate the changelog
         id: changelog
         if: success() && steps.changed.outputs.skip != 'true'
