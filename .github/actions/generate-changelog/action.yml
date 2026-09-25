@@ -1,0 +1,46 @@
+name: Generate the changelog
+description: >
+  What the repository changed between the previous release and this one, from GitHub's generate-notes API.
+  It is the half of a release note that neither the Dockerfile nor a promotion record can answer.
+
+# A composite action does not inherit `secrets`, so the caller passes the token in.
+inputs:
+  tag:
+    description: Release the notes are generated for. It need not exist yet.
+    required: true
+  commitish:
+    description: >
+      Ref bounding the range, and the one generate-notes reads .github/release.yml from.
+      The promotion path passes the recorded rc commit rather than the merge commit.
+    required: false
+    default: ${{ github.sha }}
+  github-token:
+    description: "Token carrying `contents: read`"
+    required: true
+
+outputs:
+  file:
+    description: Path of the markdown written, for render-manifest.py --changelog.
+    value: ${{ steps.generate.outputs.file }}
+
+runs:
+  using: composite
+  steps:
+    # Under RUNNER_TEMP, not in the checkout: nothing generated belongs in the working tree, and the
+    # path is an output so no caller has to spell it.
+    - id: generate
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        TAG: ${{ inputs.tag }}
+        COMMITISH: ${{ inputs.commitish }}
+      run: |
+        set -euo pipefail
+        # `previous` is empty only for a first release, where generate-notes bounds the range itself.
+        previous=$(python3 scripts/details/check-release-file.py --print-newest-release --tag "${TAG}")
+        gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+          -f tag_name="${TAG}" \
+          -f target_commitish="${COMMITISH}" \
+          ${previous:+-f "previous_tag_name=${previous}"} \
+          --jq .body > "${RUNNER_TEMP}/changelog.md"
+        echo "file=${RUNNER_TEMP}/changelog.md" >> "$GITHUB_OUTPUT"
