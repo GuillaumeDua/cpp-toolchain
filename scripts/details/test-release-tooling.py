@@ -120,6 +120,15 @@ def render(*arguments, changelog=None):
         return done.stdout
 
 
+def print_date(body):
+    """render-manifest.py --print-date over `body`, the way docker-publish.yml pipes a release body in."""
+    done = subprocess.run(
+        [sys.executable, str(HERE / "render-manifest.py"), "--print-date"],
+        input=body, capture_output=True, text=True, check=True,
+    )
+    return done.stdout.strip()
+
+
 class RenderVersion(unittest.TestCase):
     def test_renovate_scheme_names_the_parts(self):
         # Doxygen pins the git tag while the image reports a dotted version.
@@ -609,6 +618,16 @@ class NoteHeading(unittest.TestCase):
     def test_no_date_asked_no_date_rendered(self):
         # A local render stays byte-comparable with the one before it.
         self.assertIn("## What's inside v1.4\n", render("--tag", "v1.4", "--previous-ref", ""))
+
+    def test_a_rendered_date_reads_back(self):
+        # The promote job re-dates a note from the release it already published, so the heading
+        # this renders and the date --print-date recovers have to be the same format.
+        note = render("--tag", "v1.4", "--previous-ref", "", "--date", "2026-08-25")
+        self.assertEqual("2026-08-25", print_date(note))
+
+    def test_an_undated_note_reads_back_empty(self):
+        # A first release, where the caller falls back to today.
+        self.assertEqual("", print_date(render("--tag", "v1.4", "--previous-ref", "")))
 
     def test_the_cross_targets_are_the_ones_binutils_resolves(self):
         note = render("--tag", "v1.4", "--previous-ref", "")

@@ -17,6 +17,7 @@ Usage, from the repository root - `--dockerfile` and `--renovate` default to pat
     python3 scripts/details/render-manifest.py --tag v1.2 --changelog changelog.md --versions releases/v1.2.yaml --date 2026-08-25
     python3 scripts/details/render-manifest.py --collected build-metadata/versions/
     python3 scripts/details/render-manifest.py --replace-region manifest --with note.md < body.md
+    python3 scripts/details/render-manifest.py --print-date < body.md
 
 `--previous-ref` defaults to the newest release before `--tag`, 
 which is the base every caller wants, so no caller computes one.
@@ -27,6 +28,11 @@ A named ref that cannot be read, or that parses to no pins, is never silently re
 `--replace-region` edits a release body in place around the `<!-- name:begin -->` markers this
 script emits, and refuses an unbalanced pair. Every caller that upserts a release body goes
 through it, so hand-written prose outside the region survives a re-run.
+
+`--print-date` reads a date back out of a release body this script wrote, so the heading format has
+one owner rather than a copy of it in the caller. A promotion re-run for a rollback re-dates its note
+from the release it already published, which has to say the day the release shipped rather than the
+day it was restored.
 
 `--changelog` places a block of markdown inside that same region, after the manifest:
 - what the repository changed, which only GitHub's generate-notes API can answer.
@@ -255,6 +261,22 @@ def replace_region(body, name, replacement, when_absent):
     if ends[0] < starts[0]:
         raise SystemExit(f"::error::{name}: '{end}' precedes '{begin}'")
     return "\n".join(lines[:starts[0]] + replacement.splitlines() + lines[ends[0] + 1:])
+
+
+# The heading and its inverse, together so a change to the format lands beside the code reading it.
+# docker-publish.yml re-dates a note from the release it already published, which is a read of this
+# heading.
+HEADING_DATE = re.compile(r"^## What's inside \S+ - (\d{4}-\d{2}-\d{2})[ \t]*$", re.M)
+
+
+def manifest_heading(tag, date):
+    return f"## What's inside {tag}" + (f" - {date}" if date else "")
+
+
+def date_in_body(body):
+    """The date `manifest_heading` stamped into a release body, empty when it carries none."""
+    found = HEADING_DATE.search(body)
+    return found.group(1) if found else ""
 
 
 def read_fields(text):
@@ -688,6 +710,8 @@ def main():
                         help="the replacement block, for --replace-region")
     parser.add_argument("--when-absent", choices=["append", "prepend"], default="append",
                         help="where to put the block when the region is not there yet (default: append)")
+    parser.add_argument("--print-date", action="store_true",
+                        help="print the date in a release body read on stdin, empty when it carries none (no --tag needed)")
     parser.add_argument("--dockerfile", default="Dockerfile")
     parser.add_argument("--renovate", default="renovate.json")
     args = parser.parse_args()
@@ -697,6 +721,10 @@ def main():
             parser.error("--replace-region needs --with FILE")
         replacement = pathlib.Path(args.replacement).read_text(encoding="utf-8")
         print(replace_region(sys.stdin.read(), args.replace_region, replacement, args.when_absent))
+        return
+
+    if args.print_date:
+        print(date_in_body(sys.stdin.read()))
         return
 
     if args.collected:
@@ -778,7 +806,7 @@ def main():
     # version id only the Packages API knows), so the closest deep link is the tagged-only view.
     out = [
         "<!-- manifest:begin -->",
-        f"## What's inside {args.tag}" + (f" - {args.date}" if args.date else ""),
+        manifest_heading(args.tag, args.date),
         "",
         f"Published to [GHCR]({GHCR_PAGE}/versions?filters%5Bversion_type%5D=tagged)"
         f" and [Docker Hub]({DOCKERHUB_PAGE}/tags?name={args.tag}).",
