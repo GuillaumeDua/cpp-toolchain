@@ -92,6 +92,15 @@ jobs:
       # and rendering from it would describe pins the image does not have.
       # `target_commitish` carries that through to the changelog half: it bounds the pull request range,
       # and it is the ref generate-notes reads .github/release.yml from.
+      - name: Generate the changelog
+        id: changelog
+        if: steps.record.outputs.skip != 'true'
+        uses: ./.github/actions/generate-changelog
+        with:
+          tag: ${{ steps.record.outputs.version }}
+          commitish: ${{ steps.record.outputs.commit }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Render the release note
         if: steps.record.outputs.skip != 'true'
         env:
@@ -99,22 +108,16 @@ jobs:
           FILE: ${{ steps.record.outputs.file }}
           VERSION: ${{ steps.record.outputs.version }}
           RC_COMMIT: ${{ steps.record.outputs.commit }}
+          CHANGELOG: ${{ steps.changelog.outputs.file }}
         run: |
           set -euo pipefail
-          # `previous` is empty only for a first release, where generate-notes bounds the range itself.
-          previous=$(python3 scripts/details/check-release-file.py --print-newest-release --tag "${VERSION}")
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-            -f tag_name="${VERSION}" \
-            -f target_commitish="${RC_COMMIT}" \
-            ${previous:+-f "previous_tag_name=${previous}"} \
-            --jq .body > changelog.md
           # A release already carrying a date keeps it: a rollback re-runs an old promotion, and
           # re-dating the note there would say the release shipped on the day it was restored.
           date=$(gh release view "${VERSION}" --json body --jq .body 2>/dev/null \
                  | python3 scripts/details/render-manifest.py --print-date || true)
           python3 scripts/details/render-manifest.py \
             --tag "${VERSION}" --ref "${RC_COMMIT}" --date "${date:-$(date -u +%F)}" \
-            --changelog changelog.md --versions "${FILE}" > note.md
+            --changelog "${CHANGELOG}" --versions "${FILE}" > note.md
           cat note.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Log in to both registries
@@ -404,21 +407,22 @@ jobs:
       # tag git never learns about.
       #   generate-notes answers for a tag that does not exist yet, which is what makes the
       #   changelog half reachable this early - and it is the call that parses .github/release.yml.
+      - name: Generate the changelog
+        id: changelog-dry-run
+        if: steps.changed.outputs.skip != 'true'
+        uses: ./.github/actions/generate-changelog
+        with:
+          tag: ${{ steps.meta.outputs.primary }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Validate the release note renders
         if: steps.changed.outputs.skip != 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PRIMARY: ${{ steps.meta.outputs.primary }}
+          CHANGELOG: ${{ steps.changelog-dry-run.outputs.file }}
         run: |
           set -euo pipefail
-          # `previous` is empty only for a first release, where generate-notes bounds the range itself.
-          previous=$(python3 scripts/details/check-release-file.py --print-newest-release --tag "${PRIMARY}")
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-            -f tag_name="${PRIMARY}" \
-            -f target_commitish="${GITHUB_SHA}" \
-            ${previous:+-f "previous_tag_name=${previous}"} \
-            --jq .body > changelog.md
-          python3 scripts/details/render-manifest.py --tag "${PRIMARY}" --changelog changelog.md > /dev/null
+          python3 scripts/details/render-manifest.py --tag "${PRIMARY}" --changelog "${CHANGELOG}" > /dev/null
           echo "the release note renders, and .github/release.yml parses"
 
       - name: Set up Docker Buildx
@@ -545,23 +549,25 @@ jobs:
       # previous release's record is what it diffs them against.
       # The pins and the changelog already rendered before the build - this is the same note with the
       # half that needed the images, so a failure here costs a re-run rather than the build window.
+      - name: Generate the changelog
+        id: changelog
+        if: success() && steps.changed.outputs.skip != 'true'
+        uses: ./.github/actions/generate-changelog
+        with:
+          tag: ${{ steps.meta.outputs.primary }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Render the release note
         if: success() && steps.changed.outputs.skip != 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.meta.outputs.version }}
           PRIMARY: ${{ steps.meta.outputs.primary }}
+          CHANGELOG: ${{ steps.changelog.outputs.file }}
         run: |
           set -euo pipefail
-          previous=$(python3 scripts/details/check-release-file.py --print-newest-release --tag "${PRIMARY}")
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-            -f tag_name="${PRIMARY}" \
-            -f target_commitish="${GITHUB_SHA}" \
-            ${previous:+-f "previous_tag_name=${previous}"} \
-            --jq .body > changelog.md
           python3 scripts/details/render-manifest.py \
             --tag "${PRIMARY}" --date "$(date -u +%F)" \
-            --changelog changelog.md --versions "releases/${VERSION}.yaml" > note.md
+            --changelog "${CHANGELOG}" --versions "releases/${VERSION}.yaml" > note.md
           cat note.md >> "$GITHUB_STEP_SUMMARY"
 
       # The rc pre-release is what mints the v1.2-rc.N git tag:
