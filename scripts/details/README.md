@@ -13,11 +13,12 @@ Implementation details of *this* repository - unlike the [toolchain installers](
 | `cxx-toolchain-versions.sh` | Runs *inside* a published image and reports what it carries where a pin cannot say it - the distribution point release and archive snapshot, both compilers, all three standard library implementations with their ABI levels, and the toolchain commands - as `key=value` lines. See [Tags & versioning](../../README.md#whats-inside-a-given-tag). Composes [`gcc.sh`/`llvm.sh --list-installed`](../install/), [`cxx-stdlibs.sh`](../checks/cxx-stdlibs.sh) and [`c-stdlibs.sh`](../checks/c-stdlibs.sh) |
 | `build-stages.sh` | Builds a list of Dockerfile stages, one buildx invocation each. Owns the buildx flags and the layer cache scopes for both [docker-build](../../.github/workflows/docker-build.yml) and [docker-publish](../../.github/workflows/docker-publish.yml) |
 | `smoke-test.sh` | Runs *inside* a candidate image - compiles and runs a C++23 hello world with both default compilers. Bind-mounted and executed by [release-candidate-check.yml](../../.github/workflows/release-candidate-check.yml) |
+| `_loader.py` | Imports a sibling script whose hyphenated filename a normal `import` cannot spell. Used by the three Python tools that read each other |
 | `test-release-tooling.py` | Covers `render-manifest.py` and `check-release-file.py`, the two scripts that write release pages and the `bumps:` half of a promotion record. Inline fixtures, so a pin bump never turns a test red |
 
 Everything here that runs at all runs from the **repository root**: the Python defaults are paths relative to the working directory, and `build-stages.sh` uses it as the build context.
 `smoke-test.sh` and `cxx-toolchain-versions.sh` are the exceptions: they run inside an image, over a bind-mounted `scripts/`, not here.
-`shared.sh` runs nowhere - it is sourced, or inlined into a published copy.
+`shared.sh` and `_loader.py` run nowhere: the first is sourced, or inlined into a published copy, the second imported.
 
 ```bash
 python3 scripts/details/check-dependencies-pins.py               # exits non-zero and reports every violation

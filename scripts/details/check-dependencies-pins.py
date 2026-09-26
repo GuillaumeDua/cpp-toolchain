@@ -27,17 +27,17 @@ Exits non-zero and reports every violation it found, rather than only the first.
 """
 
 import argparse
-import importlib.util
 import os
 import pathlib
 import re
 import sys
 
-HERE = pathlib.Path(__file__).resolve().parent
-
 # Importing render-manifest.py below would drop a scripts/details/__pycache__/ next to the sources, on every local run and every CI run.
 # Nothing reimports these often enough for the cache to pay off.
 sys.dont_write_bytecode = True
+
+# Below that line rather than with the imports above it, or the first thing cached is _loader itself.
+from _loader import load
 
 # ARG name -> why it carries no Renovate annotation.
 EXEMPT = {
@@ -48,18 +48,6 @@ EXEMPT = {
 FLOATING = re.compile(r"latest|master")
 
 ARG_DECL = re.compile(r"^ARG ([A-Za-z_][A-Za-z0-9_]*)=(\S+)(?P<tail>.*)$")
-
-
-def load_render_manifest():
-    """render-manifest.py, imported by path - the hyphen makes it not a normal module name.
-
-    js_to_py and dockerfile_managers are shared rather than reimplemented:
-        both tools have to read renovate.json the same way, or the manifest and this guard disagree about what Renovate covers.
-    """
-    spec = importlib.util.spec_from_file_location("render_manifest", HERE / "render-manifest.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def split_at_first_stage(dockerfile):
@@ -157,7 +145,10 @@ def main():
     dockerfile = pathlib.Path(args.dockerfile).read_text(encoding="utf-8")
     renovate_config = pathlib.Path(args.renovate).read_text(encoding="utf-8")
 
-    problems, declared = check(dockerfile, renovate_config, load_render_manifest())
+    # render-manifest.py's js_to_py and dockerfile_managers are shared rather than reimplemented:
+    #   both tools have to read renovate.json the same way, or the manifest and this guard disagree
+    #   about what Renovate covers.
+    problems, declared = check(dockerfile, renovate_config, load("render-manifest"))
 
     # Annotations render inline on the diff under Actions; plain text is more readable in a terminal.
     on_actions = bool(os.environ.get("GITHUB_ACTIONS"))

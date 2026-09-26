@@ -63,7 +63,6 @@ date, so a local render stays byte-comparable with the one before it.
 """
 
 import argparse
-import importlib.util
 import json
 import pathlib
 import re
@@ -73,6 +72,9 @@ import sys
 # Importing check-release-file.py below would drop a scripts/details/__pycache__/ next to the
 # sources, on every local run and every CI run.
 sys.dont_write_bytecode = True
+
+# Below that line rather than with the imports above it, or the first thing cached is _loader itself.
+from _loader import load
 
 HERE = pathlib.Path(__file__).resolve().parent
 
@@ -135,20 +137,10 @@ COLLECTED_BY_PIN = {
 PLATFORM = "linux/amd64"
 
 
-def load_check_release_file():
-    """check-release-file.py, imported by path - the hyphen makes it not a normal module name.
-
-    It owns the version grammar and the registry references:
-        the tag the workflows publish, the base this note diffs against, and the image it tells
-        readers to pull are then one answer rather than three spellings of it.
-    """
-    spec = importlib.util.spec_from_file_location("check_release_file", HERE / "check-release-file.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-schema = load_check_release_file()
+# check-release-file.py owns the version grammar and the registry references:
+#   the tag the workflows publish, the base this note diffs against, and the image it tells
+#   readers to pull are then one answer rather than three spellings of it.
+schema = load("check-release-file")
 newest_release_before = schema.newest_release_before
 
 GHCR_REFERENCE = schema.REGISTRIES["ghcr"]
