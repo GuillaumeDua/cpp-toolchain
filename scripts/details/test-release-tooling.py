@@ -485,10 +485,40 @@ class Versions(unittest.TestCase):
         now = {"tools": {"lcov": "documentation dev"}}
         before = {"tools": {"lcov": "dev"}}
         self.assertEqual(render_manifest.introduced_changes(now, before),
-                         ["| lcov | `dev` | `documentation dev` |"])
+                         ["| lcov | `dev` | `documentation`, `dev` |"])
+
+    def test_a_stage_list_reads_as_it_does_in_the_tables_above(self):
+        # One code span per stage, in build order - whatever order the collector wrote them in.
+        now = {"tools": {"lcov": "dev documentation"}}
+        before = {"tools": {"lcov": "dev"}}
+        self.assertEqual(render_manifest.introduced_changes(now, before),
+                         ["| lcov | `dev` | `documentation`, `dev` |"])
+
+    def test_a_component_carries_its_display_label(self):
+        self.assertEqual(
+            render_manifest.introduced_changes({"distribution": {"ubuntu": "runtime build"}},
+                                               {"distribution": {"ubuntu": "runtime"}}),
+            ["| Ubuntu | `runtime` | `runtime`, `build` |"])
 
     def test_a_component_present_on_one_side_only_is_left_to_the_table_above(self):
         self.assertEqual(render_manifest.introduced_changes({"tools": {"lcov": "dev"}}, {}), [])
+
+    def test_both_sections_are_read_off_a_record(self):
+        # No shipped record carries either section yet, so nothing else reaches this reader.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "v1.4.yaml"
+            path.write_text("version: \"v1.4\"\n"
+                            "versions:\n  tools:\n    cmake: \"4.1.2\"\n"
+                            "introduced:\n  tools:\n    cmake: \"build\"\n", encoding="utf-8")
+            self.assertEqual(render_manifest.record_section(path, "versions"),
+                             {"tools": {"cmake": "4.1.2"}})
+            self.assertEqual(render_manifest.record_section(path, "introduced"),
+                             {"tools": {"cmake": "build"}})
+
+            bare = pathlib.Path(directory) / "v1.3.yaml"
+            bare.write_text("version: \"v1.3\"\n", encoding="utf-8")
+            self.assertEqual(render_manifest.record_section(bare, "versions"), {})
+            self.assertEqual(render_manifest.record_section(bare, "introduced"), {})
 
     def test_an_ungrouped_key_is_refused(self):
         with self.assertRaises(SystemExit):

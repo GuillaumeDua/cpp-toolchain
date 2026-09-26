@@ -110,6 +110,9 @@ LABEL_GROUPS = (
 )
 
 LABELS = [pair for _, pairs in LABEL_GROUPS for pair in pairs]
+# LABELS stays a list because the manifest's display order comes off it; this is the same by name,
+# for the tables that look one label up instead of walking that order.
+LABEL_BY_NAME = dict(LABELS)
 SHELL_PINS = [name for name, _ in dict(LABEL_GROUPS)["shell"]]
 
 # What a `Pinned` cell says for a component no version pin covers: apt is what fixes its version.
@@ -458,6 +461,16 @@ def installed_cell(name, pinned, versions, introduced, versioning):
     return "-"
 
 
+def stage_order(value):
+    """The stages in an `introduced:` value, deduplicated and in build order."""
+    return sorted(set((value or "").split()), key=schema.NORMAL_STAGES.index)
+
+
+def render_stages(stages):
+    """A stage list as a table cell: one code span each, comma-separated."""
+    return ", ".join(f"`{stage}`" for stage in stages)
+
+
 def stage_cell(group, components, introduced):
     """The stages introducing any of `components`, deduplicated and in build order.
 
@@ -465,8 +478,7 @@ def stage_cell(group, components, introduced):
     both branch off `build`, so what either installs is new in both.
     """
     known = (introduced.get(group) or {}) if group else {}
-    stages = {stage for component in components for stage in (known.get(component) or "").split()}
-    return sorted(stages, key=schema.NORMAL_STAGES.index)
+    return stage_order(" ".join(known.get(component) or "" for component in components))
 
 
 def pin_components(name, pinned, versions):
@@ -530,8 +542,7 @@ def content_table(current, ordered, labels, schemes, versions, introduced):
     for stages, position, label, pinned, installed in sorted(
             rows, key=lambda row: (schema.NORMAL_STAGES.index(row[0][0]) if row[0] else len(schema.NORMAL_STAGES),
                                    row[1], row[2])):
-        out.append(f"| {label} | {pinned} | {installed} |"
-                   f" {', '.join(f'`{stage}`' for stage in stages)} |")
+        out.append(f"| {label} | {pinned} | {installed} | {render_stages(stages)} |")
     return out
 
 
@@ -547,7 +558,7 @@ def libraries_table(versions, introduced):
            "| --- | --- | --- | --- | --- |"]
     for package, version, abi, cxxabi in library_rows(libraries):
         cells = " | ".join(f"`{field}`" if field else "" for field in (version, abi, cxxabi))
-        stages = ", ".join(f"`{stage}`" for stage in stage_cell("libraries", [package], introduced))
+        stages = render_stages(stage_cell("libraries", [package], introduced))
         out.append(f"| `{package}` | {cells} | {stages} |")
     return out
 
@@ -588,24 +599,43 @@ def cross_targets():
     return listed.stdout.split()
 
 
+def diff_rows(moved, label, cell, order=(), drop_one_sided=False):
+    """`| label | old | new |` per moved entry: the `order` names first, the rest after them.
+
+    `label` and `cell` both take the name, so either can read what that name is pinned or collected
+    as. A value missing on one side renders `-` instead of going through `cell`, unless
+    `drop_one_sided` leaves the whole row out.
+    """
+    names = [name for name in order if name in moved]
+    names += [name for name in moved if name not in order]
+    rows = []
+    for name in names:
+        old, new = moved[name]
+        if drop_one_sided and (old is None or new is None):
+            continue
+        cells = [cell(name, value) if value is not None else "-" for value in (old, new)]
+        rows.append(f"| {label(name)} | {cells[0]} | {cells[1]} |")
+    return rows
+
+
 def installed_changes(current, previous):
     """A table row per collected value that moved, in group order.
 
     Flat rather than nested under the group: a collected name already says which one it is in.
     """
-    labels = dict(LABELS)
     rows = []
     for group in schema.VERSION_GROUPS:
         now, before = current.get(group) or {}, previous.get(group) or {}
+        # Both sides, because the suffix rule needs the component a field belongs to present.
         known = {**before, **now}
-        for name, (old, new) in moved_pins(now, before).items():
-            if group == "libraries":
-                package, field = split_key(name, known)
-                label = package if field == "version" else f"{package} {FIELD_LABELS[field]}"
-            else:
-                label = labels.get(name, name)
-            cells = [f"`{value}`" if value is not None else "-" for value in (old, new)]
-            rows.append(f"| {label} | {cells[0]} | {cells[1]} |")
+
+        def label(name):
+            if group != "libraries":
+                return LABEL_BY_NAME.get(name, name)
+            package, field = split_key(name, known)
+            return package if field == "version" else f"{package} {FIELD_LABELS[field]}"
+
+        rows += diff_rows(moved_pins(now, before), label, lambda name, value: f"`{value}`")
     return rows
 
 
@@ -614,25 +644,23 @@ def introduced_changes(current, previous):
 
     Components present on one side only are left out: an arrival or a departure is already a row
     of the table above, and a stage of `-` there would say the same thing twice.
+
+    A value here is a stage list rather than a version, so it renders through `render_stages`,
+    the cell the tables above it use for one.
     """
     rows = []
     for group in schema.VERSION_GROUPS:
         now, before = current.get(group) or {}, previous.get(group) or {}
-        for name, (old, new) in moved_pins(now, before).items():
-            if old is None or new is None:
-                continue
-            rows.append(f"| {name} | `{old}` | `{new}` |")
+        rows += diff_rows(moved_pins(now, before),
+                          lambda name: LABEL_BY_NAME.get(name, name),
+                          lambda name, value: render_stages(stage_order(value)),
+                          drop_one_sided=True)
     return rows
 
 
-def load_versions(path):
-    """The `versions:` mapping of a promotion record, or {} when it has none."""
-    return schema.load(path).get("versions") or {}
-
-
-def load_introduced(path):
-    """The `introduced:` mapping of a promotion record, or {} when it has none."""
-    return schema.load(path).get("introduced") or {}
+def record_section(path, key):
+    """The `versions:` or `introduced:` mapping of a promotion record, or {} when it has none."""
+    return schema.load(path).get(key) or {}
 
 
 def moved_pins(current, previous):
@@ -653,16 +681,9 @@ def change_rows(moved, labels, order, schemes):
 
     A pin present on one side only gets `-` on the other, rather than a word for it.
     """
-    names = [name for name in order if name in moved]
-    names += [name for name in moved if name not in order]
-    rows = []
-    for name in names:
-        old, new = moved[name]
-        versioning = schemes.get(name)
-        cells = [f"`{render_version(value, versioning)}`" if value is not None else "-"
-                 for value in (old, new)]
-        rows.append(f"| {labels.get(name, name)} | {cells[0]} | {cells[1]} |")
-    return rows
+    return diff_rows(moved, lambda name: labels.get(name, name),
+                     lambda name, value: f"`{render_version(value, schemes.get(name))}`",
+                     order=order)
 
 
 def bumps_yaml(current, previous, diffing):
@@ -785,13 +806,12 @@ def main():
     if versions and previous_ref:
         previous_record = pathlib.Path(args.versions).parent / f"{previous_ref}.yaml"
         if previous_record.exists():
-            previous_versions = load_versions(previous_record)
-            previous_introduced = load_introduced(previous_record)
+            previous_versions = record_section(previous_record, "versions")
+            previous_introduced = record_section(previous_record, "introduced")
 
     # The shell pins are rendered under a heading of their own, so they leave the toolchain order.
     ordered = [name for name, _ in LABELS if name in current and name not in SHELL_PINS]
-    ordered += sorted(name for name in current if name not in dict(LABELS))
-    labels = dict(LABELS)
+    ordered += sorted(name for name in current if name not in LABEL_BY_NAME)
     targets = cross_targets()
 
     # GHCR URLs cannot filter versions by tag name (its per-tag pages are keyed by a numeric
@@ -846,7 +866,7 @@ def main():
     # rows, and a reader who came for the tag needs none of them open.
     out += ["", "### Content", "",
             "<details><summary><b>Full content</b> - what each stage introduces</summary>", ""]
-    out += content_table(current, ordered, labels, schemes, versions, introduced)
+    out += content_table(current, ordered, LABEL_BY_NAME, schemes, versions, introduced)
     out += ["", "</details>"]
 
     if versions:
@@ -859,7 +879,7 @@ def main():
     if shell:
         out += ["", "### Shell", "", "`dev` only, and unrelated to the toolchain.", "",
                 "| Component | Pinned |", "| --- | --- |"]
-        out += [f"| {labels[name]} | `{render_version(current[name], schemes.get(name))}` |"
+        out += [f"| {LABEL_BY_NAME[name]} | `{render_version(current[name], schemes.get(name))}` |"
                 for name in shell]
 
     if diffing:
@@ -873,7 +893,7 @@ def main():
                 out.append("No pinned version moved.")
             else:
                 out += ["| Pinned | from | to |", "| --- | --- | --- |"]
-                out += change_rows(moved, labels, ordered, schemes)
+                out += change_rows(moved, LABEL_BY_NAME, ordered, schemes)
 
         if versions:
             if not previous_versions:
