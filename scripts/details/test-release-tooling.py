@@ -17,7 +17,6 @@ Usage, from the repository root:
 """
 
 import contextlib
-import importlib.util
 import io
 import pathlib
 import subprocess
@@ -29,16 +28,10 @@ import unittest
 # on every local run and every CI run - the same reason check-dependencies-pins.py sets this.
 sys.dont_write_bytecode = True
 
+# Below that line rather than with the imports above it, or the first thing cached is _loader itself.
+from _loader import load
+
 HERE = pathlib.Path(__file__).resolve().parent
-
-
-def load(stem):
-    """`<stem>.py` from this directory, imported by path - the hyphen makes it not a module name."""
-    spec = importlib.util.spec_from_file_location(stem.replace("-", "_"), HERE / f"{stem}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
 
 render_manifest = load("render-manifest")
 check_release_file = load("check-release-file")
