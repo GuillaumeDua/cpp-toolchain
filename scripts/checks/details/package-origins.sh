@@ -202,8 +202,4 @@ case "${stage}" in
         ;;
 esac
 
-[ "${failures}" -eq 0 ] \
-  || die "${failures} origin check(s) failed on stage [${stage}]"
-
-echo "[${this_script_name}] stage [${stage}]: every package comes from the repository that owns it"
-exit 0
+finish origin "on stage [${stage}]" "stage [${stage}]: every package comes from the repository that owns it"

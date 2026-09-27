@@ -48,6 +48,15 @@ fail() { echo "[${this_script_name}] FAIL: $*" >&2; failures=$((failures + 1)); 
 
 pass() { echo "[${this_script_name}] ok:   $*"; }
 
+finish(){
+    local noun="$1" context="$2" success="$3"
+
+    [ "${failures}" -eq 0 ] || die "${failures} ${noun} check(s) failed ${context}"
+
+    echo "[${this_script_name}] ${success}"
+    exit 0
+}
+
 error(){
     echo -e "[${this_script_name}]: $*" >> /dev/stderr
     # The customization point: a script defines error_diagnosis to report the repository and the
@@ -202,13 +211,17 @@ package_of(){
 
 # Debian versions carry an epoch and a revision around the upstream release,
 # and only the release in the middle is what a developer calls the version.
+upstream_version(){
+    local version="${1#*:}"
+    printf '%s' "${version%%[-~]*}"
+}
+
 version_of_package(){
     [ "$1" != '-' ] || { printf '%s' '-'; return; }
 
     local version
     version=$(dpkg-query -W -f='${Version}' "$1" 2>/dev/null)
-    version="${version#*:}"
-    version="${version%%[-~]*}"
+    version=$(upstream_version "${version}")
     printf '%s' "${version:--}"
 }
 
