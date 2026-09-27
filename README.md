@@ -86,7 +86,7 @@ The stages form a diamond: `static-analysis` and `documentation` both build on `
 | Documentation: doxygen, graphviz - and coverage reports: lcov / genhtml                                         |           |         |                   |       ✅        |  ✅   |
 | Dynamic analysis / debug: valgrind, gdb                                                                         |           |         |                   |                 |  ✅   |
 | Versioning extra: subversion                                                                                    |           |         |                   |                 |  ✅   |
-| Editors: emacs, nano, vim                                                                                       |           |         |                   |                 |  ✅   |
+| Editors: nano, vim                                                                                              |           |         |                   |                 |  ✅   |
 | Shells: bash, zsh                                                                                               |           |         |                   |                 |  ✅   |
 | Misc: jq, ripgrep, docker-compose                                                                               |           |         |                   |                 |  ✅   |
 

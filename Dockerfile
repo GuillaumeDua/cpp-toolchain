@@ -188,11 +188,8 @@ RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         sudo tzdata curl libssl-dev                         \
         less tar zip unzip gzip                             \
         build-essential pkg-config                          \
-        # build: CMake generators
         make ninja-build                                    \
-        # build: cache
         ccache                                              \
-        # versioning
         git                                                 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -462,17 +459,12 @@ SHELL ["/bin/bash", "-c"]
 #   `dev` inherits `static-analysis`, not its `documentation` sibling, so the documentation tools are installed here too.
 #   A stage has a single FROM, and apt packages cannot be cleanly COPY --from'd.
 RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
-        # documentation (doxygen itself is installed as a pre-built binary below; graphviz -> `dot`, lcov -> coverage `genhtml`)
+        # doxygen itself is installed as a pre-built binary below; graphviz -> `dot`, lcov -> coverage `genhtml`
         graphviz lcov                                       \
-        # dynamic analysis
         valgrind                                            \
-        # debug
         gdb                                                 \
-        # versioning
         subversion                                          \
-        # editors
-        emacs nano vim                                      \
-        # misc
+        nano vim                                            \
         docker-compose jq ripgrep                           \
     && rm -rf /var/lib/apt/lists/*
 
