@@ -237,8 +237,4 @@ case "${mode}" in
         ;;
 esac
 
-[ "${failures}" -eq 0 ] \
-  || die "${failures} ${mode} check(s) failed under [${root}]"
-
-echo "[${this_script_name}] ${mode}: all checks passed under [${root}]"
-exit 0
+finish "${mode}" "under [${root}]" "${mode}: all checks passed under [${root}]"

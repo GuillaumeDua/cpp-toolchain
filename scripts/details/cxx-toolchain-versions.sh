@@ -33,7 +33,9 @@ install_scripts_dir="${this_script_dir}/../install"
 stdlibs_script="${this_script_dir}/../checks/cxx-stdlibs.sh"
 c_stdlibs_script="${this_script_dir}/../checks/c-stdlibs.sh"
 
-die() { echo "[${this_script_name}] error: $*" >&2; exit 1; }
+# The helpers shared with the other scripts. This one is not published standalone, so it sources the
+# library at run time where the others carry it inlined.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/shared.sh"
 
 # `-dumpfullversion` on GCC, because `-dumpversion` has reported the major alone since GCC 7.
 # Clang has no such split. Both answer the upstream version, unlike dpkg, which reports
@@ -203,9 +205,7 @@ collect_tools(){
             mapfile -t packages < <(printf '%s\n' "${package_of_path[@]}" | sort -u)
 
             while IFS=' ' read -r package version; do
-                # Debian versions carry an epoch and a revision around the upstream release.
-                version="${version#*:}"
-                version_of_package["${package}"]="${version%%[-~]*}"
+                version_of_package["${package}"]=$(upstream_version "${version}")
             done < <(dpkg-query -W -f='${Package} ${Version}\n' "${packages[@]}" 2>/dev/null)
         fi
     fi

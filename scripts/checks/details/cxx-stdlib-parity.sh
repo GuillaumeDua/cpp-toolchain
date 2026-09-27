@@ -145,8 +145,4 @@ case "${mode}" in
     * )      die "unknown mode [${mode}] - expected one of: record, verify" ;;
 esac
 
-[ "${failures}" -eq 0 ] \
-  || die "${failures} parity check(s) failed against [${file}]"
-
-echo "[${this_script_name}] ${mode}: done"
-exit 0
+finish parity "against [${file}]" "${mode}: done"
