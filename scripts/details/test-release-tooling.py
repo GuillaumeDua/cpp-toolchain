@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Tests for the two scripts the release path depends on: render-manifest.py and check-release-file.py.
+"""Tests for the three scripts the release path depends on:
+render-manifest.py, check-release-file.py and compose-standalone.py.
 
-Between them they write every public release page and the `bumps:` half of an immutable
-releases/v*.yaml record, and until now nothing exercised them outside a real rc build.
+The first two write every public release page and the `bumps:` half of an immutable releases/v*.yaml record;
+the third writes the standalone scripts a release attaches.
+Nothing else exercises any of them outside a real rc build.
 
-Scoped to the behavior the release-note work in #99 changes.
+Scoped to the behavior the release-note work changes.
 `parse`, `check_supersession` and the `--print-*` accessors are left out on purpose:
 nothing there changes them, and asserting that `--print-stages normal` returns the tuple it is
 defined as proves nothing.
@@ -35,6 +37,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 
 render_manifest = load("render-manifest")
 check_release_file = load("check-release-file")
+compose_standalone = load("compose-standalone")
 
 DOXYGEN_SCHEME = r"regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$"
 
@@ -779,6 +782,69 @@ class Targets(unittest.TestCase):
         with contextlib.redirect_stdout(captured):
             check_release_file.print_targets(record(version="v2.0", candidate=None))
         self.assertIn(f"sha256:{'0' * 64} v2.0 v2.0 latest", captured.getvalue().splitlines())
+
+
+class Compose(unittest.TestCase):
+    """Against a library of its own, so renaming a helper in shared.sh cannot turn these red."""
+
+    LIBRARY = """\
+failures=0
+
+die() { echo "[${this_script_name}] error: $*" >&2; exit 1; }
+
+warn(){
+    echo "[${this_script_name}] $*" >&2
+}
+"""
+
+    SOURCE = 'source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"\n'
+
+    # Every position bash starts a command in.
+    # The `case` arm carries the most weight: it is how each published script reads its options,
+    # so a scan blind to it drops `die` from all of them.
+    POSITIONS = {
+        "an operator": 'foo || die "x"',
+        "a separator": 'foo; die "x"',
+        "a case arm": 'case "$1" in * ) die "x" ;; esac',
+        "a then branch": 'if foo; then die "x"; fi',
+        "an else branch": 'if foo; then foo; else die "x"; fi',
+        "a loop body": 'for x in a; do die "x"; done',
+        "a condition": 'if die "x"; then foo; fi',
+        "a brace group": '{ die "x"; }',
+        "a negation": '! die "x"',
+    }
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        library = pathlib.Path(directory.name) / "shared.sh"
+        library.write_text(self.LIBRARY, encoding="utf-8")
+        self.addCleanup(setattr, compose_standalone, "LIBRARY", compose_standalone.LIBRARY)
+        compose_standalone.LIBRARY = library
+
+    def compose(self, body):
+        return compose_standalone.compose(f"this_script_name=probe\n{self.SOURCE}{body}\n")
+
+    def test_a_helper_is_inlined_from_every_command_position(self):
+        for position, body in self.POSITIONS.items():
+            with self.subTest(position=position):
+                self.assertIn("die()", self.compose(body))
+
+    def test_a_name_that_is_not_a_call_is_left_alone(self):
+        # Either one read as a call would fire the check below on a script that is sound.
+        self.assertNotIn("die()", self.compose('echo "the die is cast"'))
+        self.assertNotIn("die()", self.compose("nodie_here foo"))
+
+    def test_only_the_helpers_a_script_calls_are_inlined(self):
+        self.assertNotIn("warn()", self.compose('foo || die "x"'))
+
+    def test_a_call_the_scan_cannot_see_is_refused_rather_than_dropped(self):
+        # Standing in for the next command position calls() cannot read:
+        # a scan that finds nothing composes a file naming a helper it does not carry.
+        self.addCleanup(setattr, compose_standalone, "calls", compose_standalone.calls)
+        compose_standalone.calls = lambda *_: set()
+        with self.assertRaises(SystemExit):
+            self.compose('die "x"')
 
 
 if __name__ == "__main__":

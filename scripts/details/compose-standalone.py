@@ -9,7 +9,9 @@ script with the `source` line replaced by the helpers it needs, which is what ma
 Which helpers get inlined is resolved from the script's own calls, closed over the library's internal
 ones - run_with_retries calls run and warning. The scan errs toward including one too many: a false
 positive leaves an unused function in the output, a false negative ships a script that dies on its
-first call. The standalone smoke test in .github/workflows/docker-build.yml is what catches a miss.
+first call.
+A miss is refused rather than written: compose() checks its own output for a helper it names and does not carry,
+reading bare words where the scan reads command positions.
 
 A script that sources nothing composes to itself, which is how doxygen.sh passes through.
 
@@ -52,6 +54,18 @@ def without_comments(text):
     return re.sub(r"\s#[^\n]*$", "", text, flags=re.M)
 
 
+def bare_words(text):
+    """`text` with comments, quoted spans and heredoc bodies removed.
+
+    A diagnostic names helpers - `die "... failed to run as a C++ compiler"` -
+    so the strings have to go before a bare word can be read as a call.
+    """
+    text = without_comments(text)
+    text = re.sub(r"<<-?'?(\w+)'?\n.*?^\1$", "", text, flags=re.M | re.S)
+    text = re.sub(r"'[^']*'", "''", text)
+    return re.sub(r'"(?:[^"\\]|\\.)*"', '""', text)
+
+
 def declarations(text):
     """[(name, source text)] for every function, in the order they appear.
 
@@ -76,12 +90,16 @@ def declarations(text):
 def calls(text, names):
     """The subset of `names` that `text` calls, read at command positions only.
 
-    A name reached any other way - a `case` branch spelled `run )`, a variable, a word in a string -
-    matches too. That is the intended direction: over-including costs an unused function.
+    Every position bash starts a command in: the separators and operators, a `case` arm's `)`,
+    a brace group, `!`, and the reserved words that introduce one.
+    A name reached some other way - a `case` label spelled `run )`, a variable, a word in a string - matches too,
+    which is the intended direction: over-including costs an unused function.
     """
     stripped = without_comments(text)
     return {name for name in names
-            if re.search(rf"(?:^|[;&|(`]|\|\||&&|\$\()\s*{name}(?:\s|$|\))", stripped, re.M)}
+            if re.search(rf"(?:^|[;&|(){{}}`!]|\|\||&&|\$\("
+                         rf"|\bif\b|\bthen\b|\belif\b|\belse\b|\bwhile\b|\buntil\b|\bdo\b)"
+                         rf"\s*{name}(?:\s|$|[;)])", stripped, re.M)}
 
 
 def needed_prelude(prelude, wanted, bodies, script_text):
@@ -157,7 +175,20 @@ def compose(script_text):
     # A function, not a string: the helper bodies carry backslash sequences - `\1` in soname_of's
     # sed expression - that re.sub would read as group references in a replacement template.
     replacement = "\n".join(inlined).rstrip() + "\n"
-    return SOURCE_LINE.sub(lambda _: replacement, script_text, count=1)
+    composed = SOURCE_LINE.sub(lambda _: replacement, script_text, count=1)
+
+    # calls() reads command positions, so a call in a position it does not know drops a helper
+    # from a published file, which answers `die: command not found` the first time a reader gets there.
+    # This reads bare words instead, so it does not depend on that scan being complete.
+    carried = set(dict(declarations(composed)))
+    scanned = bare_words(composed)
+    missing = sorted(name for name in bodies if name not in carried
+                     and re.search(rf"(?<![\w.-]){name}(?![\w-])", scanned))
+    if missing:
+        named = ", ".join(f"{name}()" for name in missing)
+        raise SystemExit(f"::error::the composed script has no definition for {named}"
+                         " - a call position calls() does not read")
+    return composed
 
 
 def main():
