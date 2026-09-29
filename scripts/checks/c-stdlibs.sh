@@ -84,12 +84,6 @@ discover_library_files(){
     } | grep -E '/libc\.so\.[0-9]'
 }
 
-
-
-
-# Debian versions carry an epoch and a revision around the upstream release,
-# and only the release in the middle is what a C developer calls the version.
-
 library_rows(){
     local real soname version abi package
     local -A seen_package=()

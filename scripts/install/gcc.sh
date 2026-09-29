@@ -173,10 +173,8 @@ list_installed_gcc_versions(){
     dpkg -l | grep ^ii | awk '{print $2}' | grep -oP "${gcc_version_installed_regex}" | sort -n -u
 }
 
-# Filter a set of majors by a --versions selector.
-#   This reports what is present rather than what could be installed,
-#   so an explicit list is intersected with the set rather than passed through.
-
+# --list-installed reports what is present rather than what could be installed,
+# so an explicit list is intersected with the set rather than passed through.
 if [[ ${arg_list_installed} == 1 ]]; then
     installed_versions=$(list_installed_gcc_versions)
     if [[ ${arg_versions_explicit} == 1 ]]; then
