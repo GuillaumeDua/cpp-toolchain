@@ -200,7 +200,8 @@ The `details/` pair reaches [`scripts/install/`](../scripts/install/) by relativ
 A layout that separates the two fails with `cannot find scripts/install two levels above scripts/checks/details` rather than silently finding no compilers.
 
 This is not the top-level [`scripts/details/`](../scripts/details/).
-Both names mean the same thing - implementation details of the directory that encloses them - but the top-level one is host-side tooling that `.dockerignore` keeps out of the build context entirely, whereas these checks have to ship *into* the image in order to validate it.
+Both names mean the same thing - implementation details of the directory that encloses them - but the top-level one is host-side tooling that `.dockerignore` keeps out of the build context, whereas these checks have to ship *into* the image in order to validate it.
+`shared.sh` is the one file on the host side that still ships in: the install and checks scripts source it, so `.dockerignore` lets it through to every stage that runs one of them.
 
 Each reports **every** failure before exiting, so one run tells you everything that is wrong.
 

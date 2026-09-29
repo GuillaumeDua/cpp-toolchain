@@ -9,10 +9,12 @@ In this repository they source their shared helpers instead of carrying them, so
 | [install/](install/) | **Public** - standalone | Toolchain installers - `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh`, `doxygen.sh`. Reusable on any Debian/Ubuntu-based system, with no dependency on this repository. See [install/README.md](install/README.md) for the full option reference. |
 | [checks/](checks/) | **Public** - standalone | `cxx-standards.sh` - which C++ standards a compiler accepts. `cxx-stdlibs.sh` - which C++ standard libraries are installed, with the `SONAME` and ABI version a binary will need to find. `c-stdlibs.sh` - the same, for the C standard library. Point either at any machine, checkout or not. See [checks/README.md](checks/README.md). |
 | [checks/details/](checks/details/) | Internal | The image validation gate, which runs *inside* a built image: it knows this repo's expected package origins and asks its installers what is present. See [docs/IMAGES_VALIDATION.md](../docs/IMAGES_VALIDATION.md). |
-| [details/](details/) | Internal | This repository's own tooling - the version-pin guard, the release-note renderer, the install-script parity check, the shared helper library those copies come from, the promotion-record schema and the image smoke test. Not reusable: they parse this repo's `Dockerfile`, `renovate.json` and `releases/` records. See [details/README.md](details/README.md). |
+| [details/](details/) | Internal | This repository's own tooling - the version-pin guard, the release-note renderer, the standalone composer, the shared helper library it inlines, the promotion-record schema and the image smoke test. Not reusable: they parse this repo's `Dockerfile`, `renovate.json` and `releases/` records. See [details/README.md](details/README.md). |
 
 The [Dockerfile](../Dockerfile) copies in and runs the `install/` scripts, one per stage that needs one, and copies `scripts/` whole into the throwaway validate stages so `checks/` can run there.  
-Nothing under the top-level `details/` ever enters an image: `.dockerignore` keeps it out of the build context entirely, and the smoke test reaches a built image by bind-mount instead.
+The top-level `details/` is host-side tooling that `.dockerignore` keeps out of the build context, with one exception: `shared.sh`.
+The `install/` and `checks/` scripts source the library, so it has to reach every stage that runs one, and without that exception their `COPY` lines have nothing to copy.
+The smoke test needs no exception - it reaches a built image by bind-mount instead.
 
 `checks/details/` is a different `details/` - implementation details of `checks/`, in the C++ sense of a nested `detail` namespace.
 Being repo-specific is what the two share; unlike the top-level one, these *must* ship into the image they validate.
