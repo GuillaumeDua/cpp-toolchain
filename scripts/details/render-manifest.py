@@ -444,7 +444,8 @@ def installed_cell(name, pinned, versions, introduced, versioning):
     A component with a stage and no version is the third case: vcpkg, conan and doxygen are
     installed outside apt, so no package states their version and the pin is the answer. Presence
     is measured either way, which is what separates this from `-`.
-    Empty is left for a collection that did not happen at all, which is a local dry run.
+    Empty is left for a pin the collection does not reach.
+    A record carrying no collection at all renders no `Installed` column for a cell to be empty in.
     """
     group, keys, components = pin_components(name, pinned, versions)
     if group is None:
@@ -523,7 +524,12 @@ def content_table(current, ordered, labels, schemes, versions, introduced):
     with no pin is still part of what the images carry.
     Ordered by the stage that introduces it, so the table reads the way the images are built,
     and within a stage by the declared pin order, so the pinned components lead.
+
+    The last two columns are there only when the record carries a collection.
+    A record from before the collector, and a local render off the Dockerfile alone,
+    have no answer for either, and two empty columns read as a missing answer rather than an absent question.
     """
+    collected = bool(versions or introduced)
     rows = []
 
     for position, name in enumerate(ordered):
@@ -538,11 +544,13 @@ def content_table(current, ordered, labels, schemes, versions, introduced):
         rows.append((stage_cell(group, [component], introduced), len(ordered), name,
                      f"`{UNPINNED}`", f"`{value}`" if value != "-" else "-"))
 
-    out = ["| Component | Pinned | Installed | Stage introducing |", "| --- | --- | --- | --- |"]
+    columns = ["Component", "Pinned"] + (["Installed", "Stage introducing"] if collected else [])
+    out = [f"| {' | '.join(columns)} |", f"| {' | '.join('---' for _ in columns)} |"]
     for stages, position, label, pinned, installed in sorted(
             rows, key=lambda row: (schema.NORMAL_STAGES.index(row[0][0]) if row[0] else len(schema.NORMAL_STAGES),
                                    row[1], row[2])):
-        out.append(f"| {label} | {pinned} | {installed} | {render_stages(stages)} |")
+        cells = [label, pinned] + ([installed, render_stages(stages)] if collected else [])
+        out.append(f"| {' | '.join(cells)} |")
     return out
 
 
@@ -864,8 +872,9 @@ def main():
 
     # Folded away, as README.md#whats-inside folds its own matrix: the toolchain is about thirty
     # rows, and a reader who came for the tag needs none of them open.
+    subject = "what each stage introduces" if versions or introduced else "every version this release pins"
     out += ["", "### Content", "",
-            "<details><summary><b>Full content</b> - what each stage introduces</summary>", ""]
+            f"<details><summary><b>Full content</b> - {subject}</summary>", ""]
     out += content_table(current, ordered, LABEL_BY_NAME, schemes, versions, introduced)
     out += ["", "</details>"]
 
