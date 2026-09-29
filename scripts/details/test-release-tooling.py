@@ -615,6 +615,17 @@ class Content(unittest.TestCase):
         self.assertLess(rows.index("| ninja | `apt` | `1.11.1` | `build` |"),
                         rows.index("| lcov | `apt` | `2.0` | `documentation`, `dev` |"))
 
+    def test_a_record_with_no_collection_holds_the_pins_alone(self):
+        rows = render_manifest.content_table({"conan": "2.31.1"}, ["conan"], self.LABELS, {}, {}, {})
+        self.assertEqual(rows, ["| Component | Pinned |", "| --- | --- |", "| Conan | `2.31.1` |"])
+
+    def test_the_summary_names_what_the_table_below_it_holds(self):
+        # The two sentences explaining those columns are suppressed with the collection,
+        # so columns rendered empty arrive with nothing to account for them.
+        note = render("--tag", "v1.4")
+        self.assertIn("<b>Full content</b> - every version this release pins", note)
+        self.assertNotIn("Stage introducing", note)
+
     def test_the_distribution_pin_reads_a_key_its_value_does_not_complete(self):
         # `ubuntu` is the whole key; `gcc-{}` takes the pin. Both go through one template.
         versions = {"distribution": {"ubuntu": "24.04.3"}}
