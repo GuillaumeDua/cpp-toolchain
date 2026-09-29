@@ -201,8 +201,6 @@ discover_library_files(){
     } | grep -E '/lib(stdc\+\+|c\+\+)\.so\.[0-9]'
 }
 
-
-
 # The same question as max_symbol_version, asked of libc++, which carries no GNU symbol versions and
 # states its ABI in an inline namespace instead - scripts/checks/README.md covers the mangling, and
 # why the match has to stop after one digit.
@@ -217,10 +215,6 @@ libcpp_abi_from_elf(){
 
     printf '%s' "${found#St3__}"
 }
-
-
-# Debian versions carry an epoch and a revision around the upstream release,
-# and only the release in the middle is what a C++ developer calls the version.
 
 # The header tree belonging to one libc++ runtime: beside it under an llvm-<major> prefix, or
 # the system one for the copy in the multiarch directory. A tree is trusted only when its own

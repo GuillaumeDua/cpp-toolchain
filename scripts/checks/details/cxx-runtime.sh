@@ -15,8 +15,9 @@ install_scripts_dir="${this_script_dir}/../../install"
 warning_flags=('-Wall' '-Wextra')
 
 payload_source=''
-# The helpers shared with the other scripts. The standalone copy published for each release
-# carries them inlined here instead - scripts/details/compose-standalone.py.
+# The helpers shared with the other scripts.
+# This one is never published standalone: it runs inside the validate stages, which copy scripts/ whole,
+# and .dockerignore's exception is what puts the library in that copy.
 source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../details/shared.sh"
 
 # Binaries are reported as <directory>/<name>, so the libstdc++ and libc++ passes stay distinct.
