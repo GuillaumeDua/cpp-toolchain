@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Tests for the three scripts the release path depends on:
-render-manifest.py, check-release-file.py and compose-standalone.py.
+"""Tests for the four scripts the release path depends on:
+render-manifest.py, check-release-file.py, compose-standalone.py and check-dependencies-pins.py.
 
 The first two write every public release page and the `bumps:` half of an immutable releases/v*.yaml record;
-the third writes the standalone scripts a release attaches.
+the third writes the standalone scripts a release attaches,
+and the fourth guards the pins the first one reads out of the Dockerfile.
 Nothing else exercises any of them outside a real rc build.
 
 Scoped to the behavior the release-note work changes.
@@ -26,7 +27,7 @@ import sys
 import tempfile
 import unittest
 
-# Importing the two scripts below would drop a scripts/details/__pycache__/ next to the sources,
+# Importing the scripts below would drop a scripts/details/__pycache__/ next to the sources,
 # on every local run and every CI run - the same reason check-dependencies-pins.py sets this.
 sys.dont_write_bytecode = True
 
@@ -38,6 +39,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 render_manifest = load("render-manifest")
 check_release_file = load("check-release-file")
 compose_standalone = load("compose-standalone")
+check_dependencies_pins = load("check-dependencies-pins")
 
 DOXYGEN_SCHEME = r"regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$"
 
@@ -845,6 +847,33 @@ warn(){
         compose_standalone.calls = lambda *_: set()
         with self.assertRaises(SystemExit):
             self.compose('die "x"')
+
+
+class Pins(unittest.TestCase):
+    """The one pin invariant that reads past the value: everything after it has to be one version or nothing."""
+
+    # Without the annotation above it, an ARG is also reported as unwatched,
+    # and the sound case cannot assert an empty result.
+    ANNOTATION = (r"# renovate: datasource=github-tags depName=gcc-mirror/gcc"
+                  r" extractVersion=^releases/gcc-(?<version>\d+)\.\d+\.\d+$")
+
+    def check(self, declaration):
+        problems, _ = check_dependencies_pins.check(f"{self.ANNOTATION}\n{declaration}\n",
+                                                    RENOVATE, render_manifest)
+        return [message for _, message in problems]
+
+    def test_a_trailing_comment_is_not_a_second_version(self):
+        self.assertEqual(self.check("ARG GCC_VERSIONS=15 # the PPA carries one series at a time"), [])
+
+    def test_a_second_version_is_refused(self):
+        self.assertIn("GCC_VERSIONS=15 14 carries more than one token",
+                      "\n".join(self.check("ARG GCC_VERSIONS=15 14")))
+
+    def test_a_second_version_behind_a_comment_is_refused_naming_the_versions_alone(self):
+        problems = self.check("ARG GCC_VERSIONS=15 14 # both series")
+        self.assertEqual(len(problems), 1)
+        self.assertIn("GCC_VERSIONS=15 14 carries more than one token", problems[0])
+        self.assertNotIn("both series", problems[0])
 
 
 if __name__ == "__main__":
