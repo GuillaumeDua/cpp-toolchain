@@ -14,7 +14,7 @@ Implementation details of *this* repository - unlike the [toolchain installers](
 | `build-stages.sh` | Builds a list of Dockerfile stages, one buildx invocation each. Owns the buildx flags and the layer cache scopes for both [docker-build](../../.github/workflows/docker-build.yml) and [docker-publish](../../.github/workflows/docker-publish.yml) |
 | `smoke-test.sh` | Runs *inside* a candidate image - compiles and runs a C++23 hello world with both default compilers. Bind-mounted and executed by [release-candidate-check.yml](../../.github/workflows/release-candidate-check.yml) |
 | `_loader.py` | Imports a sibling script whose hyphenated filename a normal `import` cannot spell. Used by the three Python tools that read each other |
-| `test-release-tooling.py` | Covers `render-manifest.py` and `check-release-file.py`, the two scripts that write release pages and the `bumps:` half of a promotion record. Inline fixtures, so a pin bump never turns a test red |
+| `test-release-tooling.py` | Covers the four scripts the release path depends on - `render-manifest.py`, `check-release-file.py`, `compose-standalone.py` and `check-dependencies-pins.py`. Inline fixtures, so a pin bump never turns a test red |
 
 Everything here that runs at all runs from the **repository root**: the Python defaults are paths relative to the working directory, and `build-stages.sh` uses it as the build context.
 `smoke-test.sh` and `cxx-toolchain-versions.sh` are the exceptions: they run inside an image, over a bind-mounted `scripts/`, not here.
