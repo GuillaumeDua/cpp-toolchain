@@ -17,7 +17,6 @@ arg_compilers_value='all'
 
 default_view='library'
 default_stdlib='all'
-default_format='default'
 default_compilers='all'
 
 # The helpers shared with the other scripts. The standalone copy published for each release
@@ -157,11 +156,6 @@ if [ "${arg_compilers}" -eq 1 ] && [ "${arg_compilers_value}" != 'all' ]; then
     done
 fi
 
-# dpkg owns the only place a libc++ release is written down: its ELF carries no version and
-# its SONAME never moves, so the package version is what distinguishes libc++ 20 from 22.
-has_dpkg=0
-command -v dpkg-query >/dev/null 2>&1 && has_dpkg=1
-
 # Matches the header spelling '#  define X 1' as well as the preprocessed '#define X 1'.
 # Takes the field after the name rather than the last on the line: a define left without a value
 # would otherwise report its own name as the value, and a trailing comment would report the
@@ -271,6 +265,10 @@ library_rows(){
         fi
 
         soname=$(soname_of "${real}")
+
+        # dpkg owns the only place a libc++ release is written down:
+        # its ELF carries no version and its SONAME never moves,
+        # so the package version is what distinguishes libc++ 20 from 22.
         version=$(version_of_package "${package}")
 
         if [ "${impl}" = 'libstdc++' ]; then
