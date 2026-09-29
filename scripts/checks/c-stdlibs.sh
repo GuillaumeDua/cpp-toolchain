@@ -11,8 +11,6 @@ this_script_name=$(basename "$0")
 
 arg_format='default'
 
-default_format='default'
-
 # The helpers shared with the other scripts. The standalone copy published for each release
 # carries them inlined here instead - scripts/details/compose-standalone.py.
 source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
@@ -68,9 +66,6 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
-
-has_dpkg=0
-command -v dpkg-query >/dev/null 2>&1 && has_dpkg=1
 
 # ldconfig reports what the runtime linker will actually resolve, which is the answer that
 # matters. The globs cover an image whose cache was never built, /usr/lib32 and /usr/libx32
