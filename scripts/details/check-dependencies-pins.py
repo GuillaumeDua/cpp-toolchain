@@ -49,6 +49,10 @@ FLOATING = re.compile(r"latest|master")
 
 ARG_DECL = re.compile(r"^ARG ([A-Za-z_][A-Za-z0-9_]*)=(\S+)(?P<tail>.*)$")
 
+# A comment is not a second version: `ARG FOO=1 # why` carries one pin and a note about it.
+# But GCC_VERSIONS="14 15 16" might be supported at some point.
+TRAILING_COMMENT = re.compile(r"\s+#.*$")
+
 
 def split_at_first_stage(dockerfile):
     """(global_lines, stage_lines) as [(lineno, text)], split at the first `FROM`.
@@ -103,10 +107,11 @@ def check(dockerfile, renovate_config, render_manifest):
         # `\S+`, so in `ARG GCC_VERSIONS=14 15` only `14` is the dependency Renovate tracks, and
         # only `14` reaches the release note. The installers accept a list; the pin cannot carry
         # one, so a second version needs a second ARG with its own `# renovate:` annotation.
-        if match.group("tail").strip():
+        tail = TRAILING_COMMENT.sub("", match.group("tail"))
+        if tail.strip():
             problems.append((
                 lineno,
-                f"{name}={value}{match.group('tail')} carries more than one token - "
+                f"{name}={value}{tail} carries more than one token - "
                 "only the first is tracked by Renovate and shown in the release note; "
                 "declare one ARG per version",
             ))
