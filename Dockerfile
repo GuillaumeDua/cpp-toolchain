@@ -330,8 +330,8 @@ CMD ["/bin/bash"]
 #   scripts/ is copied whole rather than scripts/checks/details alone:
 #       the checks ask gcc.sh and llvm.sh which compilers are installed (--list-installed),
 #       and that only resolves if both directories keep their relative positions.
-#   .dockerignore keeps the top-level scripts/details out; it does not match
-#   scripts/checks/details, which is why the checks below are still in the build context.
+#   .dockerignore keeps the top-level scripts/details out, all but shared.sh, which the checks source.
+#   It does not match scripts/checks/details, which is why the checks below are still in the build context.
 FROM build AS validate-build
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
