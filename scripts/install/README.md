@@ -295,25 +295,33 @@ sudo ./bazel.sh --silent=yes
 sudo ./build2.sh --versions=<version> [options]
 ```
 
-Fetches `build2-install-<version>.sh` from [download.build2.org](https://download.build2.org), checks it against the `.sha256` sidecar published beside it, and runs it.
-That installer builds build2 from source, so a C++ compiler has to be installed already - `gcc.sh` and `llvm.sh` next door install one, and this script refuses rather than choosing one for you.
+Installs `b`, `bpkg`, `bdep` and `bx`, by whichever of two routes answers for the host:
+
+1. the **binary package** upstream publishes under `bindist/`, per distribution, release and architecture.
+2. the **source installer**, which compiles build2 and so needs a C++ compiler already present - `gcc.sh` and `llvm.sh` next door install one.
+
+Compiling is the fallback rather than the default: it is minutes of CPU for an artifact upstream already produced.
+It is not dead code either - the binary packages cover `x86_64` alone, and only some releases carry them, so an `arm64` host or an older version still takes it.
+
+Either route checks what it downloaded against the `sha256` sidecar published beside it before installing or running it.
+No hash is pinned here, which is what keeps a version bump a one-line change.
+
+A `404` on the package is the signal to fall back. Anything else - a timeout, a `5xx` - fails instead: spending minutes on a source build over a transient network failure is not a recovery.
 
 There is no `latest`: build2 publishes no index a version could be resolved from, so `--versions` is required.
 
-| Option             | Type    | Default   | Description                                    |
-| ------------------ | ------- | --------- | ---------------------------------------------- |
-| `-v`, `--versions` | string  | -         | Required. A published build2 release, `0.16.0`  |
-| `-c`, `--cxx`      | string  | `clang++` | The compiler the installer builds build2 with   |
-| `-s`, `--silent`   | boolean | `1`       | Suppress log output                             |
-| `-h`, `--help`     | -       | -         | Display usage                                   |
+| Option             | Type    | Default   | Description                                                        |
+| ------------------ | ------- | --------- | ------------------------------------------------------------------ |
+| `-v`, `--versions` | string  | -         | Required. A published build2 release, `0.18.1`                      |
+| `-c`, `--cxx`      | string  | `clang++` | The compiler the source fallback builds with; unread on the package route |
+| `-s`, `--silent`   | boolean | `1`       | Suppress log output                                                 |
+| `-h`, `--help`     | -       | -         | Display usage                                                       |
 
 Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
-No hash is pinned here: checking the installer against build2's own per-release sidecar is what keeps a version bump a one-line change.
-
-**Example**: what the images do behind `OPT_IN_INTEGRATE_BUILD2`, which is off by default:
+**Example**: the two routes, on an `x86_64` Ubuntu host:
 
 ```bash
-sudo ./build2.sh --versions=0.16.0
-sudo ./build2.sh --versions=0.16.0 --cxx=g++   # on a host carrying no clang++
+sudo ./build2.sh --versions=0.18.1             # a package exists -> installed with apt
+sudo ./build2.sh --versions=0.16.0 --cxx=g++   # none published   -> compiled from source
 ```

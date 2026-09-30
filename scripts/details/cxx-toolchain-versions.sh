@@ -131,8 +131,6 @@ toolchain_commands=(
 # /usr/local/bin, so dpkg owns none of the three and each has to state its own version. They are
 # also the only three of the list carrying a pin, so a value here that disagrees with the pin is a
 # finding rather than a surprise.
-# TODO: confirm all three invocations against a published image - a version the extraction below
-#       cannot find leaves the key unwritten, which reports presence and no version.
 declare -A version_flag=(
     [vcpkg]='version'
     [conan]='--version'

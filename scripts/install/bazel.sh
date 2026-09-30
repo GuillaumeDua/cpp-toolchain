@@ -8,6 +8,8 @@ set -eu
 #
 # Install Bazel from its apt repository (https://bazel.build/install/ubuntu).
 #
+# WARNING: experimentale support
+#
 # amd64 only: the repository publishes no arm64 debs, so on any other architecture this installs
 # nothing and says so rather than failing. Bazelisk is the portable route there.
 # =============================================================================================
