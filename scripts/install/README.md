@@ -1,6 +1,6 @@
 # Toolchain installation scripts
 
-Scripts to install `CMake`, `GCC`, `LLVM/Clang`, cross-compilation `binutils` (+ cross-libc), and `Doxygen`, reusable on any Debian/Ubuntu-based system.  
+Scripts to install `CMake`, `GCC`, `LLVM/Clang`, cross-compilation `binutils` (+ cross-libc), `Doxygen` and `Bazel`, reusable on any Debian/Ubuntu-based system.  
 All take no dependency on each other and describe themselves with `--help`.
 Each release publishes them as self-contained files; the copies here source their shared helpers from [../details/shared.sh](../details/shared.sh), so fetch the published one to run it outside a checkout - [scripts/README.md](../README.md#using-a-public-script-on-its-own) has the detail.
 Installing needs root. The exceptions run as any user: the `--list-installed` and `--list-targets` query modes, answered from `dpkg`, and `doxygen.sh --prefix=<directory>`, which installs under a directory of the caller's choosing.
@@ -258,4 +258,31 @@ Under a prefix the apt fallback is refused rather than taken: `apt` writes `/usr
 ```bash
 sudo ./doxygen.sh Release_1_17_0                        # -> /usr/local/bin/doxygen
 ./doxygen.sh --prefix="${HOME}/.local" Release_1_17_0   # -> ~/.local/bin/doxygen, no root
+```
+
+---
+
+## `bazel.sh`
+
+```bash
+sudo ./bazel.sh [options]
+```
+
+Registers the [Bazel apt repository](https://bazel.build/install/ubuntu) - signing key under `/usr/share/keyrings`, source under `/etc/apt/sources.list.d` - then installs the `bazel` package from it.
+No version is requested, so apt resolves whatever the repository currently serves.
+
+`amd64` only. The repository publishes no deb for another architecture, so there the script says so and installs nothing rather than failing: it backs an optional build-system integration, and refusing the whole build over it would be the wrong trade.
+[Bazelisk](https://github.com/bazelbuild/bazelisk) is the portable route on those hosts.
+
+| Option           | Type    | Default | Description        |
+| ---------------- | ------- | ------- | ------------------ |
+| `-s`, `--silent` | boolean | `1`     | Suppress log output |
+| `-h`, `--help`   | -       | -       | Display usage      |
+
+Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
+
+**Example**: what the images do behind `OPT_IN_INTEGRATE_BAZEL`, which is off by default - see [Build your own image](../../docs/IMAGES.md#build-your-own-image):
+
+```bash
+sudo ./bazel.sh --silent=yes
 ```
