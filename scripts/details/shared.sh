@@ -33,7 +33,6 @@
 # source line overwrites arg_silent the same way.
 : "${this_script_name:=$(basename "$0")}"
 : "${arg_silent:=1}"
-: "${max_attempts:=3}"
 
 # dpkg is the authority inside the images, and absent outside them - package_of answers [-] there.
 has_dpkg=0
