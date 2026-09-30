@@ -6,11 +6,15 @@ set -eu
 # This file is part of https://github.com/GuillaumeDua/cpp-toolchain
 # License: see https://github.com/GuillaumeDua/cpp-toolchain/blob/main/LICENSE
 #
-# Install the build2 toolchain (https://build2.org) from its upstream installer.
+# Install the build2 toolchain (https://build2.org): b, bpkg, bdep and bx.
 #
-# build2 is built from source by that installer, so a C++ compiler has to be here already.
-# This script installs none: gcc.sh and llvm.sh own that, and guessing one would install a
-# toolchain the caller did not ask for.
+# Two routes, in this order:
+#   1. the binary package upstream publishes per distribution, release and architecture.
+#   2. the source installer, which compiles build2 and therefore needs a C++ compiler already here.
+#
+# The source build is the fallback rather than the default because it is minutes of CPU for an
+# artifact upstream already produced. It is not dead code: the binary packages cover x86_64 alone,
+# and only some releases carry them - 0.16.0 has none at all.
 # =============================================================================================
 
 this_script_name=$(basename "$0")
@@ -28,26 +32,31 @@ retry_backoff_seconds=5
 base_url='https://download.build2.org'
 work_dir=''
 
+# Set by resolve_package_url, read by error_diagnosis whichever route runs.
+package_url=''
+package_status=''
+
 help(){
     echo "Usage: ${this_script_name} --versions=<version> [options]" 1>&2
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
-        [ -v | --versions ] : Version to install.       String: (exact-version) -> required, Ex: '0.16.0'
+        [ -v | --versions ] : Version to install.       String: (exact-version) -> required, Ex: '0.18.1'
         [ -c | --cxx ]      : Compiler to build with.   String -> default is [${arg_cxx}]
         [ -s | --silent ]   : Run in silent mod.        Boolean -> default is [1]
         [ -h | --help ]     : Display usage/help
 
-    Fetches ${base_url}/<version>/build2-install-<version>.sh and runs it.
+    Installs the binary package upstream publishes for this distribution, release and architecture.
+    Where there is none - another architecture, an unsupported release, a version that predates them -
+    it falls back to compiling build2 from source with --cxx, which has to be installed already.
+    gcc.sh and llvm.sh next door install one.
+
     There is no 'latest': build2 publishes no index this script could resolve one from, so the
     version is always named by the caller.
 
-    The installer compiles build2 from source, so [${arg_cxx}] - or whatever --cxx names - has to be
-    installed already. gcc.sh and llvm.sh next door install one.
-
     For instance:
-        sudo ./${this_script_name} --versions=0.16.0
-        sudo ./${this_script_name} --versions=0.16.0 --cxx=g++
+        sudo ./${this_script_name} --versions=0.18.1
+        sudo ./${this_script_name} --versions=0.16.0 --cxx=g++   # no package for 0.16.0: source build
         " 1>&2
     exit 0
 }
@@ -64,8 +73,8 @@ error_diagnosis(){
     {
         echo -e "[${this_script_name}]: diagnosis helper:"
         echo -e "\t- version requested:  [${arg_versions:-<unset>}]"
+        echo -e "\t- binary package:     [${package_url:-<unresolved>}] -> [${package_status:-<not probed>}]"
         echo -e "\t- compiler:           [${arg_cxx}] $(command -v "${arg_cxx}" 2>/dev/null || echo '<not on PATH>')"
-        echo -e "\t- download base:      [${base_url}/${arg_versions:-<unset>}]"
     } >> /dev/stderr
 }
 
@@ -120,11 +129,6 @@ if [ -z "${arg_versions}" ]; then
     error "--versions is required - there is no 'latest' to fall back to, see --help"
 fi
 
-# Ahead of the root check: a missing compiler is the harder of the two to fix, so report it first
-# rather than sending the caller back for sudo and refusing a second time.
-command -v "${arg_cxx}" >/dev/null 2>&1 \
-  || error "compiler [${arg_cxx}] not found in PATH - the installer builds build2 from source, so install one first (gcc.sh / llvm.sh) or name another with --cxx"
-
 if [ "$EUID" -ne 0 ]; then
     error "Requires root privileges"
 fi
@@ -133,46 +137,128 @@ log "arguments - versions:          [${arg_versions}]"
 log "arguments - cxx:               [${arg_cxx}]"
 log "arguments - silent:            [${arg_silent}]"
 
-# --- fetch the installer ---
+# --- which binary package, if any, answers for this host ---
 
-installer="build2-install-${arg_versions}.sh"
-release_url="${base_url}/${arg_versions}"
+# The layout is <id>/<id><version_id>/<machine>/, and the file name carries the dpkg architecture
+# rather than the machine - ubuntu24.04/x86_64/build2-toolchain_0.18.1-0~ubuntu24.04_amd64.deb.
+# Both spellings are needed, so both are read.
+resolve_package_url(){
+    local id version_id machine architecture
+
+    id=$( . /etc/os-release 2>/dev/null && echo "${ID:-}" ) || id=''
+    version_id=$( . /etc/os-release 2>/dev/null && echo "${VERSION_ID:-}" ) || version_id=''
+    machine=$(uname -m 2>/dev/null) || machine=''
+    architecture=$(dpkg --print-architecture 2>/dev/null) || architecture=''
+
+    # Only the two apt distributions: the installation step below is apt-get, so a package for a
+    # distribution this script cannot install on is not an answer.
+    case "${id}" in
+        ubuntu | debian ) ;;
+        * ) return 1 ;;
+    esac
+
+    [ -n "${version_id}" ] && [ -n "${machine}" ] && [ -n "${architecture}" ] || return 1
+
+    local release="${id}${version_id}"
+    package_url="${base_url}/${arg_versions}/bindist/${id}/${release}/${machine}/build2-toolchain_${arg_versions}-0~${release}_${architecture}.deb"
+    return 0
+}
+
+install_from_package(){
+    local package_name
+    package_name=$(basename "${package_url}")
+
+    run_with_retries "${max_attempts}" "fetching [${package_name}]" \
+        curl --fail --silent --show-error --location --retry ${max_attempts} --remote-name "${package_url}" \
+    || error "fetching [${package_url}] failed"
+
+    # One sidecar per directory, listing every package in it, so it is fetched by directory name.
+    run_with_retries "${max_attempts}" "fetching [packages.sha256]" \
+        curl --fail --silent --show-error --location --retry ${max_attempts} --remote-name "$(dirname "${package_url}")/packages.sha256" \
+    || error "fetching the checksums beside [${package_name}] failed"
+
+    # --ignore-missing: the sidecar covers every package in that directory, and only one was fetched.
+    run "verifying [${package_name}]" \
+        sha256sum --check --strict --ignore-missing packages.sha256 \
+    || error "[${package_name}] does not match its published sha256 - refusing to install it"
+
+    # apt-get rather than dpkg -i, so a dependency the package gains later resolves instead of
+    # leaving it half-configured. The leading ./ is what makes apt read it as a file.
+    run "installing [${package_name}]" \
+        apt-get install -qqy --no-install-recommends -o Acquire::Retries=${max_attempts} "./${package_name}" \
+    || error "installing [${package_name}] failed"
+}
+
+install_from_source(){
+    local installer="build2-install-${arg_versions}.sh"
+    local release_url="${base_url}/${arg_versions}"
+
+    command -v "${arg_cxx}" >/dev/null 2>&1 \
+      || error "no binary package for this host, and the source build needs a compiler: [${arg_cxx}] is not in PATH - install one (gcc.sh / llvm.sh) or name another with --cxx"
+
+    run_with_retries "${max_attempts}" "fetching [${installer}]" \
+        curl --fail --silent --show-error --location --retry ${max_attempts} --remote-name "${release_url}/${installer}" \
+    || error "fetching [${release_url}/${installer}] failed - is [${arg_versions}] a published build2 release?"
+
+    run_with_retries "${max_attempts}" "fetching [${installer}.sha256]" \
+        curl --fail --silent --show-error --location --retry ${max_attempts} --remote-name "${release_url}/${installer}.sha256" \
+    || error "fetching [${release_url}/${installer}.sha256] failed"
+
+    # Checked against build2's own per-release sidecar, so no hash is pinned here and a version bump
+    # stays a one-line change. sha256sum rather than shasum: both read this format, and only the
+    # first is in coreutils, which a host running the published copy is certain to have.
+    run "verifying [${installer}]" \
+        sha256sum --check --strict "${installer}.sha256" \
+    || error "[${installer}] does not match its published sha256 - refusing to run it"
+
+    # --sudo false: this script already requires root, and the installer would otherwise look for a
+    #   sudo that a minimal image has no reason to carry.
+    run "running [${installer}]" \
+        sh "${installer}" --yes --cxx "${arg_cxx}" --sudo false --jobs "$(nproc)" \
+    || error "running [${installer}] failed"
+}
+
+# --- installation ---
 
 work_dir=$(mktemp -d)
 cd "${work_dir}"
 
-curl_options=(--fail --silent --show-error --location --retry ${max_attempts} --remote-name)
+if resolve_package_url; then
+    # A HEAD rather than letting the download fail: 404 means there is no package for this host and
+    # the source build is the answer, while a timeout or a 5xx means the question went unanswered -
+    # falling back there would spend minutes compiling over what is probably a transient failure.
+    package_status=$(curl --silent --location --head --max-time 30 \
+                          --output /dev/null --write-out '%{http_code}' "${package_url}") || package_status='000'
+else
+    package_status='n/a'
+    log "no binary package is published for this distribution"
+fi
 
-run_with_retries "${max_attempts}" "fetching [${release_url}/${installer}]" \
-    curl "${curl_options[@]}" "${release_url}/${installer}" \
-|| error "fetching [${release_url}/${installer}] failed - is [${arg_versions}] a published build2 release?"
-
-run_with_retries "${max_attempts}" "fetching [${release_url}/${installer}.sha256]" \
-    curl "${curl_options[@]}" "${release_url}/${installer}.sha256" \
-|| error "fetching [${release_url}/${installer}.sha256] failed"
-
-# The installer is checked against build2's own per-release sidecar rather than a hash pinned here,
-# so a version bump stays a one-line change. sha256sum rather than shasum: both read this format,
-# and only the first is in coreutils, which a host running the published copy is certain to have.
-run "verifying [${installer}]" \
-    sha256sum --check --strict "${installer}.sha256" \
-|| error "[${installer}] does not match its published sha256 - refusing to run it"
-
-# --- installation ---
-
-# --sudo false: this script already requires root, and the installer would otherwise look for a sudo
-#   that a minimal image has no reason to carry.
-run "running [${installer}]" \
-    sh "${installer}" --yes --cxx "${arg_cxx}" --sudo false --jobs "$(nproc)" \
-|| error "running [${installer}] failed"
+case "${package_status}" in
+    200 )
+        log "installing the binary package [${package_url}]"
+        install_from_package
+        ;;
+    404 | 'n/a' )
+        log "no binary package for this host, building [${arg_versions}] from source with [${arg_cxx}]"
+        install_from_source
+        ;;
+    * )
+        error "cannot tell whether a binary package exists: [${package_url}] answered [${package_status}]"
+        ;;
+esac
 
 # --- summary ---
 
-if command -v bpkg >/dev/null 2>&1; then
-    log "build2 [${arg_versions}] installed, bpkg is on PATH"
-else
-    warning "the installer reported success but [bpkg] is not on PATH - check where it installed to"
-fi
+installed=()
+for command_name in b bpkg bdep bx; do
+    command -v "${command_name}" >/dev/null 2>&1 && installed+=("${command_name}")
+done
+
+[ "${#installed[@]}" -gt 0 ] \
+  || error "the installation reported success but none of [b bpkg bdep bx] is on PATH"
+
+log "build2 [${arg_versions}] installed: ${installed[*]}"
 
 echo -e "${arg_versions}" # result for the caller
 

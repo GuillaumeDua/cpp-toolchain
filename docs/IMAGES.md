@@ -266,7 +266,7 @@ docker build -t cpp-toolchain:dev . \
 | LLVM_VERSIONS | *pinned* | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13` |
 | BINUTILS_TARGETS | `''` (none) | Cross toolchain target triplets; empty = lean, a list = cross-arch variant | `'aarch64-linux-gnu riscv64-linux-gnu'` |
 | OPT_IN_INTEGRATE_BAZEL | `no` | installs Bazel from its apt repository, `amd64` only | `yes` |
-| OPT_IN_INTEGRATE_BUILD2 | `no` | installs the build2 toolchain from its upstream installer | `yes` |
+| OPT_IN_INTEGRATE_BUILD2 | `no` | installs the build2 toolchain, from upstream's binary package or from source | `yes` |
 
 The *pinned* defaults are the `ARG` block at the top of the [Dockerfile](../Dockerfile), and every release note lists the values that release shipped.
 `BINUTILS_TARGETS` on any `--target` build produces the cross-arch flavor of that stage - see [Cross-compilation](CROSS-COMPILATION.md).

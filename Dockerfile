@@ -76,7 +76,7 @@ ARG CONAN_VERSION=2.31.1
 # renovate: datasource=github-releases depName=doxygen/doxygen versioning=regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$
 ARG DOXYGEN_RELEASE=Release_1_18_0
 
-# The install script is verified against build2's per-release `.sha256` sidecar rather than a hash pinned here, so a version bump stays a one-line change.
+# What build2.sh downloads is verified against the `sha256` sidecar published beside it rather than a hash pinned here, so a version bump stays a one-line change.
 # renovate: datasource=github-tags depName=build2/build2-toolchain extractVersion=^v(?<version>.+)$
 ARG BUILD2_VERSION=0.16.0
 
@@ -277,8 +277,8 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
     && ${script_path} --silent=yes --alias=yes --mode=minimalistic --versions="$LLVM_VERSIONS"
 
 # Build: Build2 (https://build2.org)
-#   build2.sh owns the download, the sha256 check and the source build it runs.
-#   Kept below the compilers: that build needs one, and build2.sh refuses rather than guessing.
+#   build2.sh prefers the binary package upstream publishes, and compiles from source where there is none.
+#   Kept below the compilers because that fallback needs one.
 #   BUILD2_VERSION is declared once at the top of this file (bumped by Renovate).
 COPY ./scripts/install/build2.sh ${TOOLCHAIN_TMP_DIR}/scripts/build2.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
