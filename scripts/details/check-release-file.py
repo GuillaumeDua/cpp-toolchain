@@ -38,8 +38,6 @@ import re
 import subprocess
 import sys
 
-sys.dont_write_bytecode = True
-
 HERE = pathlib.Path(__file__).resolve().parent
 
 # The canonical stage lists. docker-publish.yml consumes these via --print-stages:

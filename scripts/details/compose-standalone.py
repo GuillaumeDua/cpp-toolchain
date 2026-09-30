@@ -25,9 +25,6 @@ Writes to stdout, or with --all one file per script into the directory given.
 import argparse
 import pathlib
 import re
-import sys
-
-sys.dont_write_bytecode = True
 
 HERE = pathlib.Path(__file__).resolve().parent
 LIBRARY = HERE / "shared.sh"
