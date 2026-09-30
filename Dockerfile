@@ -221,21 +221,17 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh;                          
     && rm -rf /var/lib/apt/lists/*
 
 # Build: Bazel (https://bazel.build/install/ubuntu)
-#   Bazel's apt repository ships amd64 only (no arm64 debs), so this opt-in step is
-#   guarded to amd64 - on other architectures it is skipped (use Bazelisk instead).
+#   bazel.sh owns the apt repository registration and the amd64-only guard: the repository ships no
+#   arm64 debs, so on another architecture the script installs nothing and the build carries on.
+COPY ./scripts/install/bazel.sh ${TOOLCHAIN_TMP_DIR}/scripts/bazel.sh
+WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG OPT_IN_INTEGRATE_BAZEL='no'
-RUN if [[ "${OPT_IN_INTEGRATE_BAZEL}" = "y" ]] && [[ "$(dpkg --print-architecture)" != "amd64" ]]; then           \
-        echo "[bazel] apt repository is amd64-only, skipping on $(dpkg --print-architecture)";                     \
-    elif [[ "${OPT_IN_INTEGRATE_BAZEL}" = "y" ]]; then                         \
-        apt-get update -qqy && apt-get install -qqy --no-install-recommends    \
-            apt-transport-https curl gnupg                                     \
-        && curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor >bazel-archive-keyring.gpg \
-        && mv bazel-archive-keyring.gpg /usr/share/keyrings                    \
-        && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/bazel-archive-keyring.gpg] https://storage.googleapis.com/bazel-apt stable jdk1.8" | tee /etc/apt/sources.list.d/bazel.list \
-        && apt-get update -qqy && apt-get install -qqy --no-install-recommends \
-            bazel                                                              \
-        && rm -rf /var/lib/apt/lists/*                                         \
-        ;                                                                      \
+RUN if [[ "${OPT_IN_INTEGRATE_BAZEL}" =~ ^([Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee])$ ]]; then    \
+        script_path=${TOOLCHAIN_TMP_DIR}/scripts/bazel.sh;                                    \
+        echo -e "[C++ toolchain] Installing Bazel ...";                                       \
+        chmod +x ${script_path}                                                               \
+        && ${script_path} --silent=yes                                                        \
+        && rm -rf /var/lib/apt/lists/*;                                                       \
     fi
 
 # Dependency managers
@@ -284,7 +280,7 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
 #   BUILD2_VERSION is declared once at the top of this file (bumped by Renovate).
 ARG BUILD2_VERSION
 ARG OPT_IN_INTEGRATE_BUILD2='no'
-RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" = "y" ]]; then                               \
+RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" =~ ^([Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee])$ ]]; then    \
         mkdir -p /tmp/build2-build && cd /tmp/build2-build                          \
         && script="build2-install-${BUILD2_VERSION}.sh"                            \
         && base_url="https://download.build2.org/${BUILD2_VERSION}"                \
