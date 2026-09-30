@@ -276,23 +276,19 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
     chmod +x ${script_path}                                                     \
     && ${script_path} --silent=yes --alias=yes --mode=minimalistic --versions="$LLVM_VERSIONS"
 
-# Build: Build2 (depends on a compiler)
+# Build: Build2 (https://build2.org)
+#   build2.sh owns the download, the sha256 check and the source build it runs.
+#   Kept below the compilers: that build needs one, and build2.sh refuses rather than guessing.
 #   BUILD2_VERSION is declared once at the top of this file (bumped by Renovate).
+COPY ./scripts/install/build2.sh ${TOOLCHAIN_TMP_DIR}/scripts/build2.sh
+WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG BUILD2_VERSION
 ARG OPT_IN_INTEGRATE_BUILD2='no'
 RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" =~ ^([Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee])$ ]]; then    \
-        mkdir -p /tmp/build2-build && cd /tmp/build2-build                          \
-        && script="build2-install-${BUILD2_VERSION}.sh"                            \
-        && base_url="https://download.build2.org/${BUILD2_VERSION}"                \
-        && curl -sSfO "${base_url}/${script}"                                       \
-        && curl -sSfO "${base_url}/${script}.sha256"                               \
-        && shasum -a 256 -c "${script}.sha256"                                      \
-        && sh "${script}"                                                           \
-            --yes                                                                   \
-            --cxx clang++                                                           \
-            --sudo false                                                            \
-            --jobs $(nproc)                                                         \
-        ;                                                                           \
+        script_path=${TOOLCHAIN_TMP_DIR}/scripts/build2.sh;                                   \
+        echo -e "[C++ toolchain] Installing BUILD2_VERSION=[$BUILD2_VERSION] ...";            \
+        chmod +x ${script_path}                                                               \
+        && ${script_path} --silent=yes --versions="$BUILD2_VERSION";                          \
     fi
 
 # C++ toolchain: per-target cross toolchain(s) via g++-<triplet>

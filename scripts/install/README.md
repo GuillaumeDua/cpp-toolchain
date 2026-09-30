@@ -1,6 +1,6 @@
 # Toolchain installation scripts
 
-Scripts to install `CMake`, `GCC`, `LLVM/Clang`, cross-compilation `binutils` (+ cross-libc), `Doxygen` and `Bazel`, reusable on any Debian/Ubuntu-based system.  
+Scripts to install `CMake`, `GCC`, `LLVM/Clang`, cross-compilation `binutils` (+ cross-libc), `Doxygen`, `Bazel` and `build2`, reusable on any Debian/Ubuntu-based system.  
 All take no dependency on each other and describe themselves with `--help`.
 Each release publishes them as self-contained files; the copies here source their shared helpers from [../details/shared.sh](../details/shared.sh), so fetch the published one to run it outside a checkout - [scripts/README.md](../README.md#using-a-public-script-on-its-own) has the detail.
 Installing needs root. The exceptions run as any user: the `--list-installed` and `--list-targets` query modes, answered from `dpkg`, and `doxygen.sh --prefix=<directory>`, which installs under a directory of the caller's choosing.
@@ -285,4 +285,35 @@ Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
 
 ```bash
 sudo ./bazel.sh --silent=yes
+```
+
+---
+
+## `build2.sh`
+
+```bash
+sudo ./build2.sh --versions=<version> [options]
+```
+
+Fetches `build2-install-<version>.sh` from [download.build2.org](https://download.build2.org), checks it against the `.sha256` sidecar published beside it, and runs it.
+That installer builds build2 from source, so a C++ compiler has to be installed already - `gcc.sh` and `llvm.sh` next door install one, and this script refuses rather than choosing one for you.
+
+There is no `latest`: build2 publishes no index a version could be resolved from, so `--versions` is required.
+
+| Option             | Type    | Default   | Description                                    |
+| ------------------ | ------- | --------- | ---------------------------------------------- |
+| `-v`, `--versions` | string  | -         | Required. A published build2 release, `0.16.0`  |
+| `-c`, `--cxx`      | string  | `clang++` | The compiler the installer builds build2 with   |
+| `-s`, `--silent`   | boolean | `1`       | Suppress log output                             |
+| `-h`, `--help`     | -       | -         | Display usage                                   |
+
+Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
+
+No hash is pinned here: checking the installer against build2's own per-release sidecar is what keeps a version bump a one-line change.
+
+**Example**: what the images do behind `OPT_IN_INTEGRATE_BUILD2`, which is off by default:
+
+```bash
+sudo ./build2.sh --versions=0.16.0
+sudo ./build2.sh --versions=0.16.0 --cxx=g++   # on a host carrying no clang++
 ```
