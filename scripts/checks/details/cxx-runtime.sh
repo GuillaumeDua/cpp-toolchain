@@ -15,11 +15,10 @@ install_scripts_dir="${this_script_dir}/../../install"
 warning_flags=('-Wall' '-Wextra')
 
 payload_source=''
-failures=0
-
-die()  { echo "[${this_script_name}] error: $*" >&2; exit 1; }
-fail() { echo "[${this_script_name}] FAIL: $*" >&2; failures=$((failures + 1)); }
-pass() { echo "[${this_script_name}] ok:   $*"; }
+# The helpers shared with the other scripts.
+# This one is never published standalone: it runs inside the validate stages, which copy scripts/ whole,
+# and .dockerignore's exception is what puts the library in that copy.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../details/shared.sh"
 
 # Binaries are reported as <directory>/<name>, so the libstdc++ and libc++ passes stay distinct.
 label(){
@@ -239,8 +238,4 @@ case "${mode}" in
         ;;
 esac
 
-[ "${failures}" -eq 0 ] \
-  || die "${failures} ${mode} check(s) failed under [${root}]"
-
-echo "[${this_script_name}] ${mode}: all checks passed under [${root}]"
-exit 0
+finish "${mode}" "under [${root}]" "${mode}: all checks passed under [${root}]"

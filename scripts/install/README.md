@@ -1,7 +1,8 @@
 # Toolchain installation scripts
 
-Standalone scripts to install `CMake`, `GCC`, `LLVM/Clang`, cross-compilation `binutils` (+ cross-libc), and `Doxygen`, reusable on any Debian/Ubuntu-based system.  
+Scripts to install `CMake`, `GCC`, `LLVM/Clang`, cross-compilation `binutils` (+ cross-libc), `Doxygen`, `Bazel` and `build2`, reusable on any Debian/Ubuntu-based system.  
 All take no dependency on each other and describe themselves with `--help`.
+Each release publishes them as self-contained files; the copies here source their shared helpers from [../details/shared.sh](../details/shared.sh), so fetch the published one to run it outside a checkout - [scripts/README.md](../README.md#using-a-public-script-on-its-own) has the detail.
 Installing needs root. The exceptions run as any user: the `--list-installed` and `--list-targets` query modes, answered from `dpkg`, and `doxygen.sh --prefix=<directory>`, which installs under a directory of the caller's choosing.
 
 - `gcc.sh` and `llvm.sh` can install **multiple compiler versions side by side** in the same environment (one `apt-get install` per requested version, wired together with `update-alternatives`) - see their `--versions` option below.  
@@ -257,4 +258,70 @@ Under a prefix the apt fallback is refused rather than taken: `apt` writes `/usr
 ```bash
 sudo ./doxygen.sh Release_1_17_0                        # -> /usr/local/bin/doxygen
 ./doxygen.sh --prefix="${HOME}/.local" Release_1_17_0   # -> ~/.local/bin/doxygen, no root
+```
+
+---
+
+## `bazel.sh`
+
+```bash
+sudo ./bazel.sh [options]
+```
+
+Registers the [Bazel apt repository](https://bazel.build/install/ubuntu) - signing key under `/usr/share/keyrings`, source under `/etc/apt/sources.list.d` - then installs the `bazel` package from it.
+No version is requested, so apt resolves whatever the repository currently serves.
+
+`amd64` only. The repository publishes no deb for another architecture, so there the script says so and installs nothing rather than failing: it backs an optional build-system integration, and refusing the whole build over it would be the wrong trade.
+[Bazelisk](https://github.com/bazelbuild/bazelisk) is the portable route on those hosts.
+
+| Option           | Type    | Default | Description        |
+| ---------------- | ------- | ------- | ------------------ |
+| `-s`, `--silent` | boolean | `1`     | Suppress log output |
+| `-h`, `--help`   | -       | -       | Display usage      |
+
+Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
+
+**Example**: what the images do behind `OPT_IN_INTEGRATE_BAZEL`, which is off by default - see [Build your own image](../../docs/IMAGES.md#build-your-own-image):
+
+```bash
+sudo ./bazel.sh --silent=yes
+```
+
+---
+
+## `build2.sh`
+
+```bash
+sudo ./build2.sh --versions=<version> [options]
+```
+
+Installs `b`, `bpkg`, `bdep` and `bx`, by whichever of two routes answers for the host:
+
+1. the **binary package** upstream publishes under `bindist/`, per distribution, release and architecture.
+2. the **source installer**, which compiles build2 and so needs a C++ compiler already present - `gcc.sh` and `llvm.sh` next door install one.
+
+Compiling is the fallback rather than the default: it is minutes of CPU for an artifact upstream already produced.
+It is not dead code either - the binary packages cover `x86_64` alone, and only some releases carry them, so an `arm64` host or an older version still takes it.
+
+Either route checks what it downloaded against the `sha256` sidecar published beside it before installing or running it.
+No hash is pinned here, which is what keeps a version bump a one-line change.
+
+A `404` on the package is the signal to fall back. Anything else - a timeout, a `5xx` - fails instead: spending minutes on a source build over a transient network failure is not a recovery.
+
+There is no `latest`: build2 publishes no index a version could be resolved from, so `--versions` is required.
+
+| Option             | Type    | Default   | Description                                                        |
+| ------------------ | ------- | --------- | ------------------------------------------------------------------ |
+| `-v`, `--versions` | string  | -         | Required. A published build2 release, `0.18.1`                      |
+| `-c`, `--cxx`      | string  | `clang++` | The compiler the source fallback builds with; unread on the package route |
+| `-s`, `--silent`   | boolean | `1`       | Suppress log output                                                 |
+| `-h`, `--help`     | -       | -         | Display usage                                                       |
+
+Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
+
+**Example**: the two routes, on an `x86_64` Ubuntu host:
+
+```bash
+sudo ./build2.sh --versions=0.18.1             # a package exists -> installed with apt
+sudo ./build2.sh --versions=0.16.0 --cxx=g++   # none published   -> compiled from source
 ```

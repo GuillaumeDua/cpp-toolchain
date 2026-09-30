@@ -15,8 +15,9 @@ so it is matched separately here and bumped by .github/workflows/ubuntu-snapshot
 Usage, from the repository root - `--dockerfile` and `--renovate` default to paths relative to it:
     python3 scripts/details/render-manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
     python3 scripts/details/render-manifest.py --tag v1.2 --changelog changelog.md --versions releases/v1.2.yaml --date 2026-08-25
-    python3 scripts/details/render-manifest.py --collected build-metadata/versions.txt
+    python3 scripts/details/render-manifest.py --collected build-metadata/versions/
     python3 scripts/details/render-manifest.py --replace-region manifest --with note.md < body.md
+    python3 scripts/details/render-manifest.py --print-date < body.md
 
 `--previous-ref` defaults to the newest release before `--tag`, 
 which is the base every caller wants, so no caller computes one.
@@ -27,6 +28,11 @@ A named ref that cannot be read, or that parses to no pins, is never silently re
 `--replace-region` edits a release body in place around the `<!-- name:begin -->` markers this
 script emits, and refuses an unbalanced pair. Every caller that upserts a release body goes
 through it, so hand-written prose outside the region survives a re-run.
+
+`--print-date` reads a date back out of a release body this script wrote, so the heading format has
+one owner rather than a copy of it in the caller. A promotion re-run for a rollback re-dates its note
+from the release it already published, which has to say the day the release shipped rather than the
+day it was restored.
 
 `--changelog` places a block of markdown inside that same region, after the manifest:
 - what the repository changed, which only GitHub's generate-notes API can answer.
@@ -42,10 +48,12 @@ so the manifest can be rendered for the exact commit an image was built from,
 even when the checkout has moved past it.
 
 `--versions` reads the record being cut: its `versions:` fills the `Installed` column beside the
-pins and diffs against the previous release's record, and its `build` digest is the digest-pinned
-pull. Only the distribution, GCC, Clang and the standard libraries have one - every other pin is
-exact.
-`--collected` turns the collector's output into that mapping.
+pins, its `introduced:` fills `Stage introducing`, both diff against the previous release's record,
+and its `build` digest is the digest-pinned pull.
+
+`--collected` turns the collection into those two mappings. It takes the directory holding one
+`<stage>.txt` per published stage, because which stage first carries a component is a question no
+single image can be asked - the stage graph comes from the Dockerfile's own `FROM ... AS` lines.
 
 `--date` stamps the heading with the day the release is produced. Left out, the note carries no
 date, so a local render stays byte-comparable with the one before it.
@@ -55,7 +63,6 @@ date, so a local render stays byte-comparable with the one before it.
 """
 
 import argparse
-import importlib.util
 import json
 import pathlib
 import re
@@ -66,23 +73,50 @@ import sys
 # sources, on every local run and every CI run.
 sys.dont_write_bytecode = True
 
+# Below that line rather than with the imports above it, or the first thing cached is _loader itself.
+from _loader import load
+
 HERE = pathlib.Path(__file__).resolve().parent
 
-# depName (or ARG name, for the pins no datasource covers) -> display label, in report order.
-# Anything matched but not listed here still appears, under its raw name - so a new pin is never silently dropped from the manifest.
-LABELS = [
-    ("ubuntu", "Ubuntu"),
-    ("UBUNTU_SNAPSHOT", "Ubuntu archive snapshot"),
-    ("gcc-mirror/gcc", "GCC"),
-    ("llvm/llvm-project", "Clang/LLVM"),
-    ("Kitware/CMake", "CMake"),
-    ("microsoft/vcpkg", "vcpkg"),
-    ("conan", "Conan"),
-    ("doxygen/doxygen", "Doxygen"),
-    ("build2/build2-toolchain", "build2"),
-    ("https://github.com/ohmyzsh/ohmyzsh", "oh-my-zsh"),
-    ("romkatv/powerlevel10k", "powerlevel10k"),
-]
+# depName (or ARG name, for the pins no datasource covers) -> display label, grouped by what a
+# reader came to the note for. Anything matched but not listed here still appears, under its raw
+# name - so a new pin is never silently dropped from the manifest.
+# `shell` is the one group rendered apart: those two pins are a dev-image convenience, and the
+# question the note answers is what the toolchain carries.
+LABEL_GROUPS = (
+    ("base", (
+        ("ubuntu", "Ubuntu"),
+        ("UBUNTU_SNAPSHOT", "Ubuntu archive snapshot"),
+    )),
+    ("toolchain", (
+        ("gcc-mirror/gcc", "GCC"),
+        # The pin drives clang, lld, lldb, clangd and the analysis tools alike, so it is named
+        # after the project rather than after the one command it is most often read as.
+        ("llvm/llvm-project", "LLVM"),
+    )),
+    ("build", (
+        ("Kitware/CMake", "CMake"),
+        ("microsoft/vcpkg", "vcpkg"),
+        ("conan", "Conan"),
+        ("build2/build2-toolchain", "build2"),
+    )),
+    ("documentation", (
+        ("doxygen/doxygen", "Doxygen"),
+    )),
+    ("shell", (
+        ("https://github.com/ohmyzsh/ohmyzsh", "oh-my-zsh"),
+        ("romkatv/powerlevel10k", "powerlevel10k"),
+    )),
+)
+
+LABELS = [pair for _, pairs in LABEL_GROUPS for pair in pairs]
+# LABELS stays a list because the manifest's display order comes off it; this is the same by name,
+# for the tables that look one label up instead of walking that order.
+LABEL_BY_NAME = dict(LABELS)
+SHELL_PINS = [name for name, _ in dict(LABEL_GROUPS)["shell"]]
+
+# What a `Pinned` cell says for a component no version pin covers: apt is what fixes its version.
+UNPINNED = "apt"
 
 # The pins an image can disagree with, and where the collector answers for them:
 # depName -> (group, key template). `{}` takes each major the pin names, so `GCC | 14 15` reads two
@@ -91,26 +125,25 @@ COLLECTED_BY_PIN = {
     "gcc-mirror/gcc": ("compilers", "gcc-{}"),
     "llvm/llvm-project": ("compilers", "clang-{}"),
     "ubuntu": ("distribution", "ubuntu"),
+    "UBUNTU_SNAPSHOT": ("distribution", "ubuntu-snapshot"),
+    "Kitware/CMake": ("tools", "cmake"),
+    "microsoft/vcpkg": ("tools", "vcpkg"),
+    "conan": ("tools", "conan"),
+    "doxygen/doxygen": ("tools", "doxygen"),
+    # build2 is opt-in and off in every published build, so this key is read only where someone
+    # turned it on. `bpkg` rather than build2's single-letter `b`, too generic a name for
+    # `command -v` to read as an answer about this toolchain.
+    "build2/build2-toolchain": ("tools", "bpkg"),
 }
 
 # What the published images run on. build-stages.sh passes no `--platform`, so there is exactly one.
 PLATFORM = "linux/amd64"
 
 
-def load_check_release_file():
-    """check-release-file.py, imported by path - the hyphen makes it not a normal module name.
-
-    It owns the version grammar and the registry references:
-        the tag the workflows publish, the base this note diffs against, and the image it tells
-        readers to pull are then one answer rather than three spellings of it.
-    """
-    spec = importlib.util.spec_from_file_location("check_release_file", HERE / "check-release-file.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-schema = load_check_release_file()
+# check-release-file.py owns the version grammar and the registry references:
+#   the tag the workflows publish, the base this note diffs against, and the image it tells
+#   readers to pull are then one answer rather than three spellings of it.
+schema = load("check-release-file")
 newest_release_before = schema.newest_release_before
 
 GHCR_REFERENCE = schema.REGISTRIES["ghcr"]
@@ -225,6 +258,22 @@ def replace_region(body, name, replacement, when_absent):
     return "\n".join(lines[:starts[0]] + replacement.splitlines() + lines[ends[0] + 1:])
 
 
+# The heading and its inverse, together so a change to the format lands beside the code reading it.
+# docker-publish.yml re-dates a note from the release it already published, which is a read of this
+# heading.
+HEADING_DATE = re.compile(r"^## What's inside \S+ - (\d{4}-\d{2}-\d{2})[ \t]*$", re.M)
+
+
+def manifest_heading(tag, date):
+    return f"## What's inside {tag}" + (f" - {date}" if date else "")
+
+
+def date_in_body(body):
+    """The date `manifest_heading` stamped into a release body, empty when it carries none."""
+    found = HEADING_DATE.search(body)
+    return found.group(1) if found else ""
+
+
 def read_fields(text):
     """`key=value` lines as a mapping - what cxx-toolchain-versions.sh reports, and cxx-stdlibs.sh before it."""
     fields = {}
@@ -235,52 +284,114 @@ def read_fields(text):
     return fields
 
 
-def versions_yaml(path):
-    """The collected file as a YAML `versions:` mapping, grouped as the collector prefixed it.
+def stage_parents(dockerfile):
+    """{stage: parent stage, or None for the root} for every `FROM ... AS <stage>` declared.
+
+    Read out of the Dockerfile rather than declared beside the stage lists: a stage re-parented
+    there moves here with it, and the two cannot disagree about which image inherits which.
+    A parent the file never declared as a stage - `${BASE_IMAGE}` - is the root of the graph.
+    """
+    parents = {}
+    for parent, stage in re.findall(r"^FROM\s+(\S+)\s+AS\s+(\S+)", dockerfile, re.MULTILINE | re.IGNORECASE):
+        parents[stage] = parent if parent in parents else None
+    return parents
+
+
+def collected_by_stage(directory):
+    """{stage: {group: {name: value}}} from one `<stage>.txt` per published stage.
+
+    Every published stage must be there: a missing file is a collection that did not run, and an
+    absent stage would hand its components to the one above it as though they were introduced there.
+    """
+    base = pathlib.Path(directory)
+    per_stage = {}
+    for stage in schema.NORMAL_STAGES:
+        source = base / f"{stage}.txt"
+        if not source.is_file():
+            raise SystemExit(f"::error::{base}: no {source.name} - nothing was collected from {stage}")
+
+        grouped = {}
+        for key, value in read_fields(source.read_text(encoding="utf-8")).items():
+            group, separator, name = key.partition(".")
+            if not separator:
+                raise SystemExit(f"::error::{source}: '{key}' carries no group prefix")
+            grouped.setdefault(group, {})[name] = value
+
+        unexpected = set(grouped) - set(schema.VERSION_GROUPS)
+        if unexpected:
+            raise SystemExit(f"::error::{source}: unknown group(s): {', '.join(sorted(unexpected))}")
+        per_stage[stage] = grouped
+    return per_stage
+
+
+def merge_collected(per_stage, parents):
+    """({group: {name: version}}, {group: {component: [stage]}}) over every stage.
+
+    The two answer different halves. A version is what an image reports, and `-` is a component
+    that is installed and cannot state one - vcpkg, conan and doxygen are installed outside apt -
+    so it carries a stage and no version, which is why `introduced` is the wider of the two.
+
+    A name collected in several stages must carry the same value in all of them: `documentation`
+    and `dev` reporting different doxygen is a build that installed two, which is a fault rather
+    than a cell to pick a winner for.
+    """
+    versions = {}
+    for stage in schema.NORMAL_STAGES:
+        for group, collected in per_stage[stage].items():
+            for name, value in collected.items():
+                if value == "-":
+                    continue
+                seen = versions.setdefault(group, {}).setdefault(name, value)
+                if seen != value:
+                    raise SystemExit(f"::error::{group}.{name}: collected as '{seen}' and as"
+                                     f" '{value}' - one component cannot be two versions")
+
+    # Keyed over every collected name, `-` included, so a component with no version still places.
+    everything = {}
+    for stage in schema.NORMAL_STAGES:
+        for group, collected in per_stage[stage].items():
+            everything.setdefault(group, set()).update(collected)
+
+    introduced = {}
+    for group, names in everything.items():
+        carried = {stage: {split_key(name, names)[0] for name in per_stage[stage].get(group, {})}
+                   for stage in schema.NORMAL_STAGES}
+        for stage in schema.NORMAL_STAGES:
+            parent = parents.get(stage)
+            inherited = carried.get(parent, set()) if parent else set()
+            for component in sorted(carried[stage] - inherited):
+                introduced.setdefault(group, {}).setdefault(component, []).append(stage)
+
+    return versions, introduced
+
+
+def collected_yaml(versions, introduced):
+    """The collection as the `versions:` and `introduced:` mappings a promotion record carries.
 
     JSON quoting, as bumps_yaml does. Every group must report something: an empty one in an
     immutable record is indistinguishable from a collection that ran and found nothing.
     """
-    collected = read_fields(pathlib.Path(path).read_text(encoding="utf-8"))
-    grouped = {}
-    for key, value in collected.items():
-        group, separator, name = key.partition(".")
-        if not separator:
-            raise SystemExit(f"::error::{path}: '{key}' carries no group prefix")
-        grouped.setdefault(group, {})[name] = value
-
-    unexpected = set(grouped) - set(schema.VERSION_GROUPS)
-    if unexpected:
-        raise SystemExit(f"::error::{path}: unknown group(s): {', '.join(sorted(unexpected))}")
-
     lines = ["versions:"]
     for group in schema.VERSION_GROUPS:
-        if not grouped.get(group):
-            raise SystemExit(f"::error::{path} reports no {group}")
+        if not versions.get(group):
+            raise SystemExit(f"::error::the collection reports no {group}")
         lines.append(f"  {group}:")
-        lines += [f"    {json.dumps(name)}: {json.dumps(grouped[group][name])}"
-                  for name in sorted(grouped[group])]
+        lines += [f"    {json.dumps(name)}: {json.dumps(versions[group][name])}"
+                  for name in sorted(versions[group])]
+
+    lines.append("introduced:")
+    for group in schema.VERSION_GROUPS:
+        lines.append(f"  {group}:")
+        lines += [f"    {json.dumps(component)}: {json.dumps(' '.join(stages))}"
+                  for component, stages in sorted(introduced.get(group, {}).items())]
     return "\n".join(lines)
 
-
-# What a collected library key carries, longest first: `-cxxabi` also ends in `-abi`.
-LIBRARY_FIELDS = ("-cxxabi", "-abi")
 
 # How a library's companion keys read once a table has named the package.
 FIELD_LABELS = {"abi": "(ABI)", "cxxabi": "(C++ ABI)"}
 
-
-def split_key(name, collected):
-    """(package, field) for a collected library key - a package, optionally suffixed with a field.
-
-    A suffix only counts when the package it would belong to was collected too, so a package whose
-    own name ends in one of them keeps it.
-    """
-    for suffix in LIBRARY_FIELDS:
-        package = name[: -len(suffix)]
-        if name.endswith(suffix) and package in collected:
-            return package, suffix[1:]
-    return name, "version"
+# The key grammar is the schema's: a record is validated against the same split that reads it here.
+split_key = schema.split_key
 
 
 def library_rows(collected):
@@ -323,32 +434,76 @@ def collected_keys(name, pinned, versions):
                          key=by_major)
 
 
-def installed_cell(name, pinned, versions):
+def installed_cell(name, pinned, versions, introduced, versioning):
     """The `Installed` cell of a pin row.
 
-    Empty for a pin nothing collects, and for a group nothing was collected for: an exact pin has
-    nothing to add beside it, and a dry run has no record to read.
-    `-` when the group was collected and the pin is not in it, which is a pin naming something the
-    images do not carry. Never empty there, which would read as an exact pin.
+    Always the value the images reported, equal to the pin or not: a cell left blank beside a
+    version reads as "not installed", which for a pinned component is the one thing it never means.
+    `-` carries that meaning and only that one - the pin names something no image has.
+
+    A component with a stage and no version is the third case: vcpkg, conan and doxygen are
+    installed outside apt, so no package states their version and the pin is the answer. Presence
+    is measured either way, which is what separates this from `-`.
+    Empty is left for a pin the collection does not reach.
+    A record carrying no collection at all renders no `Installed` column for a cell to be empty in.
     """
-    source = collected_keys(name, pinned, versions)
-    if source is None:
+    group, keys, components = pin_components(name, pinned, versions)
+    if group is None:
         return ""
-    group, keys = source
     collected = versions.get(group)
     if collected is None:
         return ""
+
     values = [collected[key] for key in keys if key in collected]
-    return ", ".join(f"`{value}`" for value in values) if values else "-"
+    if values:
+        return ", ".join(f"`{value}`" for value in values)
+    if stage_cell(group, components, introduced):
+        return f"`{render_version(pinned, versioning)}`"
+    return "-"
+
+
+def stage_order(value):
+    """The stages in an `introduced:` value, deduplicated and in build order."""
+    return sorted(set((value or "").split()), key=schema.NORMAL_STAGES.index)
+
+
+def render_stages(stages):
+    """A stage list as a table cell: one code span each, comma-separated."""
+    return ", ".join(f"`{stage}`" for stage in stages)
+
+
+def stage_cell(group, components, introduced):
+    """The stages introducing any of `components`, deduplicated and in build order.
+
+    A component can be introduced by two stages at once: `static-analysis` and `documentation`
+    both branch off `build`, so what either installs is new in both.
+    """
+    known = (introduced.get(group) or {}) if group else {}
+    return stage_order(" ".join(known.get(component) or "" for component in components))
+
+
+def pin_components(name, pinned, versions):
+    """(group, [key], [component]) a pin's cells read, or (None, [], []) for a pin nothing collects.
+
+    The keys are what a version is looked up under, the components what a stage is: a library's
+    `-abi` key and its package share one stage and carry two versions.
+    """
+    source = collected_keys(name, pinned, versions)
+    if source is None:
+        return None, [], []
+    group, keys = source
+    return group, keys, [split_key(key, versions.get(group) or {})[0] for key in keys]
 
 
 def unpinned_rows(current, versions):
-    """(name, version) for every collected compiler or distribution no pin accounts for.
+    """(group, name, version) for every collected component no pin accounts for.
 
     Not dropped: the note's subject is what the images carry, and something installed without a
-    pin is what a reader cannot learn from the Dockerfile.
-    Reachable when an image carries a major no pin asked for, which a selector pin does not
-    produce: one resolving to several majors claims all of them.
+    pin is what a reader cannot learn from the Dockerfile. That is most of the toolchain - the
+    LLVM suite, the coverage tools and the analysis tools are all installed by an apt repository
+    rather than by a version pin.
+    The libraries are left out: they have a table of their own, with the ABI columns a pin row has
+    no room for.
     """
     claimed = set()
     for name, pinned in current.items():
@@ -356,29 +511,50 @@ def unpinned_rows(current, versions):
         if source:
             group, keys = source
             claimed |= {(group, key) for key in keys}
-    return [(key, value)
-            for group in ("distribution", "compilers")
+    return [(group, key, value)
+            for group in ("distribution", "compilers", "tools")
             for key, value in sorted((versions.get(group) or {}).items())
             if (group, key) not in claimed]
 
 
-def content_table(current, ordered, labels, schemes, versions):
-    """What the release pins, and what the images resolved it to.
+def content_table(current, ordered, labels, schemes, versions, introduced):
+    """What the release pins, what the images resolved it to, and where each component appears.
 
-    One table rather than two: a pin and its installed value belong on one row. An `Installed`
-    cell is empty when the pin is exact, because nothing the collector could report would differ
-    from the cell beside it.
+    One table rather than two: a pin and its installed value belong on one row, and a component
+    with no pin is still part of what the images carry.
+    Ordered by the stage that introduces it, so the table reads the way the images are built,
+    and within a stage by the declared pin order, so the pinned components lead.
+
+    The last two columns are there only when the record carries a collection.
+    A record from before the collector, and a local render off the Dockerfile alone,
+    have no answer for either, and two empty columns read as a missing answer rather than an absent question.
     """
-    out = ["| Component | Pinned | Installed |", "| --- | --- | --- |"]
-    for name in ordered:
-        pinned = render_version(current[name], schemes.get(name))
-        installed = installed_cell(name, current[name], versions)
-        out.append(f"| {labels.get(name, name)} | `{pinned}` | {installed} |")
-    out += [f"| {name} | | `{value}` |" for name, value in unpinned_rows(current, versions)]
+    collected = bool(versions or introduced)
+    rows = []
+
+    for position, name in enumerate(ordered):
+        group, _, components = pin_components(name, current[name], versions)
+        rows.append((stage_cell(group, components, introduced), position,
+                     labels.get(name, name),
+                     f"`{render_version(current[name], schemes.get(name))}`",
+                     installed_cell(name, current[name], versions, introduced, schemes.get(name))))
+
+    for group, name, value in unpinned_rows(current, versions):
+        component = split_key(name, versions.get(group) or {})[0]
+        rows.append((stage_cell(group, [component], introduced), len(ordered), name,
+                     f"`{UNPINNED}`", f"`{value}`" if value != "-" else "-"))
+
+    columns = ["Component", "Pinned"] + (["Installed", "Stage introducing"] if collected else [])
+    out = [f"| {' | '.join(columns)} |", f"| {' | '.join('---' for _ in columns)} |"]
+    for stages, position, label, pinned, installed in sorted(
+            rows, key=lambda row: (schema.NORMAL_STAGES.index(row[0][0]) if row[0] else len(schema.NORMAL_STAGES),
+                                   row[1], row[2])):
+        cells = [label, pinned] + ([installed, render_stages(stages)] if collected else [])
+        out.append(f"| {' | '.join(cells)} |")
     return out
 
 
-def libraries_table(versions):
+def libraries_table(versions, introduced):
     """The standard libraries, with the two ABI levels a binary is linked against.
 
     A table of their own: they carry no pin, so there is no `Pinned` column for them to sit in.
@@ -386,10 +562,12 @@ def libraries_table(versions):
     libraries = versions.get("libraries") or {}
     if not libraries:
         return []
-    out = ["", "| Library | Version | ABI | C++ ABI |", "| --- | --- | --- | --- |"]
+    out = ["", "| Library | Version | ABI | C++ ABI | Stage introducing |",
+           "| --- | --- | --- | --- | --- |"]
     for package, version, abi, cxxabi in library_rows(libraries):
         cells = " | ".join(f"`{field}`" if field else "" for field in (version, abi, cxxabi))
-        out.append(f"| `{package}` | {cells} |")
+        stages = render_stages(stage_cell("libraries", [package], introduced))
+        out.append(f"| `{package}` | {cells} | {stages} |")
     return out
 
 
@@ -429,30 +607,68 @@ def cross_targets():
     return listed.stdout.split()
 
 
+def diff_rows(moved, label, cell, order=(), drop_one_sided=False):
+    """`| label | old | new |` per moved entry: the `order` names first, the rest after them.
+
+    `label` and `cell` both take the name, so either can read what that name is pinned or collected
+    as. A value missing on one side renders `-` instead of going through `cell`, unless
+    `drop_one_sided` leaves the whole row out.
+    """
+    names = [name for name in order if name in moved]
+    names += [name for name in moved if name not in order]
+    rows = []
+    for name in names:
+        old, new = moved[name]
+        if drop_one_sided and (old is None or new is None):
+            continue
+        cells = [cell(name, value) if value is not None else "-" for value in (old, new)]
+        rows.append(f"| {label(name)} | {cells[0]} | {cells[1]} |")
+    return rows
+
+
 def installed_changes(current, previous):
     """A table row per collected value that moved, in group order.
 
     Flat rather than nested under the group: a collected name already says which one it is in.
     """
-    labels = dict(LABELS)
     rows = []
     for group in schema.VERSION_GROUPS:
         now, before = current.get(group) or {}, previous.get(group) or {}
+        # Both sides, because the suffix rule needs the component a field belongs to present.
         known = {**before, **now}
-        for name, (old, new) in moved_pins(now, before).items():
-            if group == "libraries":
-                package, field = split_key(name, known)
-                label = package if field == "version" else f"{package} {FIELD_LABELS[field]}"
-            else:
-                label = labels.get(name, name)
-            cells = [f"`{value}`" if value is not None else "-" for value in (old, new)]
-            rows.append(f"| {label} | {cells[0]} | {cells[1]} |")
+
+        def label(name):
+            if group != "libraries":
+                return LABEL_BY_NAME.get(name, name)
+            package, field = split_key(name, known)
+            return package if field == "version" else f"{package} {FIELD_LABELS[field]}"
+
+        rows += diff_rows(moved_pins(now, before), label, lambda name, value: f"`{value}`")
     return rows
 
 
-def load_versions(path):
-    """The `versions:` mapping of a promotion record, or {} when it has none."""
-    return schema.load(path).get("versions") or {}
+def introduced_changes(current, previous):
+    """A table row per component whose introducing stage moved, in group order.
+
+    Components present on one side only are left out: an arrival or a departure is already a row
+    of the table above, and a stage of `-` there would say the same thing twice.
+
+    A value here is a stage list rather than a version, so it renders through `render_stages`,
+    the cell the tables above it use for one.
+    """
+    rows = []
+    for group in schema.VERSION_GROUPS:
+        now, before = current.get(group) or {}, previous.get(group) or {}
+        rows += diff_rows(moved_pins(now, before),
+                          lambda name: LABEL_BY_NAME.get(name, name),
+                          lambda name, value: render_stages(stage_order(value)),
+                          drop_one_sided=True)
+    return rows
+
+
+def record_section(path, key):
+    """The `versions:` or `introduced:` mapping of a promotion record, or {} when it has none."""
+    return schema.load(path).get(key) or {}
 
 
 def moved_pins(current, previous):
@@ -473,16 +689,9 @@ def change_rows(moved, labels, order, schemes):
 
     A pin present on one side only gets `-` on the other, rather than a word for it.
     """
-    names = [name for name in order if name in moved]
-    names += [name for name in moved if name not in order]
-    rows = []
-    for name in names:
-        old, new = moved[name]
-        versioning = schemes.get(name)
-        cells = [f"`{render_version(value, versioning)}`" if value is not None else "-"
-                 for value in (old, new)]
-        rows.append(f"| {labels.get(name, name)} | {cells[0]} | {cells[1]} |")
-    return rows
+    return diff_rows(moved, lambda name: labels.get(name, name),
+                     lambda name, value: f"`{render_version(value, schemes.get(name))}`",
+                     order=order)
 
 
 def bumps_yaml(current, previous, diffing):
@@ -508,8 +717,9 @@ def main():
                         help="emit the moved pins as a YAML `bumps:` mapping instead of the markdown manifest")
     parser.add_argument("--changelog", metavar="FILE",
                         help="markdown to place inside the marked region, after the manifest")
-    parser.add_argument("--collected", metavar="FILE",
-                        help="emit the collected key=value file as a YAML `versions:` mapping")
+    parser.add_argument("--collected", metavar="DIR",
+                        help="emit one <stage>.txt per published stage as the YAML `versions:`"
+                             " and `introduced:` mappings")
     parser.add_argument("--versions", metavar="RECORD",
                         help="promotion record the note reports from: its `versions:` diffed against the"
                              " previous release's, and its `build` digest as the digest-pinned pull")
@@ -521,6 +731,8 @@ def main():
                         help="the replacement block, for --replace-region")
     parser.add_argument("--when-absent", choices=["append", "prepend"], default="append",
                         help="where to put the block when the region is not there yet (default: append)")
+    parser.add_argument("--print-date", action="store_true",
+                        help="print the date in a release body read on stdin, empty when it carries none (no --tag needed)")
     parser.add_argument("--dockerfile", default="Dockerfile")
     parser.add_argument("--renovate", default="renovate.json")
     args = parser.parse_args()
@@ -532,8 +744,17 @@ def main():
         print(replace_region(sys.stdin.read(), args.replace_region, replacement, args.when_absent))
         return
 
+    if args.print_date:
+        print(date_in_body(sys.stdin.read()))
+        return
+
     if args.collected:
-        print(versions_yaml(args.collected))
+        dockerfile = git_show(args.ref, args.dockerfile) if args.ref \
+            else pathlib.Path(args.dockerfile).read_text(encoding="utf-8")
+        if dockerfile is None:
+            raise SystemExit(f"::error::cannot read {args.dockerfile} at ref {args.ref}")
+        per_stage = collected_by_stage(args.collected)
+        print(collected_yaml(*merge_collected(per_stage, stage_parents(dockerfile))))
         return
 
     if not args.tag:
@@ -587,22 +808,25 @@ def main():
     # than an empty diff: nothing moved and nothing is known read identically otherwise.
     record = schema.load(args.versions) if args.versions else {}
     versions = record.get("versions") or {}
+    introduced = record.get("introduced") or {}
     previous_versions = {}
+    previous_introduced = {}
     if versions and previous_ref:
         previous_record = pathlib.Path(args.versions).parent / f"{previous_ref}.yaml"
         if previous_record.exists():
-            previous_versions = load_versions(previous_record)
+            previous_versions = record_section(previous_record, "versions")
+            previous_introduced = record_section(previous_record, "introduced")
 
-    ordered = [name for name, _ in LABELS if name in current]
-    ordered += sorted(name for name in current if name not in dict(LABELS))
-    labels = dict(LABELS)
+    # The shell pins are rendered under a heading of their own, so they leave the toolchain order.
+    ordered = [name for name, _ in LABELS if name in current and name not in SHELL_PINS]
+    ordered += sorted(name for name in current if name not in LABEL_BY_NAME)
     targets = cross_targets()
 
     # GHCR URLs cannot filter versions by tag name (its per-tag pages are keyed by a numeric
     # version id only the Packages API knows), so the closest deep link is the tagged-only view.
     out = [
         "<!-- manifest:begin -->",
-        f"## What's inside {args.tag}" + (f" - {args.date}" if args.date else ""),
+        manifest_heading(args.tag, args.date),
         "",
         f"Published to [GHCR]({GHCR_PAGE}/versions?filters%5Bversion_type%5D=tagged)"
         f" and [Docker Hub]({DOCKERHUB_PAGE}/tags?name={args.tag}).",
@@ -632,12 +856,40 @@ def main():
         f"- What each stage carries: [What's inside]({REPOSITORY_PAGE}#whats-inside)",
         f"- What a pin fixes, and what it does not:"
         f" [Tags & versioning]({REPOSITORY_PAGE}#whats-inside-a-given-tag)",
-        "",
-        "### Content",
-        "",
     ]
-    out += content_table(current, ordered, labels, schemes, versions)
-    out += libraries_table(versions)
+
+    if introduced:
+        out += ["", "`Stage introducing` names the lowest stage a component appears in."
+                    " Every stage above it inherits it."]
+
+    libraries = libraries_table(versions, introduced)
+    if libraries:
+        out += ["", "### Standard libraries"]
+        out += libraries
+        out += ["", "`ABI` and `C++ ABI` are read out of the installed shared object."
+                    " `libc6` has no C++ ABI to report; `libc++`'s is the SONAME of the separate"
+                    " library it loads, `libstdc++`'s a symbol version inside its own."]
+
+    # Folded away, as README.md#whats-inside folds its own matrix: the toolchain is about thirty
+    # rows, and a reader who came for the tag needs none of them open.
+    subject = "what each stage introduces" if versions or introduced else "every version this release pins"
+    out += ["", "### Content", "",
+            f"<details><summary><b>Full content</b> - {subject}</summary>", ""]
+    out += content_table(current, ordered, LABEL_BY_NAME, schemes, versions, introduced)
+    out += ["", "</details>"]
+
+    if versions:
+        out += ["", "`apt` in the `Pinned` column means the version comes from a repository rather"
+                    " than from a pin: the Ubuntu archive snapshot above for distribution packages,"
+                    " apt.llvm.org and the toolchain PPA for the compiler-side ones."
+                    " `-` in `Installed` means the component is not in any image."]
+
+    shell = [name for name in SHELL_PINS if name in current]
+    if shell:
+        out += ["", "### Shell", "", "`dev` only, and unrelated to the toolchain.", "",
+                "| Component | Pinned |", "| --- | --- |"]
+        out += [f"| {LABEL_BY_NAME[name]} | `{render_version(current[name], schemes.get(name))}` |"
+                for name in shell]
 
     if diffing:
         out += ["", f"### Changes since {previous_ref}", ""]
@@ -650,7 +902,7 @@ def main():
                 out.append("No pinned version moved.")
             else:
                 out += ["| Pinned | from | to |", "| --- | --- | --- |"]
-                out += change_rows(moved, labels, ordered, schemes)
+                out += change_rows(moved, LABEL_BY_NAME, ordered, schemes)
 
         if versions:
             if not previous_versions:
@@ -660,6 +912,10 @@ def main():
                 rows = installed_changes(versions, previous_versions)
                 out += ["", "| Installed | from | to |", "| --- | --- | --- |", *rows] if rows \
                     else ["", "No installed version moved."]
+
+                moves = introduced_changes(introduced, previous_introduced)
+                if moves:
+                    out += ["", "| Stage introducing | from | to |", "| --- | --- | --- |", *moves]
 
     if args.changelog:
         out += ["", pathlib.Path(args.changelog).read_text(encoding="utf-8").strip()]

@@ -15,13 +15,16 @@
 #   build-stages.sh --variant <normal|cross> --cache <read|write|none> [--output cacheonly] STAGE...
 #   build-stages.sh --variant <normal|cross> --cache <read|write|none> \
 #                   --push --tags "<tag> <tag>" --metadata-dir <dir> STAGE...
+#   build-stages.sh --variant <normal|cross> --metadata-dir <dir> --print-digest STAGE
 #
-#   --variant   normal builds the lean image; cross adds the cross-compilation toolchains.
-#               It also decides the tag infix and the metadata file suffix, so a caller cannot pair them wrongly.
-#   --cache     read imports every scope, write also exports the one this variant/stage pair owns,
-#               none passes no cache flags at all.
-#   --output    cacheonly solves the stage for its exit status without producing an image.
-#   --push      tags for every registry and pushes. Requires --tags and --metadata-dir.
+#   --variant       normal builds the lean image; cross adds the cross-compilation toolchains.
+#                   It also decides the tag infix and the metadata file suffix, so a caller cannot pair them wrongly.
+#   --cache         read imports every scope, write also exports the one this variant/stage pair owns,
+#                   none passes no cache flags at all.
+#   --output        cacheonly solves the stage for its exit status without producing an image.
+#   --push          tags for every registry and pushes. Requires --tags and --metadata-dir.
+#   --print-digest  print the digest --push recorded for one stage, and build nothing. Reads the file
+#                   --variant and --metadata-dir name between them, so no caller spells that name.
 
 set -euo pipefail
 
@@ -56,6 +59,7 @@ variant=''
 cache=''
 output=''
 push='no'
+print_digest='no'
 tags=''
 metadata_dir=''
 stages=()
@@ -68,6 +72,7 @@ while [ $# -gt 0 ]; do
         --tags)         tags="${2:-}"; shift 2 ;;
         --metadata-dir) metadata_dir="${2:-}"; shift 2 ;;
         --push)         push='yes'; shift ;;
+        --print-digest) print_digest='yes'; shift ;;
         -h|--help)      usage; exit 0 ;;
         --*)            die "unknown option: $1" ;;
         *)              stages+=("$1"); shift ;;
@@ -79,6 +84,19 @@ case "${variant}" in
     cross)  targets="${CROSS_TARGETS}"; infix='cross-';  metadata_suffix='-cross' ;;
     *)      die "--variant must be normal or cross, got '${variant}'" ;;
 esac
+
+# The metadata file is read here rather than by the caller, because the case above is the only place
+# `metadata_suffix` is spelled. A caller that built the name itself could look for a file no build wrote.
+if [ "${print_digest}" = 'yes' ]; then
+    [ -n "${metadata_dir}" ]  || die "--print-digest needs --metadata-dir"
+    [ "${#stages[@]}" -eq 1 ] || die "--print-digest takes one stage, got ${#stages[@]}"
+    metadata_file="${metadata_dir}/${stages[0]}${metadata_suffix}.json"
+    # Not a soft failure: an empty digest would promote a record naming an image that does not exist.
+    [ -r "${metadata_file}" ] || die "no build metadata at ${metadata_file}"
+    python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' \
+        "${metadata_file}"
+    exit 0
+fi
 
 case "${cache}" in
     read|write|none) ;;

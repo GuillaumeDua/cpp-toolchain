@@ -76,7 +76,7 @@ ARG CONAN_VERSION=2.31.1
 # renovate: datasource=github-releases depName=doxygen/doxygen versioning=regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$
 ARG DOXYGEN_RELEASE=Release_1_18_0
 
-# The install script is verified against build2's per-release `.sha256` sidecar rather than a hash pinned here, so a version bump stays a one-line change.
+# What build2.sh downloads is verified against the `sha256` sidecar published beside it rather than a hash pinned here, so a version bump stays a one-line change.
 # renovate: datasource=github-tags depName=build2/build2-toolchain extractVersion=^v(?<version>.+)$
 ARG BUILD2_VERSION=0.16.0
 
@@ -139,6 +139,10 @@ RUN apt-get update -qqy                                                         
 #   - g++ and clang++ linking with libstdc++,
 #   - `clang++ -stdlib=libc++` linking with libc++.
 ARG TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
+# The helpers the installer below sources. Its own directory is ${TOOLCHAIN_TMP_DIR}/scripts,
+#   so `../details/shared.sh` resolves here. .dockerignore carries the matching exception.
+COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
+
 COPY ./scripts/install/gcc.sh  ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
@@ -184,11 +188,8 @@ RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         sudo tzdata curl libssl-dev                         \
         less tar zip unzip gzip                             \
         build-essential pkg-config                          \
-        # build: CMake generators
         make ninja-build                                    \
-        # build: cache
         ccache                                              \
-        # versioning
         git                                                 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -206,6 +207,10 @@ RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Build: CMake (https://apt.kitware.com/)
+# The helpers the installer below sources. Its own directory is ${TOOLCHAIN_TMP_DIR}/scripts,
+#   so `../details/shared.sh` resolves here. .dockerignore carries the matching exception.
+COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
+
 COPY ./scripts/install/cmake.sh ${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG CMAKE_VERSION
@@ -216,21 +221,17 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh;                          
     && rm -rf /var/lib/apt/lists/*
 
 # Build: Bazel (https://bazel.build/install/ubuntu)
-#   Bazel's apt repository ships amd64 only (no arm64 debs), so this opt-in step is
-#   guarded to amd64 - on other architectures it is skipped (use Bazelisk instead).
+#   bazel.sh owns the apt repository registration and the amd64-only guard: the repository ships no
+#   arm64 debs, so on another architecture the script installs nothing and the build carries on.
+COPY ./scripts/install/bazel.sh ${TOOLCHAIN_TMP_DIR}/scripts/bazel.sh
+WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG OPT_IN_INTEGRATE_BAZEL='no'
-RUN if [[ "${OPT_IN_INTEGRATE_BAZEL}" = "y" ]] && [[ "$(dpkg --print-architecture)" != "amd64" ]]; then           \
-        echo "[bazel] apt repository is amd64-only, skipping on $(dpkg --print-architecture)";                     \
-    elif [[ "${OPT_IN_INTEGRATE_BAZEL}" = "y" ]]; then                         \
-        apt-get update -qqy && apt-get install -qqy --no-install-recommends    \
-            apt-transport-https curl gnupg                                     \
-        && curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor >bazel-archive-keyring.gpg \
-        && mv bazel-archive-keyring.gpg /usr/share/keyrings                    \
-        && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/bazel-archive-keyring.gpg] https://storage.googleapis.com/bazel-apt stable jdk1.8" | tee /etc/apt/sources.list.d/bazel.list \
-        && apt-get update -qqy && apt-get install -qqy --no-install-recommends \
-            bazel                                                              \
-        && rm -rf /var/lib/apt/lists/*                                         \
-        ;                                                                      \
+RUN if [[ "${OPT_IN_INTEGRATE_BAZEL}" =~ ^([Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee])$ ]]; then    \
+        script_path=${TOOLCHAIN_TMP_DIR}/scripts/bazel.sh;                                    \
+        echo -e "[C++ toolchain] Installing Bazel ...";                                       \
+        chmod +x ${script_path}                                                               \
+        && ${script_path} --silent=yes                                                        \
+        && rm -rf /var/lib/apt/lists/*;                                                       \
     fi
 
 # Dependency managers
@@ -275,23 +276,19 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
     chmod +x ${script_path}                                                     \
     && ${script_path} --silent=yes --alias=yes --mode=minimalistic --versions="$LLVM_VERSIONS"
 
-# Build: Build2 (depends on a compiler)
+# Build: Build2 (https://build2.org)
+#   build2.sh prefers the binary package upstream publishes, and compiles from source where there is none.
+#   Kept below the compilers because that fallback needs one.
 #   BUILD2_VERSION is declared once at the top of this file (bumped by Renovate).
+COPY ./scripts/install/build2.sh ${TOOLCHAIN_TMP_DIR}/scripts/build2.sh
+WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG BUILD2_VERSION
 ARG OPT_IN_INTEGRATE_BUILD2='no'
-RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" = "y" ]]; then                               \
-        mkdir -p /tmp/build2-build && cd /tmp/build2-build                          \
-        && script="build2-install-${BUILD2_VERSION}.sh"                            \
-        && base_url="https://download.build2.org/${BUILD2_VERSION}"                \
-        && curl -sSfO "${base_url}/${script}"                                       \
-        && curl -sSfO "${base_url}/${script}.sha256"                               \
-        && shasum -a 256 -c "${script}.sha256"                                      \
-        && sh "${script}"                                                           \
-            --yes                                                                   \
-            --cxx clang++                                                           \
-            --sudo false                                                            \
-            --jobs $(nproc)                                                         \
-        ;                                                                           \
+RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" =~ ^([Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee])$ ]]; then    \
+        script_path=${TOOLCHAIN_TMP_DIR}/scripts/build2.sh;                                   \
+        echo -e "[C++ toolchain] Installing BUILD2_VERSION=[$BUILD2_VERSION] ...";            \
+        chmod +x ${script_path}                                                               \
+        && ${script_path} --silent=yes --versions="$BUILD2_VERSION";                          \
     fi
 
 # C++ toolchain: per-target cross toolchain(s) via g++-<triplet>
@@ -325,8 +322,8 @@ CMD ["/bin/bash"]
 #   scripts/ is copied whole rather than scripts/checks/details alone:
 #       the checks ask gcc.sh and llvm.sh which compilers are installed (--list-installed),
 #       and that only resolves if both directories keep their relative positions.
-#   .dockerignore keeps the top-level scripts/details out; it does not match
-#   scripts/checks/details, which is why the checks below are still in the build context.
+#   .dockerignore keeps the top-level scripts/details out, all but shared.sh, which the checks source.
+#   It does not match scripts/checks/details, which is why the checks below are still in the build context.
 FROM build AS validate-build
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
@@ -380,6 +377,10 @@ SHELL ["/bin/bash", "-c"]
 # C++ toolchain: LLVM/Clang - full toolchain (clang-tidy, clang-format, clangd, lldb, scan-build).
 #   Re-runs llvm.sh in `--mode=full` to install the analysis tools and register them alongside the
 #   clang/clang++ compilers the `build` stage already installed.
+# The helpers the installer below sources. Its own directory is ${TOOLCHAIN_TMP_DIR}/scripts,
+#   so `../details/shared.sh` resolves here. .dockerignore carries the matching exception.
+COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
+
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
@@ -411,6 +412,10 @@ SHELL ["/bin/bash", "-c"]
 #   The `build` stage took the compilers only; re-run llvm.sh in `--mode=coverage` to add llvm-<N>
 #   and its alternatives - the GCC side (gcov) already ships with GCC and lcov (`genhtml`) is
 #   installed below.
+# The helpers the installer below sources. Its own directory is ${TOOLCHAIN_TMP_DIR}/scripts,
+#   so `../details/shared.sh` resolves here. .dockerignore carries the matching exception.
+COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
+
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
@@ -446,17 +451,12 @@ SHELL ["/bin/bash", "-c"]
 #   `dev` inherits `static-analysis`, not its `documentation` sibling, so the documentation tools are installed here too.
 #   A stage has a single FROM, and apt packages cannot be cleanly COPY --from'd.
 RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
-        # documentation (doxygen itself is installed as a pre-built binary below; graphviz -> `dot`, lcov -> coverage `genhtml`)
+        # doxygen itself is installed as a pre-built binary below; graphviz -> `dot`, lcov -> coverage `genhtml`
         graphviz lcov                                       \
-        # dynamic analysis
         valgrind                                            \
-        # debug
         gdb                                                 \
-        # versioning
         subversion                                          \
-        # editors
-        emacs nano vim                                      \
-        # misc
+        nano vim                                            \
         docker-compose jq ripgrep                           \
     && rm -rf /var/lib/apt/lists/*
 

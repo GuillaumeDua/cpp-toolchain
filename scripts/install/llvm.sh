@@ -36,7 +36,8 @@ gpg_key_installed_path='/etc/apt/trusted.gpg.d/llvm-snapshot.gpg'
 # How many times a network-facing step is attempted
 max_attempts=3
 
-# The last of max_attempts has to land after the throttling window.
+# apt.llvm.org throttles a host that requests too much too fast, for up to a minute at a time,
+# so the last of max_attempts has to land after that window.
 retry_backoff_seconds=30
 
 help(){
@@ -72,6 +73,8 @@ help(){
 clean(){
     rm -f "${internal_script_path}" "${gpg_key_path}"
 }
+# Every exit path, including the ones that bypass the explicit call below.
+trap clean EXIT
 error_diagnosis(){
     local sources addresses
     sources=$(grep -rl 'apt\.llvm\.org' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | paste -sd' ' -)
@@ -89,79 +92,10 @@ error_diagnosis(){
         echo -e "\t- apt.llvm.org hosts:  [${addresses:-<unresolved>}]"
     } >> /dev/stderr
 }
-error(){
-    echo -e "[${this_script_name}]: $@" >> /dev/stderr
-    error_diagnosis
-    clean; exit 1
-}
-warning(){
-    echo -e "[${this_script_name}]: $@" >> /dev/stderr
-}
-log(){
-    if [[ "${arg_silent}" == 1 ]]; then
-        return 0;
-    fi
-    echo -e "[${this_script_name}]: $@"
-    return 0
-}
-# Runs a command quietly, replaying its output only if it fails.
-run(){
-    local what="$1"; shift
-    local output streamed=0 status=0
 
-    output=$(mktemp)
-    if [[ "${arg_silent}" == 0 ]]; then
-        # stderr, because stdout carries the result to the caller.
-        streamed=1
-        "$@" 2>&1 | tee "${output}" >&2
-        status=${PIPESTATUS[0]}
-    else
-        "$@" > "${output}" 2>&1 || status=$?
-    fi
-
-    if [ "${status}" -eq 0 ]; then
-        rm -f "${output}"
-        return 0
-    fi
-
-    {
-        echo -e "[${this_script_name}]: ${what} failed - exit status [${status}]"
-        echo -e "[${this_script_name}]: command: [$*]"
-        if [ "${streamed}" -eq 0 ]; then
-            echo -e "[${this_script_name}]: --- output ---"
-            cat "${output}"
-            echo -e "[${this_script_name}]: --- end of output ---"
-        fi
-    } >> /dev/stderr
-    rm -f "${output}"
-    return "${status}"
-}
-# apt.llvm.org throttles a host that requests too much too fast, for up to a minute at a time.
-# Every step retried here is idempotent, and only the last attempt reports.
-run_with_retries(){
-    local attempts="$1" what="$2"; shift 2
-    local attempt=1
-
-    while [ "${attempt}" -lt "${attempts}" ]; do
-        "$@" > /dev/null 2>&1 && return 0
-        warning "${what} failed - retrying in $(( attempt * retry_backoff_seconds ))s (attempt $(( attempt + 1 ))/${attempts})"
-        sleep $(( attempt * retry_backoff_seconds ))
-        attempt=$(( attempt + 1 ))
-    done
-    run "${what}" "$@"
-}
-to_boolean(){
-    if [[ $# != 1 ]]; then
-        error "$0: missing argument"
-    fi
-    case "$1" in
-        [Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee]) echo 1;;
-        [Nn]|[Nn][Oo]|0|[Ff][Aa][Ll][Ss][Ee]) echo 0;;
-        *)
-            error "to_boolean: invalid conversion from [$1] to boolean"
-            ;;
-    esac
-}
+# The helpers shared with the other scripts. The standalone copy published for each release
+# carries them inlined here instead - scripts/details/compose-standalone.py.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
 
 # --- options management ---
 
@@ -248,38 +182,15 @@ list_installed_llvm_versions(){
     dpkg -l | grep ^ii | awk '{print $2}' | grep -oP "${llvm_version_installed_regex}" | sort -n -u
 }
 
-# Filter a set of majors by a --versions selector.
-#   This reports what is present rather than what could be installed, so an explicit list is intersected with the set rather than passed through.
-#   latest-stable is refused here: only the upstream index defines it, and fetching that is exactly what this query must not do.
-select_versions(){
-    local selector="$1"
-    local versions="$2"
-
-    case "${selector}" in
-        all )
-            echo "${versions}" ;;
-        latest )
-            echo "${versions}" | tail -1 ;;
-        latest-stable )
-            error "--list-installed cannot resolve [latest-stable] without the upstream index - use --versions=latest or --versions=all" ;;
-        '>='[0-9]* )
-            local from
-            from=$(echo "${selector}" | grep -oP '^>=\K[0-9]+$')
-            [ -n "${from}" ] || error "invalid version='>=[0-9]+' value: [${selector}]"
-            echo "${versions}" | awk -v from="${from}" '$1 >= from' ;;
-        * )
-            [[ "${selector}" =~ ^[0-9]+( [0-9]+)*$ ]] \
-                || error "invalid value for argument version [${selector}]"
-            local requested
-            for requested in ${selector}; do
-                grep -qx -- "${requested}" <<< "${versions}" && echo "${requested}"
-            done ;;
-    esac
-}
-
+# --list-installed reports what is present rather than what could be installed,
+# so an explicit list is intersected with the set rather than passed through.
 if [[ ${arg_list_installed} == 1 ]]; then
     installed_versions=$(list_installed_llvm_versions)
     if [[ ${arg_versions_explicit} == 1 ]]; then
+        # dpkg lists what is installed, not what upstream calls stable, so this one selector has
+        # no answer here. gcc.sh reads the same list and resolves it as `latest`.
+        [ "${arg_versions}" != 'latest-stable' ] \
+            || error "--list-installed cannot resolve [latest-stable] without the upstream index - use --versions=latest or --versions=all"
         select_versions "${arg_versions}" "${installed_versions}"
     elif [ -n "${installed_versions}" ]; then
         echo "${installed_versions}"
@@ -367,7 +278,7 @@ fi
 if [ -z "$llvm_versions" ]; then
     log "empty versions range, nothing to do"
     echo -e "$(list_installed_llvm_versions)" # result for the caller
-    clean; exit 0
+    exit 0
 fi
 if [[ ! $(echo -n $llvm_versions) =~  ^[0-9]+( [0-9]+)*$ ]]; then
     error "invalid versions range: [$llvm_versions]"
@@ -376,7 +287,7 @@ fi
 ## --- list mod ? ---
 if [[ ${arg_list_available} == 1 ]]; then
     echo -e "${llvm_versions}"
-    clean; exit 0
+    exit 0
 fi
 
 log "LLVM version(s) to be installed: [${llvm_versions}]"

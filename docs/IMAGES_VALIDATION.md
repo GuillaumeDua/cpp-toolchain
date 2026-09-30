@@ -191,6 +191,7 @@ The gate uses both, but they answer on any machine, checkout or not:
 | --- | --- | --- |
 | <code>cxx-standards.sh [\-\-stable] [\-\-greatest] [\-\-format=&lt;default\|std\|cplusplus&gt;] [compiler]</code> | which C++ standards a compiler accepts | `cxx-runtime.sh compile` |
 | `cxx-stdlibs.sh [--view] [--stdlib] [--compilers] [--format]` | which standard libraries are installed, and what ABI they expose | `cxx-stdlib-parity.sh`, `package-origins.sh` |
+| `c-stdlibs.sh [--format]` | which C standard library is installed, and what ABI it exposes | `cxx-toolchain-versions.sh` |
 
 `package-origins.sh` uses it for the one thing it cannot write down: apt.llvm.org has spelled the libc++ runtime three ways - `libc++1-17t64`, `libc++1-18`, then plain `libc++1` from LLVM 20, where the major left the name altogether.
 A check naming one of those keeps passing on the two it cannot see, so the package is discovered from the installed library instead and origin asserted on whatever answer comes back.
@@ -199,7 +200,8 @@ The `details/` pair reaches [`scripts/install/`](../scripts/install/) by relativ
 A layout that separates the two fails with `cannot find scripts/install two levels above scripts/checks/details` rather than silently finding no compilers.
 
 This is not the top-level [`scripts/details/`](../scripts/details/).
-Both names mean the same thing - implementation details of the directory that encloses them - but the top-level one is host-side tooling that `.dockerignore` keeps out of the build context entirely, whereas these checks have to ship *into* the image in order to validate it.
+Both names mean the same thing - implementation details of the directory that encloses them - but the top-level one is host-side tooling that `.dockerignore` keeps out of the build context, whereas these checks have to ship *into* the image in order to validate it.
+`shared.sh` is the one file on the host side that still ships in: the install and checks scripts source it, so `.dockerignore` lets it through to every stage that runs one of them.
 
 Each reports **every** failure before exiting, so one run tells you everything that is wrong.
 

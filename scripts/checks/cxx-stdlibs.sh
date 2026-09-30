@@ -17,10 +17,11 @@ arg_compilers_value='all'
 
 default_view='library'
 default_stdlib='all'
-default_format='default'
 default_compilers='all'
 
-die() { echo "[${this_script_name}] error: $*" >&2; exit 1; }
+# The helpers shared with the other scripts. The standalone copy published for each release
+# carries them inlined here instead - scripts/details/compose-standalone.py.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
 
 help(){
     echo "Usage: ${this_script_name} [--view=<view>] [--stdlib=<impl>] [--compilers[=<list>]] [--format=<format>]" 1>&2
@@ -155,11 +156,6 @@ if [ "${arg_compilers}" -eq 1 ] && [ "${arg_compilers_value}" != 'all' ]; then
     done
 fi
 
-# dpkg owns the only place a libc++ release is written down: its ELF carries no version and
-# its SONAME never moves, so the package version is what distinguishes libc++ 20 from 22.
-has_dpkg=0
-command -v dpkg-query >/dev/null 2>&1 && has_dpkg=1
-
 # Matches the header spelling '#  define X 1' as well as the preprocessed '#define X 1'.
 # Takes the field after the name rather than the last on the line: a define left without a value
 # would otherwise report its own name as the value, and a trailing comment would report the
@@ -199,40 +195,6 @@ discover_library_files(){
     } | grep -E '/lib(stdc\+\+|c\+\+)\.so\.[0-9]'
 }
 
-# binutils reads the SONAME straight out of the ELF. A runtime image ships none of it, so the name
-# up to the major stands in - an approximation, whose limits scripts/checks/README.md states.
-soname_of(){
-    [ -f "$1" ] || { printf '%s' '-'; return; }
-
-    local soname=''
-    command -v objdump >/dev/null 2>&1 \
-      && soname=$(objdump -p "$1" 2>/dev/null | awk '$1 == "SONAME" { print $2; exit }')
-
-    [ -n "${soname}" ] \
-      || { command -v readelf >/dev/null 2>&1 \
-        && soname=$(readelf -d "$1" 2>/dev/null \
-          | sed -n 's/.*SONAME.*\[\(.*\)\].*/\1/p' | head -n 1); }
-
-    [ -n "${soname}" ] \
-      || soname=$(sed 's|.*/||; s|\(\.so\.[0-9][0-9]*\).*|\1|' <<< "$1")
-
-    printf '%s' "${soname:--}"
-}
-
-# The greatest symbol version an ELF exposes. readelf is the direct read, but a runtime image
-# ships no binutils, and grepping the binary for the same strings agrees with it exactly.
-max_symbol_version(){
-    local found=''
-    command -v readelf >/dev/null 2>&1 \
-      && found=$(readelf --version-info "$1" 2>/dev/null \
-        | grep -oE "$2_[0-9][0-9.]*" | sort -uV | tail -n 1)
-
-    [ -n "${found}" ] \
-      || found=$(LC_ALL=C grep -ao "$2_[0-9][0-9.]*" "$1" 2>/dev/null | sort -uV | tail -n 1)
-
-    printf '%s' "${found:--}"
-}
-
 # The same question as max_symbol_version, asked of libc++, which carries no GNU symbol versions and
 # states its ABI in an inline namespace instead - scripts/checks/README.md covers the mangling, and
 # why the match has to stop after one digit.
@@ -246,26 +208,6 @@ libcpp_abi_from_elf(){
     [ "$(printf '%s\n' "${found}" | wc -l)" -eq 1 ] || return
 
     printf '%s' "${found#St3__}"
-}
-
-package_of(){
-    [ "${has_dpkg}" -eq 1 ] || { printf '%s' '-'; return; }
-
-    local package
-    package=$(dpkg -S "$1" 2>/dev/null | head -n 1 | sed 's/:.*//')
-    printf '%s' "${package:--}"
-}
-
-# Debian versions carry an epoch and a revision around the upstream release,
-# and only the release in the middle is what a C++ developer calls the version.
-version_of_package(){
-    [ "$1" != '-' ] || { printf '%s' '-'; return; }
-
-    local version
-    version=$(dpkg-query -W -f='${Version}' "$1" 2>/dev/null)
-    version="${version#*:}"
-    version="${version%%[-~]*}"
-    printf '%s' "${version:--}"
 }
 
 # The header tree belonging to one libc++ runtime: beside it under an llvm-<major> prefix, or
@@ -303,16 +245,10 @@ libcpp_headers_for(){
 # Files are resolved before anything else so that /lib and /usr/lib, which are the same
 # directory on a merged-usr host, cannot produce the same library twice.
 library_rows(){
-    local file real impl version soname abi cxxabi package headers
-    local -A seen_path=()
+    local real impl version soname abi cxxabi package headers
     local -A seen_package=()
 
-    while read -r file; do
-        real=$(readlink -f "${file}" 2>/dev/null)
-        [ -f "${real}" ] || continue
-        [ -z "${seen_path[${real}]:-}" ] || continue
-        seen_path[${real}]=1
-
+    while read -r real; do
         case "${real}" in
             *libstdc++.so.* ) impl='libstdc++' ;;
             *libc++.so.*    ) impl='libc++' ;;
@@ -329,6 +265,10 @@ library_rows(){
         fi
 
         soname=$(soname_of "${real}")
+
+        # dpkg owns the only place a libc++ release is written down:
+        # its ELF carries no version and its SONAME never moves,
+        # so the package version is what distinguishes libc++ 20 from 22.
         version=$(version_of_package "${package}")
 
         if [ "${impl}" = 'libstdc++' ]; then
@@ -361,7 +301,7 @@ library_rows(){
 
         printf '%s %s %s %s %s %s %s\n' \
             "${impl}" "${version}" "${soname}" "${real}" "${abi}" "${cxxabi}" "${package}"
-    done < <(discover_library_files)
+    done < <(discover_library_files | unique_library_files)
 }
 
 discover_compilers(){

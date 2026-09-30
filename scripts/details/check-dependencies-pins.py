@@ -27,17 +27,17 @@ Exits non-zero and reports every violation it found, rather than only the first.
 """
 
 import argparse
-import importlib.util
 import os
 import pathlib
 import re
 import sys
 
-HERE = pathlib.Path(__file__).resolve().parent
-
 # Importing render-manifest.py below would drop a scripts/details/__pycache__/ next to the sources, on every local run and every CI run.
 # Nothing reimports these often enough for the cache to pay off.
 sys.dont_write_bytecode = True
+
+# Below that line rather than with the imports above it, or the first thing cached is _loader itself.
+from _loader import load
 
 # ARG name -> why it carries no Renovate annotation.
 EXEMPT = {
@@ -49,17 +49,9 @@ FLOATING = re.compile(r"latest|master")
 
 ARG_DECL = re.compile(r"^ARG ([A-Za-z_][A-Za-z0-9_]*)=(\S+)(?P<tail>.*)$")
 
-
-def load_render_manifest():
-    """render-manifest.py, imported by path - the hyphen makes it not a normal module name.
-
-    js_to_py and dockerfile_managers are shared rather than reimplemented:
-        both tools have to read renovate.json the same way, or the manifest and this guard disagree about what Renovate covers.
-    """
-    spec = importlib.util.spec_from_file_location("render_manifest", HERE / "render-manifest.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+# A comment is not a second version: `ARG FOO=1 # why` carries one pin and a note about it.
+# But GCC_VERSIONS="14 15 16" might be supported at some point.
+TRAILING_COMMENT = re.compile(r"\s+#.*$")
 
 
 def split_at_first_stage(dockerfile):
@@ -115,10 +107,11 @@ def check(dockerfile, renovate_config, render_manifest):
         # `\S+`, so in `ARG GCC_VERSIONS=14 15` only `14` is the dependency Renovate tracks, and
         # only `14` reaches the release note. The installers accept a list; the pin cannot carry
         # one, so a second version needs a second ARG with its own `# renovate:` annotation.
-        if match.group("tail").strip():
+        tail = TRAILING_COMMENT.sub("", match.group("tail"))
+        if tail.strip():
             problems.append((
                 lineno,
-                f"{name}={value}{match.group('tail')} carries more than one token - "
+                f"{name}={value}{tail} carries more than one token - "
                 "only the first is tracked by Renovate and shown in the release note; "
                 "declare one ARG per version",
             ))
@@ -157,7 +150,10 @@ def main():
     dockerfile = pathlib.Path(args.dockerfile).read_text(encoding="utf-8")
     renovate_config = pathlib.Path(args.renovate).read_text(encoding="utf-8")
 
-    problems, declared = check(dockerfile, renovate_config, load_render_manifest())
+    # render-manifest.py's js_to_py and dockerfile_managers are shared rather than reimplemented:
+    #   both tools have to read renovate.json the same way, or the manifest and this guard disagree
+    #   about what Renovate covers.
+    problems, declared = check(dockerfile, renovate_config, load("render-manifest"))
 
     # Annotations render inline on the diff under Actions; plain text is more readable in a terminal.
     on_actions = bool(os.environ.get("GITHUB_ACTIONS"))

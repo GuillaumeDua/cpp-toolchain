@@ -86,7 +86,7 @@ The stages form a diamond: `static-analysis` and `documentation` both build on `
 | Documentation: doxygen, graphviz - and coverage reports: lcov / genhtml                                         |           |         |                   |       ✅        |  ✅   |
 | Dynamic analysis / debug: valgrind, gdb                                                                         |           |         |                   |                 |  ✅   |
 | Versioning extra: subversion                                                                                    |           |         |                   |                 |  ✅   |
-| Editors: emacs, nano, vim                                                                                       |           |         |                   |                 |  ✅   |
+| Editors: nano, vim                                                                                              |           |         |                   |                 |  ✅   |
 | Shells: bash, zsh                                                                                               |           |         |                   |                 |  ✅   |
 | Misc: jq, ripgrep, docker-compose                                                                               |           |         |                   |                 |  ✅   |
 
@@ -115,7 +115,9 @@ The three channels differ in *who decides*, not in what they contain:
   Pin `v<major>.<minor>` when that matters.
 - **rc** = a fresh build from `main`, published early for validation.
 
-Every version in the image is **pinned** in the [Dockerfile](Dockerfile) and updated by [Renovate](renovate.json), so a scheduled run **publishes nothing when nothing changed** - no release is cut just because a date arrived.
+**Every version the Dockerfile names is pinned and tracked for updates** - see [Dependency updates](#dependency-updates).
+What a pin does and does not fix is [What's inside a given tag](#whats-inside-a-given-tag), below.
+A scheduled run **publishes nothing when nothing changed**: an unchanged tree has nothing new to ship, so no release is cut just because a date arrived.
 
 > [!NOTE]
 > A minor is not rebuilt from its rc's commit - it **is** the rc: promotion re-tags the exact image digests that were validated, so `v1.2` is byte-identical to the `v1.2-rc.<n>` it was promoted from.
@@ -177,14 +179,14 @@ Everything below is also published as a browsable site at <https://guillaumedua.
 | [docs/CROSS-COMPILATION.md](docs/CROSS-COMPILATION.md) | Cross-architecture compilation: published targets, what links and what does not, multilib |
 | [docs/COVERAGE.md](docs/COVERAGE.md) | Code coverage: GNU `gcov`/`lcov` and LLVM `llvm-cov`/`llvm-profdata` |
 | [docs/IMAGES_VALIDATION.md](docs/IMAGES_VALIDATION.md) | Images validation gate: what proves an image still fills its purpose, and how to run it |
-| [scripts/install/README.md](scripts/install/README.md) | Installation scripts reference: `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh` |
+| [scripts/install/README.md](scripts/install/README.md) | Installation scripts reference: `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh`, `doxygen.sh`, `bazel.sh`, `build2.sh` |
 | [HOW_TO_CONTRIBUTE.md](HOW_TO_CONTRIBUTE.md) | Contribution workflow |
 
 ## Dependency updates
 
-**Every version is pinned in the [Dockerfile](Dockerfile)** - base image (by digest), GCC, Clang/LLVM, CMake, vcpkg, Conan, Doxygen, build2, oh-my-zsh (by commit) and powerlevel10k - and each pin is tracked by [Renovate](renovate.json).
+**Every version the [Dockerfile](Dockerfile) names is pinned** - base image (by digest), GCC, Clang/LLVM, CMake, vcpkg, Conan, Doxygen, build2, oh-my-zsh (by commit) and powerlevel10k - and [Renovate](renovate.json) tracks all of them but the archive snapshot, which [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) moves instead.
 The actions the [workflows](.github/workflows) run are pinned to commit digests and tracked the same way.
-Nothing resolves to "whatever is newest" at build time.
+No pin spells `latest`, so two builds of one commit request the same versions.
 
 That has two consequences worth knowing:
 

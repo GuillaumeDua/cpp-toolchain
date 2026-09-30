@@ -8,11 +8,10 @@ this_script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 stdlibs_script="${this_script_dir}/../cxx-stdlibs.sh"
 
-failures=0
-
-die()  { echo "[${this_script_name}] error: $*" >&2; exit 1; }
-fail() { echo "[${this_script_name}] FAIL: $*" >&2; failures=$((failures + 1)); }
-pass() { echo "[${this_script_name}] ok:   $*"; }
+# The helpers shared with the other scripts.
+# This one is never published standalone: it runs inside the validate stages, which copy scripts/ whole,
+# and .dockerignore's exception is what puts the library in that copy.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../details/shared.sh"
 
 # What this image has, as '<impl> <soname> <version> <abi>', one line per distinct SONAME.
 #   The SONAME is the key rather than the package or the path: it is what the linker writes into a
@@ -147,8 +146,4 @@ case "${mode}" in
     * )      die "unknown mode [${mode}] - expected one of: record, verify" ;;
 esac
 
-[ "${failures}" -eq 0 ] \
-  || die "${failures} parity check(s) failed against [${file}]"
-
-echo "[${this_script_name}] ${mode}: done"
-exit 0
+finish parity "against [${file}]" "${mode}: done"

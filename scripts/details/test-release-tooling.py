@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Tests for the two scripts the release path depends on: render-manifest.py and check-release-file.py.
+"""Tests for the four scripts the release path depends on:
+render-manifest.py, check-release-file.py, compose-standalone.py and check-dependencies-pins.py.
 
-Between them they write every public release page and the `bumps:` half of an immutable
-releases/v*.yaml record, and until now nothing exercised them outside a real rc build.
+The first two write every public release page and the `bumps:` half of an immutable releases/v*.yaml record;
+the third writes the standalone scripts a release attaches,
+and the fourth guards the pins the first one reads out of the Dockerfile.
+Nothing else exercises any of them outside a real rc build.
 
-Scoped to the behavior the release-note work in #99 changes.
+Scoped to the behavior the release-note work changes.
 `parse`, `check_supersession` and the `--print-*` accessors are left out on purpose:
 nothing there changes them, and asserting that `--print-stages normal` returns the tuple it is
 defined as proves nothing.
@@ -17,7 +20,6 @@ Usage, from the repository root:
 """
 
 import contextlib
-import importlib.util
 import io
 import pathlib
 import subprocess
@@ -25,23 +27,19 @@ import sys
 import tempfile
 import unittest
 
-# Importing the two scripts below would drop a scripts/details/__pycache__/ next to the sources,
+# Importing the scripts below would drop a scripts/details/__pycache__/ next to the sources,
 # on every local run and every CI run - the same reason check-dependencies-pins.py sets this.
 sys.dont_write_bytecode = True
 
+# Below that line rather than with the imports above it, or the first thing cached is _loader itself.
+from _loader import load
+
 HERE = pathlib.Path(__file__).resolve().parent
-
-
-def load(stem):
-    """`<stem>.py` from this directory, imported by path - the hyphen makes it not a module name."""
-    spec = importlib.util.spec_from_file_location(stem.replace("-", "_"), HERE / f"{stem}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
 
 render_manifest = load("render-manifest")
 check_release_file = load("check-release-file")
+compose_standalone = load("compose-standalone")
+check_dependencies_pins = load("check-dependencies-pins")
 
 DOXYGEN_SCHEME = r"regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$"
 
@@ -118,6 +116,15 @@ def render(*arguments, changelog=None):
             capture_output=True, text=True, check=True,
         )
         return done.stdout
+
+
+def print_date(body):
+    """render-manifest.py --print-date over `body`, the way docker-publish.yml pipes a release body in."""
+    done = subprocess.run(
+        [sys.executable, str(HERE / "render-manifest.py"), "--print-date"],
+        input=body, capture_output=True, text=True, check=True,
+    )
+    return done.stdout.strip()
 
 
 class RenderVersion(unittest.TestCase):
@@ -321,7 +328,15 @@ class ReplaceRegion(unittest.TestCase):
 
 
 class Versions(unittest.TestCase):
-    """What the images carry. Collected by cxx-toolchain-versions.sh, recorded, diffed record to record."""
+    """What the images carry. Collected per stage by cxx-toolchain-versions.sh, recorded, diffed."""
+
+    # The published diamond, inline: `dev` inherits static-analysis, `documentation` branches off
+    # `build`, so the two leaves are incomparable and what either installs is new in both.
+    DOCKERFILE = ("FROM ${BASE_IMAGE} AS runtime\n"
+                  "FROM runtime AS build\n"
+                  "FROM build AS static-analysis\n"
+                  "FROM build AS documentation\n"
+                  "FROM static-analysis AS dev\n")
 
     COLLECTED = {
         "distribution": {"ubuntu": "24.04.3"},
@@ -334,17 +349,87 @@ class Versions(unittest.TestCase):
             "libc++1-22-abi": "LIBCPP_ABI_1",
             "libc++1-22-cxxabi": "libc++abi.so.1",
         },
+        "tools": {"lcov": "2.0"},
     }
 
-    def emit(self, body):
+    # Enough of each group for collected_yaml, which refuses a record with a group reporting nothing.
+    WHOLE = "distribution.ubuntu=24.04.3\nlibraries.libstdc++6=15\n"
+    TOOLCHAIN = "compilers.gcc-15=15.2.0\ntools.cmake=4.4.0\n"
+
+    def collect(self, bodies):
+        """(versions, introduced) from one `<stage>.txt` per stage, as the collection step leaves them."""
         with tempfile.TemporaryDirectory() as directory:
-            path = pathlib.Path(directory) / "versions.txt"
-            path.write_text(body, encoding="utf-8")
-            return render_manifest.versions_yaml(path)
+            base = pathlib.Path(directory)
+            for stage in check_release_file.NORMAL_STAGES:
+                (base / f"{stage}.txt").write_text(bodies.get(stage, ""), encoding="utf-8")
+            return render_manifest.merge_collected(render_manifest.collected_by_stage(base),
+                                                   render_manifest.stage_parents(self.DOCKERFILE))
+
+    def emit(self, bodies):
+        return render_manifest.collected_yaml(*self.collect(bodies))
 
     def test_fields_survive_a_value_containing_no_separator(self):
         self.assertEqual(render_manifest.read_fields("a=1\n\nb=\nnot a field\n"),
                          {"a": "1", "b": ""})
+
+    def test_the_stage_graph_is_read_out_of_the_dockerfile(self):
+        self.assertEqual(
+            render_manifest.stage_parents(self.DOCKERFILE),
+            {"runtime": None, "build": "runtime", "static-analysis": "build",
+             "documentation": "build", "dev": "static-analysis"},
+        )
+
+    def test_a_component_its_parent_already_carries_is_not_introduced_again(self):
+        _, introduced = self.collect({
+            "runtime": self.WHOLE,
+            "build": self.WHOLE + self.TOOLCHAIN,
+            "static-analysis": self.WHOLE + self.TOOLCHAIN,
+            "documentation": self.WHOLE + self.TOOLCHAIN,
+            "dev": self.WHOLE + self.TOOLCHAIN,
+        })
+        self.assertEqual(introduced["tools"]["cmake"], ["build"])
+
+    def test_two_incomparable_stages_each_introduce_it(self):
+        # Neither leaf inherits from the other, so lcov is new in both.
+        _, introduced = self.collect({
+            "runtime": self.WHOLE,
+            "build": self.WHOLE + self.TOOLCHAIN,
+            "static-analysis": self.WHOLE + self.TOOLCHAIN,
+            "documentation": self.WHOLE + self.TOOLCHAIN + "tools.lcov=2.0\n",
+            "dev": self.WHOLE + self.TOOLCHAIN + "tools.lcov=2.0\n",
+        })
+        self.assertEqual(introduced["tools"]["lcov"], ["documentation", "dev"])
+
+    def test_a_component_with_no_version_still_carries_a_stage(self):
+        # vcpkg, conan and doxygen are installed outside apt, so presence is all the image states.
+        versions, introduced = self.collect({
+            "runtime": self.WHOLE,
+            "build": self.WHOLE + self.TOOLCHAIN + "tools.vcpkg=-\n",
+            "static-analysis": self.WHOLE + self.TOOLCHAIN + "tools.vcpkg=-\n",
+            "documentation": self.WHOLE + self.TOOLCHAIN + "tools.vcpkg=-\n",
+            "dev": self.WHOLE + self.TOOLCHAIN + "tools.vcpkg=-\n",
+        })
+        self.assertNotIn("vcpkg", versions["tools"])
+        self.assertEqual(introduced["tools"]["vcpkg"], ["build"])
+
+    def test_one_component_cannot_be_two_versions(self):
+        with self.assertRaises(SystemExit):
+            self.collect({
+                "runtime": self.WHOLE,
+                "build": self.WHOLE + self.TOOLCHAIN,
+                "static-analysis": self.WHOLE + self.TOOLCHAIN,
+                "documentation": self.WHOLE + self.TOOLCHAIN + "tools.doxygen=1.18.0\n",
+                "dev": self.WHOLE + self.TOOLCHAIN + "tools.doxygen=1.17.0\n",
+            })
+
+    def test_a_stage_that_was_not_collected_is_refused(self):
+        # An absent stage would hand its components to the one above it as though introduced there.
+        with tempfile.TemporaryDirectory() as directory:
+            base = pathlib.Path(directory)
+            for stage in check_release_file.NORMAL_STAGES[:-1]:
+                (base / f"{stage}.txt").write_text(self.WHOLE, encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                render_manifest.collected_by_stage(base)
 
     def test_both_abi_fields_fold_into_the_row_they_belong_to(self):
         self.assertEqual(
@@ -364,16 +449,23 @@ class Versions(unittest.TestCase):
         # Only a suffix whose package was collected too is a companion key.
         self.assertEqual(render_manifest.library_rows({"weird-abi": "1"}), [("weird-abi", "1", "", "")])
 
+    def test_the_companion_keys_share_their_package_stage(self):
+        # One stage per component, not one per collected key.
+        introduced = {"libraries": {"libstdc++6": "runtime"}}
+        self.assertEqual(render_manifest.libraries_table(self.COLLECTED, introduced)[-1],
+                         "| `libstdc++6` | `15` | `GLIBCXX_3.4.34` | `CXXABI_1.3.16` | `runtime` |")
+
     def test_only_the_libraries_keep_a_table_of_their_own(self):
         # The compilers and the distribution merge into the pin table; the libraries carry no pin.
-        self.assertEqual(render_manifest.libraries_table(self.COLLECTED)[1],
-                         "| Library | Version | ABI | C++ ABI |")
+        self.assertEqual(render_manifest.libraries_table(self.COLLECTED, {})[1],
+                         "| Library | Version | ABI | C++ ABI | Stage introducing |")
 
     def test_changes_are_flat_and_in_group_order(self):
         previous = {
             "distribution": {"ubuntu": "24.04.2"},
             "compilers": dict(self.COLLECTED["compilers"], **{"gcc-15": "15.1.0"}),
             "libraries": dict(self.COLLECTED["libraries"], **{"libstdc++6-abi": "GLIBCXX_3.4.33"}),
+            "tools": self.COLLECTED["tools"],
         }
         self.assertEqual(
             render_manifest.installed_changes(self.COLLECTED, previous),
@@ -394,27 +486,66 @@ class Versions(unittest.TestCase):
     def test_a_group_absent_from_the_previous_record_reads_as_added(self):
         self.assertIn("| gcc-15 | - | `15.2.0` |", render_manifest.installed_changes(self.COLLECTED, {}))
 
+    def test_a_component_that_changed_stage_is_reported(self):
+        now = {"tools": {"lcov": "documentation dev"}}
+        before = {"tools": {"lcov": "dev"}}
+        self.assertEqual(render_manifest.introduced_changes(now, before),
+                         ["| lcov | `dev` | `documentation`, `dev` |"])
+
+    def test_a_stage_list_reads_as_it_does_in_the_tables_above(self):
+        # One code span per stage, in build order - whatever order the collector wrote them in.
+        now = {"tools": {"lcov": "dev documentation"}}
+        before = {"tools": {"lcov": "dev"}}
+        self.assertEqual(render_manifest.introduced_changes(now, before),
+                         ["| lcov | `dev` | `documentation`, `dev` |"])
+
+    def test_a_component_carries_its_display_label(self):
+        self.assertEqual(
+            render_manifest.introduced_changes({"distribution": {"ubuntu": "runtime build"}},
+                                               {"distribution": {"ubuntu": "runtime"}}),
+            ["| Ubuntu | `runtime` | `runtime`, `build` |"])
+
+    def test_a_component_present_on_one_side_only_is_left_to_the_table_above(self):
+        self.assertEqual(render_manifest.introduced_changes({"tools": {"lcov": "dev"}}, {}), [])
+
+    def test_both_sections_are_read_off_a_record(self):
+        # No shipped record carries either section yet, so nothing else reaches this reader.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "v1.4.yaml"
+            path.write_text("version: \"v1.4\"\n"
+                            "versions:\n  tools:\n    cmake: \"4.1.2\"\n"
+                            "introduced:\n  tools:\n    cmake: \"build\"\n", encoding="utf-8")
+            self.assertEqual(render_manifest.record_section(path, "versions"),
+                             {"tools": {"cmake": "4.1.2"}})
+            self.assertEqual(render_manifest.record_section(path, "introduced"),
+                             {"tools": {"cmake": "build"}})
+
+            bare = pathlib.Path(directory) / "v1.3.yaml"
+            bare.write_text("version: \"v1.3\"\n", encoding="utf-8")
+            self.assertEqual(render_manifest.record_section(bare, "versions"), {})
+            self.assertEqual(render_manifest.record_section(bare, "introduced"), {})
+
     def test_an_ungrouped_key_is_refused(self):
         with self.assertRaises(SystemExit):
-            self.emit("gcc-15=15.2.0\n")
+            self.collect({stage: "gcc-15=15.2.0\n" for stage in check_release_file.NORMAL_STAGES})
 
     def test_an_unknown_group_is_refused(self):
         with self.assertRaises(SystemExit):
-            self.emit("distribution.ubuntu=24.04.3\ncompilers.gcc-15=15.2.0\n"
-                      "libraries.libstdc++6=15\ntools.cmake=4.4.0\n")
+            self.collect({stage: self.WHOLE + "shells.zsh=5.9\n"
+                          for stage in check_release_file.NORMAL_STAGES})
 
     def test_a_group_reporting_nothing_fails_rather_than_recording_an_empty_one(self):
         # An empty group in an immutable record reads exactly like a collection that found nothing.
         with self.assertRaises(SystemExit):
-            self.emit("compilers.gcc-15=15.2.0\n")
+            self.emit({stage: "compilers.gcc-15=15.2.0\n"
+                       for stage in check_release_file.NORMAL_STAGES})
 
     def test_the_emitted_mapping_quotes_names_carrying_a_plus(self):
-        emitted = self.emit("distribution.ubuntu=24.04.3\ncompilers.gcc-15=15.2.0\nlibraries.libstdc++6=15\n")
-        self.assertEqual(
-            emitted,
-            'versions:\n  distribution:\n    "ubuntu": "24.04.3"'
-            '\n  compilers:\n    "gcc-15": "15.2.0"\n  libraries:\n    "libstdc++6": "15"',
-        )
+        emitted = self.emit({stage: self.WHOLE + self.TOOLCHAIN
+                             for stage in check_release_file.NORMAL_STAGES})
+        self.assertIn('    "libstdc++6": "15"', emitted)
+        self.assertIn('    "libstdc++6": "runtime"', emitted)
+        self.assertLess(emitted.index("versions:"), emitted.index("introduced:"))
 
 
 class Content(unittest.TestCase):
@@ -422,52 +553,83 @@ class Content(unittest.TestCase):
 
     LABELS = {"gcc-mirror/gcc": "GCC", "conan": "Conan"}
 
+    def installed(self, name, pinned, versions, introduced=None):
+        return render_manifest.installed_cell(name, pinned, versions, introduced or {}, None)
+
     def test_a_pin_the_images_carry_reads_its_version(self):
         versions = {"compilers": {"gcc-15": "15.2.0"}}
-        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", "15", versions), "`15.2.0`")
+        self.assertEqual(self.installed("gcc-mirror/gcc", "15", versions), "`15.2.0`")
 
     def test_a_pin_the_images_do_not_carry_reads_as_missing(self):
-        # Never an empty cell here: that is what an exact pin renders, so it would claim the pin
-        # fixes what shipped.
         versions = {"compilers": {"clang-22": "22.1.8"}}
-        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", "15", versions), "-")
+        self.assertEqual(self.installed("gcc-mirror/gcc", "15", versions), "-")
+
+    def test_a_pin_that_is_installed_and_cannot_state_a_version_reads_the_pin(self):
+        # `-` says the images do not have it, which for vcpkg would be false: only its version is
+        # unknowable, and the stage is what says so.
+        versions = {"tools": {"cmake": "4.4.0"}}
+        introduced = {"tools": {"vcpkg": "build"}}
+        self.assertEqual(self.installed("microsoft/vcpkg", "2026.06.24", versions, introduced),
+                         "`2026.06.24`")
 
     def test_a_selector_pin_reports_every_major_it_resolved_to(self):
         # `>=15` names no major (docs/IMAGES_VALIDATION.md), so the cell reports what the
         # installer chose, and no row is left over.
         versions = {"compilers": {"gcc-15": "15.2.0", "gcc-16": "16.0.1"}}
-        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", ">=15", versions),
-                         "`15.2.0`, `16.0.1`")
+        self.assertEqual(self.installed("gcc-mirror/gcc", ">=15", versions), "`15.2.0`, `16.0.1`")
         self.assertEqual(render_manifest.unpinned_rows({"gcc-mirror/gcc": ">=15"}, versions), [])
 
     def test_a_selector_orders_by_major_rather_than_as_text(self):
         versions = {"compilers": {"gcc-9": "9.5.0", "gcc-10": "10.5.0"}}
-        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", "all", versions),
-                         "`9.5.0`, `10.5.0`")
+        self.assertEqual(self.installed("gcc-mirror/gcc", "all", versions), "`9.5.0`, `10.5.0`")
 
     def test_a_selector_that_resolved_to_nothing_reads_as_missing(self):
         versions = {"compilers": {"clang-22": "22.1.8"}}
-        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", ">=15", versions), "-")
+        self.assertEqual(self.installed("gcc-mirror/gcc", ">=15", versions), "-")
 
     def test_a_group_nothing_was_collected_for_leaves_the_cell_empty(self):
         # A dry run renders with no record, and has nothing to report rather than a missing pin.
-        self.assertEqual(render_manifest.installed_cell("gcc-mirror/gcc", "15", {}), "")
+        self.assertEqual(self.installed("gcc-mirror/gcc", "15", {}), "")
 
-    def test_an_exact_pin_leaves_the_installed_cell_empty(self):
-        rows = render_manifest.content_table({"conan": "2.31.1"}, ["conan"], self.LABELS, {}, {})
-        self.assertEqual(rows[-1], "| Conan | `2.31.1` |  |")
+    def test_a_pin_equal_to_what_shipped_repeats_it(self):
+        # An empty cell beside a version reads as "not installed", which is what it never means.
+        versions = {"tools": {"conan": "2.31.1"}}
+        introduced = {"tools": {"conan": "build"}}
+        rows = render_manifest.content_table({"conan": "2.31.1"}, ["conan"], self.LABELS, {},
+                                             versions, introduced)
+        self.assertEqual(rows[-1], "| Conan | `2.31.1` | `2.31.1` | `build` |")
 
-    def test_a_compiler_no_pin_accounts_for_is_still_reported(self):
-        # Installed with no pin is what a reader cannot learn from the Dockerfile.
+    def test_a_component_no_pin_accounts_for_reads_apt(self):
+        # Installed with no pin is what a reader cannot learn from the Dockerfile, and `apt` is
+        # the answer to what fixes its version.
         versions = {"compilers": {"gcc-15": "15.2.0", "gcc-13": "13.4.0"}}
+        introduced = {"compilers": {"gcc-15": "build", "gcc-13": "build"}}
         rows = render_manifest.content_table({"gcc-mirror/gcc": "15"}, ["gcc-mirror/gcc"],
-                                             self.LABELS, {}, versions)
-        self.assertIn("| gcc-13 | | `13.4.0` |", rows)
+                                             self.LABELS, {}, versions, introduced)
+        self.assertIn("| gcc-13 | `apt` | `13.4.0` | `build` |", rows)
+
+    def test_rows_read_in_build_order(self):
+        versions = {"tools": {"lcov": "2.0", "ninja": "1.11.1"}}
+        introduced = {"tools": {"lcov": "documentation dev", "ninja": "build"}}
+        rows = render_manifest.content_table({}, [], self.LABELS, {}, versions, introduced)
+        self.assertLess(rows.index("| ninja | `apt` | `1.11.1` | `build` |"),
+                        rows.index("| lcov | `apt` | `2.0` | `documentation`, `dev` |"))
+
+    def test_a_record_with_no_collection_holds_the_pins_alone(self):
+        rows = render_manifest.content_table({"conan": "2.31.1"}, ["conan"], self.LABELS, {}, {}, {})
+        self.assertEqual(rows, ["| Component | Pinned |", "| --- | --- |", "| Conan | `2.31.1` |"])
+
+    def test_the_summary_names_what_the_table_below_it_holds(self):
+        # The two sentences explaining those columns are suppressed with the collection,
+        # so columns rendered empty arrive with nothing to account for them.
+        note = render("--tag", "v1.4")
+        self.assertIn("<b>Full content</b> - every version this release pins", note)
+        self.assertNotIn("Stage introducing", note)
 
     def test_the_distribution_pin_reads_a_key_its_value_does_not_complete(self):
         # `ubuntu` is the whole key; `gcc-{}` takes the pin. Both go through one template.
         versions = {"distribution": {"ubuntu": "24.04.3"}}
-        self.assertEqual(render_manifest.installed_cell("ubuntu", "24.04", versions), "`24.04.3`")
+        self.assertEqual(self.installed("ubuntu", "24.04", versions), "`24.04.3`")
 
 
 class Images(unittest.TestCase):
@@ -495,6 +657,16 @@ class NoteHeading(unittest.TestCase):
     def test_no_date_asked_no_date_rendered(self):
         # A local render stays byte-comparable with the one before it.
         self.assertIn("## What's inside v1.4\n", render("--tag", "v1.4", "--previous-ref", ""))
+
+    def test_a_rendered_date_reads_back(self):
+        # The promote job re-dates a note from the release it already published, so the heading
+        # this renders and the date --print-date recovers have to be the same format.
+        note = render("--tag", "v1.4", "--previous-ref", "", "--date", "2026-08-25")
+        self.assertEqual("2026-08-25", print_date(note))
+
+    def test_an_undated_note_reads_back_empty(self):
+        # A first release, where the caller falls back to today.
+        self.assertEqual("", print_date(render("--tag", "v1.4", "--previous-ref", "")))
 
     def test_the_cross_targets_are_the_ones_binutils_resolves(self):
         note = render("--tag", "v1.4", "--previous-ref", "")
@@ -555,7 +727,7 @@ class Validate(unittest.TestCase):
 
     def test_versions_refuses_a_group_nothing_collects(self):
         errors = check_release_file.validate("releases/v1.4.yaml",
-                                             record(versions={"tools": {"cmake": "4.4.0"}}))
+                                             record(versions={"shells": {"zsh": "5.9"}}))
         self.assertTrue(any("versions: unexpected groups" in error for error in errors))
 
     def test_versions_refuses_an_empty_group(self):
@@ -566,6 +738,36 @@ class Validate(unittest.TestCase):
         errors = check_release_file.validate("releases/v1.4.yaml",
                                              record(versions={"compilers": {"gcc-15": 15}}))
         self.assertTrue(any("versions.compilers.gcc-15" in error for error in errors))
+
+    def test_introduced_refuses_a_stage_that_is_not_published(self):
+        errors = check_release_file.validate(
+            "releases/v1.4.yaml", record(introduced={"tools": {"gdb": "nosuchstage"}}))
+        self.assertTrue(any("introduced.tools.gdb: not a published stage" in error for error in errors))
+
+    def test_introduced_refuses_stages_out_of_build_order(self):
+        # Ordered and deduplicated, so two records diff as text rather than as sets.
+        errors = check_release_file.validate(
+            "releases/v1.4.yaml", record(introduced={"tools": {"lcov": "dev documentation"}}))
+        self.assertTrue(any("is not a deduplicated" in error for error in errors))
+
+    def test_every_measured_version_belongs_to_a_component_with_a_stage(self):
+        errors = check_release_file.validate(
+            "releases/v1.4.yaml",
+            record(versions={"compilers": {"gcc-15": "15.2.0"}}, introduced={"compilers": {}}))
+        self.assertTrue(any("introduced.compilers.gcc-15: missing" in error for error in errors))
+
+    def test_a_library_companion_key_folds_onto_its_package(self):
+        # One stage per component: `-abi` does not need an entry of its own.
+        sound = record(
+            versions={"libraries": {"libstdc++6": "15", "libstdc++6-abi": "GLIBCXX_3.4.34"}},
+            introduced={"libraries": {"libstdc++6": "runtime"}})
+        self.assertEqual(check_release_file.validate("releases/v1.4.yaml", sound), [])
+
+    def test_a_component_with_a_stage_and_no_version_is_sound(self):
+        # vcpkg is installed and states no version, so `introduced:` is the wider of the two.
+        sound = record(versions={"tools": {"cmake": "4.4.0"}},
+                       introduced={"tools": {"cmake": "build", "vcpkg": "build"}})
+        self.assertEqual(check_release_file.validate("releases/v1.4.yaml", sound), [])
 
 
 class Targets(unittest.TestCase):
@@ -593,6 +795,96 @@ class Targets(unittest.TestCase):
         with contextlib.redirect_stdout(captured):
             check_release_file.print_targets(record(version="v2.0", candidate=None))
         self.assertIn(f"sha256:{'0' * 64} v2.0 v2.0 latest", captured.getvalue().splitlines())
+
+
+class Compose(unittest.TestCase):
+    """Against a library of its own, so renaming a helper in shared.sh cannot turn these red."""
+
+    LIBRARY = """\
+failures=0
+
+die() { echo "[${this_script_name}] error: $*" >&2; exit 1; }
+
+warn(){
+    echo "[${this_script_name}] $*" >&2
+}
+"""
+
+    SOURCE = 'source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"\n'
+
+    # Every position bash starts a command in.
+    # The `case` arm carries the most weight: it is how each published script reads its options,
+    # so a scan blind to it drops `die` from all of them.
+    POSITIONS = {
+        "an operator": 'foo || die "x"',
+        "a separator": 'foo; die "x"',
+        "a case arm": 'case "$1" in * ) die "x" ;; esac',
+        "a then branch": 'if foo; then die "x"; fi',
+        "an else branch": 'if foo; then foo; else die "x"; fi',
+        "a loop body": 'for x in a; do die "x"; done',
+        "a condition": 'if die "x"; then foo; fi',
+        "a brace group": '{ die "x"; }',
+        "a negation": '! die "x"',
+    }
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        library = pathlib.Path(directory.name) / "shared.sh"
+        library.write_text(self.LIBRARY, encoding="utf-8")
+        self.addCleanup(setattr, compose_standalone, "LIBRARY", compose_standalone.LIBRARY)
+        compose_standalone.LIBRARY = library
+
+    def compose(self, body):
+        return compose_standalone.compose(f"this_script_name=probe\n{self.SOURCE}{body}\n")
+
+    def test_a_helper_is_inlined_from_every_command_position(self):
+        for position, body in self.POSITIONS.items():
+            with self.subTest(position=position):
+                self.assertIn("die()", self.compose(body))
+
+    def test_a_name_that_is_not_a_call_is_left_alone(self):
+        # Either one read as a call would fire the check below on a script that is sound.
+        self.assertNotIn("die()", self.compose('echo "the die is cast"'))
+        self.assertNotIn("die()", self.compose("nodie_here foo"))
+
+    def test_only_the_helpers_a_script_calls_are_inlined(self):
+        self.assertNotIn("warn()", self.compose('foo || die "x"'))
+
+    def test_a_call_the_scan_cannot_see_is_refused_rather_than_dropped(self):
+        # Standing in for the next command position calls() cannot read:
+        # a scan that finds nothing composes a file naming a helper it does not carry.
+        self.addCleanup(setattr, compose_standalone, "calls", compose_standalone.calls)
+        compose_standalone.calls = lambda *_: set()
+        with self.assertRaises(SystemExit):
+            self.compose('die "x"')
+
+
+class Pins(unittest.TestCase):
+    """The one pin invariant that reads past the value: everything after it has to be one version or nothing."""
+
+    # Without the annotation above it, an ARG is also reported as unwatched,
+    # and the sound case cannot assert an empty result.
+    ANNOTATION = (r"# renovate: datasource=github-tags depName=gcc-mirror/gcc"
+                  r" extractVersion=^releases/gcc-(?<version>\d+)\.\d+\.\d+$")
+
+    def check(self, declaration):
+        problems, _ = check_dependencies_pins.check(f"{self.ANNOTATION}\n{declaration}\n",
+                                                    RENOVATE, render_manifest)
+        return [message for _, message in problems]
+
+    def test_a_trailing_comment_is_not_a_second_version(self):
+        self.assertEqual(self.check("ARG GCC_VERSIONS=15 # the PPA carries one series at a time"), [])
+
+    def test_a_second_version_is_refused(self):
+        self.assertIn("GCC_VERSIONS=15 14 carries more than one token",
+                      "\n".join(self.check("ARG GCC_VERSIONS=15 14")))
+
+    def test_a_second_version_behind_a_comment_is_refused_naming_the_versions_alone(self):
+        problems = self.check("ARG GCC_VERSIONS=15 14 # both series")
+        self.assertEqual(len(problems), 1)
+        self.assertIn("GCC_VERSIONS=15 14 carries more than one token", problems[0])
+        self.assertNotIn("both series", problems[0])
 
 
 if __name__ == "__main__":

@@ -69,79 +69,10 @@ error_diagnosis(){
         echo -e "\t- toolchain PPA source: [${sources:-<none registered>}]"
     } >> /dev/stderr
 }
-error(){
-    echo -e "[${this_script_name}]: $@" >> /dev/stderr
-    error_diagnosis
-    exit 1
-}
-warning(){
-    echo -e "[${this_script_name}]: $@" >> /dev/stderr
-}
-log(){
-    if [[ "${arg_silent}" == 1 ]]; then
-        return 0;
-    fi
-    echo -e "[${this_script_name}]: $@"
-    return 0
-}
-# Runs a command quietly, replaying its output only if it fails.
-run(){
-    local what="$1"; shift
-    local output streamed=0 status=0
 
-    output=$(mktemp)
-    if [[ "${arg_silent}" == 0 ]]; then
-        # stderr, because stdout carries the result to the caller.
-        streamed=1
-        "$@" 2>&1 | tee "${output}" >&2
-        status=${PIPESTATUS[0]}
-    else
-        "$@" > "${output}" 2>&1 || status=$?
-    fi
-
-    if [ "${status}" -eq 0 ]; then
-        rm -f "${output}"
-        return 0
-    fi
-
-    {
-        echo -e "[${this_script_name}]: ${what} failed - exit status [${status}]"
-        echo -e "[${this_script_name}]: command: [$*]"
-        if [ "${streamed}" -eq 0 ]; then
-            echo -e "[${this_script_name}]: --- output ---"
-            cat "${output}"
-            echo -e "[${this_script_name}]: --- end of output ---"
-        fi
-    } >> /dev/stderr
-    rm -f "${output}"
-    return "${status}"
-}
-# A third-party host can refuse a request transiently - that should not sink a whole image build.
-# Every step retried here is idempotent, and only the last attempt reports.
-run_with_retries(){
-    local attempts="$1" what="$2"; shift 2
-    local attempt=1
-
-    while [ "${attempt}" -lt "${attempts}" ]; do
-        "$@" > /dev/null 2>&1 && return 0
-        warning "${what} failed - retrying in $(( attempt * retry_backoff_seconds ))s (attempt $(( attempt + 1 ))/${attempts})"
-        sleep $(( attempt * retry_backoff_seconds ))
-        attempt=$(( attempt + 1 ))
-    done
-    run "${what}" "$@"
-}
-to_boolean(){
-    if [[ $# != 1 ]]; then
-        error "$0: missing argument"
-    fi
-    case "$1" in
-        [Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee]) echo 1;;
-        [Nn]|[Nn][Oo]|0|[Ff][Aa][Ll][Ss][Ee]) echo 0;;
-        *)
-            error "to_boolean: invalid conversion from [$1] to boolean"
-            ;;
-    esac
-}
+# The helpers shared with the other scripts. The standalone copy published for each release
+# carries them inlined here instead - scripts/details/compose-standalone.py.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
 
 # --- options management ---
 
@@ -242,33 +173,8 @@ list_installed_gcc_versions(){
     dpkg -l | grep ^ii | awk '{print $2}' | grep -oP "${gcc_version_installed_regex}" | sort -n -u
 }
 
-# Filter a set of majors by a --versions selector.
-#   This reports what is present rather than what could be installed,
-#   so an explicit list is intersected with the set rather than passed through.
-select_versions(){
-    local selector="$1"
-    local versions="$2"
-
-    case "${selector}" in
-        all )
-            echo "${versions}" ;;
-        latest | latest-stable )
-            echo "${versions}" | tail -1 ;;
-        '>='[0-9]* )
-            local from
-            from=$(echo "${selector}" | grep -oP '^>=\K[0-9]+$')
-            [ -n "${from}" ] || error "invalid version='>=[0-9]+' value: [${selector}]"
-            echo "${versions}" | awk -v from="${from}" '$1 >= from' ;;
-        * )
-            [[ "${selector}" =~ ^[0-9]+( [0-9]+)*$ ]] \
-                || error "invalid value for argument version [${selector}]"
-            local requested
-            for requested in ${selector}; do
-                grep -qx -- "${requested}" <<< "${versions}" && echo "${requested}"
-            done ;;
-    esac
-}
-
+# --list-installed reports what is present rather than what could be installed,
+# so an explicit list is intersected with the set rather than passed through.
 if [[ ${arg_list_installed} == 1 ]]; then
     installed_versions=$(list_installed_gcc_versions)
     if [[ ${arg_versions_explicit} == 1 ]]; then

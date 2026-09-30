@@ -21,11 +21,10 @@ origin_kitware='apt.kitware.com'
 #   which reaches check_origin indistinguishable from a version its repository dropped.
 apt_indexed_sources=$(apt-cache policy 2>/dev/null)
 
-failures=0
-
-die()  { echo "[${this_script_name}] error: $*" >&2; exit 1; }
-fail() { echo "[${this_script_name}] FAIL: $*" >&2; failures=$((failures + 1)); }
-pass() { echo "[${this_script_name}] ok:   $*"; }
+# The helpers shared with the other scripts.
+# This one is never published standalone: it runs inside the validate stages, which copy scripts/ whole,
+# and .dockerignore's exception is what puts the library in that copy.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../details/shared.sh"
 
 is_installed(){
     dpkg-query --show --showformat='${Status}\n' "$1" 2>/dev/null \
@@ -204,8 +203,4 @@ case "${stage}" in
         ;;
 esac
 
-[ "${failures}" -eq 0 ] \
-  || die "${failures} origin check(s) failed on stage [${stage}]"
-
-echo "[${this_script_name}] stage [${stage}]: every package comes from the repository that owns it"
-exit 0
+finish origin "on stage [${stage}]" "stage [${stage}]: every package comes from the repository that owns it"
