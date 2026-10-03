@@ -158,7 +158,7 @@ version_from_command(){
 collect_tools(){
     local name major path real row package version index
     local -a majors=() names=() paths=() packages=()
-    local -A package_of_path=() version_of_package=()
+    local -A package_of_path=() upstream_version_of=()
 
     # Descending, so a host carrying several majors answers with the newest, which is what the
     # unversioned alternative points at where one is registered.
@@ -203,7 +203,7 @@ collect_tools(){
             mapfile -t packages < <(printf '%s\n' "${package_of_path[@]}" | sort -u)
 
             while IFS=' ' read -r package version; do
-                version_of_package["${package}"]=$(upstream_version "${version}")
+                upstream_version_of["${package}"]=$(upstream_version "${version}")
             done < <(dpkg-query -W -f='${Package} ${Version}\n' "${packages[@]}" 2>/dev/null)
         fi
     fi
@@ -213,7 +213,7 @@ collect_tools(){
         package="${package_of_path[${paths[index]}]:-}"
 
         version=''
-        [ -n "${package}" ] && version="${version_of_package[${package}]:-}"
+        [ -n "${package}" ] && version="${upstream_version_of[${package}]:-}"
         [ -n "${version}" ] || version=$(version_from_command "${name}")
 
         # A command that is here but cannot state its version reports [-], the same marker the
