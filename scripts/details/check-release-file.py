@@ -80,10 +80,6 @@ TOP_LEVEL_KEYS = {"version", "candidate", "commit", "digests", "bumps", "version
 # The order is the one a release note reports changes in.
 VERSION_GROUPS = ("distribution", "compilers", "libraries", "tools")
 
-# Every published stage is collected from, because `introduced:` answers which one first carries a
-# component, and that is a question no single image can be asked. The stage lists above are the
-# canonical set, so nothing here restates them.
-
 # What a collected library key carries beyond its package, longest first: `-cxxabi` also ends in `-abi`.
 LIBRARY_FIELDS = ("-cxxabi", "-abi")
 
