@@ -134,19 +134,11 @@ jobs:
       # But a moved rc tag means either a re-run (this candidate is stale) or tampering, and both warrant a stop, not a silent recovery.
       - name: Assert the rc digests have not moved
         if: steps.record.outputs.skip != 'true'
-        run: |
-          set -euo pipefail
-          images=$(python3 scripts/details/check-release-file.py --print-registries)
-          while read -r digest source release latest; do
-            for image in ${images}; do
-              actual=$(docker buildx imagetools inspect "${image}:${source}" --format '{{.Manifest.Digest}}')
-              if [ "${actual}" != "${digest}" ]; then
-                echo "::error::${image}:${source} is ${actual}, but the record says ${digest} - the rc moved since it was built. This is not the artifact you validated: cut a fresh rc."
-                exit 1
-              fi
-            done
-          done < plan.txt
-          echo "all recorded digests verified on both registries"
+        uses: ./.github/actions/assert-recorded-digests
+        with:
+          tags: source
+          hint: >-
+            the rc moved since it was built. Not the validated artifact: cut a fresh rc.
 
       # `docker buildx imagetools create` cannot re-tag without rewriting: given one manifest it
       # publishes a fresh single-entry index wrapping it, so the release tag resolves to a digest that
@@ -195,21 +187,10 @@ jobs:
       # Late by necessity - it is the only assert here that describes state this job created.
       - name: Assert the release tags resolve to the recorded digests
         if: steps.record.outputs.skip != 'true'
-        run: |
-          set -euo pipefail
-          images=$(python3 scripts/details/check-release-file.py --print-registries)
-          while read -r digest source release latest; do
-            for image in ${images}; do
-              for tag in "${release}" "${latest}"; do
-                actual=$(docker buildx imagetools inspect "${image}:${tag}" --format '{{.Manifest.Digest}}')
-                if [ "${actual}" != "${digest}" ]; then
-                  echo "::error::${image}:${tag} resolves to ${actual}, not the recorded ${digest} - the re-tag rewrote the manifest instead of pointing at it."
-                  exit 1
-                fi
-              done
-            done
-          done < plan.txt
-          echo "every release tag resolves to its recorded digest on both registries"
+        uses: ./.github/actions/assert-recorded-digests
+        with:
+          tags: release latest
+          hint: the re-tag rewrote the manifest instead of pointing at it.
 
       # The human's action was the merge, so no release exists yet - this job creates it, at the recorded commit (the exact tree the image was built from).
       # GITHUB_TOKEN-created releases fire no workflow runs, so this cannot re-trigger the release path. Upserts throughout,

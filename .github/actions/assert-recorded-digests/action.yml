@@ -1,0 +1,51 @@
+name: Assert the recorded digests
+description: >
+  Compare what each tag in a promotion plan resolves to, on every registry, against the digest
+  releases/v*.yaml records for it.
+  A promotion runs it twice over the same plan, before the re-tag and after it, on different columns.
+
+inputs:
+  plan:
+    description: >
+      The promotion plan `check-release-file.py --print-targets` wrote,
+      one `<digest> <source> <release> <latest>` line per tag prefix.
+    required: false
+    default: plan.txt
+  tags:
+    description: Which plan columns name the tags to check - `source`, `release` and `latest`, space separated.
+    required: true
+  hint:
+    description: What a mismatch means, closing the error message. The two call sites fail for different reasons.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PLAN: ${{ inputs.plan }}
+        TAGS: ${{ inputs.tags }}
+        HINT: ${{ inputs.hint }}
+      run: |
+        set -euo pipefail
+        images=$(python3 scripts/details/check-release-file.py --print-registries)
+        checked=0
+        while read -r digest source release latest; do
+          for image in ${images}; do
+            for column in ${TAGS}; do
+              case "${column}" in
+                source  ) tag="${source}"  ;;
+                release ) tag="${release}" ;;
+                latest  ) tag="${latest}"  ;;
+                *       ) echo "::error::${column} is not a column of ${PLAN}"; exit 1 ;;
+              esac
+              actual=$(docker buildx imagetools inspect "${image}:${tag}" --format '{{.Manifest.Digest}}')
+              if [ "${actual}" != "${digest}" ]; then
+                echo "::error::${image}:${tag} resolves to ${actual}, not the recorded ${digest} - ${HINT}"
+                exit 1
+              fi
+              checked=$((checked + 1))
+            done
+          done
+        done < "${PLAN}"
+        echo "${checked} tag(s) resolve to their recorded digests on every registry"
