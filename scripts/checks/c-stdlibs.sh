@@ -16,7 +16,7 @@ arg_format='default'
 source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
 
 help(){
-    echo "Usage: ${this_script_name} [--format=<format>]" 1>&2
+    echo "Usage: ${this_script_name} [--format=<format>]" >&2
     echo "
     [ --format ]    = default|fields           Every field. 'fields' tags each line with its view.
                     = version|abi              One field per line, deduplicated.
@@ -39,7 +39,7 @@ help(){
     This view needs no compiler, no binutils and no headers, so it answers on a runtime-only image.
     The C++ counterpart, and why each field is read where it is:
     https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/checks/README.md
-    " 1>&2
+    " >&2
     exit 0
 }
 

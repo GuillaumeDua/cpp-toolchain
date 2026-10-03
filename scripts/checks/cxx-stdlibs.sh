@@ -24,7 +24,7 @@ default_compilers='all'
 source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
 
 help(){
-    echo "Usage: ${this_script_name} [--view=<view>] [--stdlib=<impl>] [--compilers[=<list>]] [--format=<format>]" 1>&2
+    echo "Usage: ${this_script_name} [--view=<view>] [--stdlib=<impl>] [--compilers[=<list>]] [--format=<format>]" >&2
     echo "
     [ --view ]      = library|compiler|all     What is installed, what compilers reach, or both.
                                                Default [${default_view}]; [compiler] when --compilers is named.
@@ -58,7 +58,7 @@ help(){
     The library view needs no compiler, no binutils and no headers, so it answers on a runtime-only
     image. Why each field is read where it is, and what the two views are for:
     https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/checks/README.md
-    " 1>&2
+    " >&2
     exit 0
 }
 

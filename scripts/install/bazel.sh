@@ -35,7 +35,7 @@ apt_source_url='https://storage.googleapis.com/bazel-apt'
 apt_suite='stable jdk1.8'
 
 help(){
-    echo "Usage: ${this_script_name}" 1>&2
+    echo "Usage: ${this_script_name}" >&2
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
@@ -50,7 +50,7 @@ help(){
 
     For instance:
         sudo ./${this_script_name}
-        " 1>&2
+        " >&2
     exit 0
 }
 
@@ -68,7 +68,7 @@ error_diagnosis(){
         echo -e "\t- host architecture:  [$(dpkg --print-architecture 2>/dev/null || uname -m)]"
         echo -e "\t- signing key:        [$([ -f "${gpg_key_installed_path}" ] && echo "${gpg_key_installed_path}" || echo '<not installed>')]"
         echo -e "\t- apt source:         [$([ -f "${apt_source_path}" ] && echo "${apt_source_path}" || echo '<not registered>')]"
-    } >> /dev/stderr
+    } >&2
 }
 
 # The helpers shared with the other scripts. The standalone copy published for each release
@@ -100,7 +100,7 @@ do
         break
         ;;
     *)
-        echo "${this_script_name}: Unexpected option: [$1]" >> /dev/stderr
+        echo "${this_script_name}: Unexpected option: [$1]" >&2
         help
         ;;
   esac

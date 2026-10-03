@@ -41,7 +41,7 @@ max_attempts=3
 retry_backoff_seconds=30
 
 help(){
-    echo "Usage: ${this_script_name}" 1>&2
+    echo "Usage: ${this_script_name}" >&2
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
@@ -67,7 +67,7 @@ help(){
 
     For instance, to only install the two latest versions available, use:
         sudo ./${this_script_name} --versions=\"\$(sudo ./${this_script_name} --list-available --versions='all' | tail -2)\"
-        " 1>&2
+        " >&2
     exit 0
 }
 clean(){
@@ -90,7 +90,7 @@ error_diagnosis(){
         echo -e "\t- versions requested:  [${arg_versions}]"
         echo -e "\t- apt.llvm.org source: [${sources:-<none registered>}]"
         echo -e "\t- apt.llvm.org hosts:  [${addresses:-<unresolved>}]"
-    } >> /dev/stderr
+    } >&2
 }
 
 # The helpers shared with the other scripts. The standalone copy published for each release
@@ -147,7 +147,7 @@ do
         break
         ;;
     *)
-        echo "${this_script_name}: Unexpected option: [$1]" >> /dev/stderr
+        echo "${this_script_name}: Unexpected option: [$1]" >&2
         help
         ;;
   esac
@@ -208,7 +208,7 @@ fi
 
 for temporary in "${internal_script_path}" "${gpg_key_path}"; do
     if [ -f "${temporary}" ]; then
-        echo -e "temporary file [${temporary}] already exists" >> /dev/stderr # not using error to avoid deleting the file
+        echo -e "temporary file [${temporary}] already exists" >&2 # not using error to avoid deleting the file
         exit 1
     fi
 done

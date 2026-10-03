@@ -54,7 +54,7 @@ max_attempts=3
 retry_backoff_seconds=5
 
 help(){
-    echo "Usage: ${this_script_name}" 1>&2
+    echo "Usage: ${this_script_name}" >&2
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
@@ -74,7 +74,7 @@ help(){
 
     For instance, to install only the aarch64 cross-binutils, use:
         sudo ./${this_script_name} --targets='aarch64-linux-gnu'
-        " 1>&2
+        " >&2
     exit 0
 }
 
@@ -87,7 +87,7 @@ error_diagnosis(){
         echo -e "\t- host architecture:  [$(dpkg --print-architecture 2>/dev/null)]"
         echo -e "\t- targets requested:  [${arg_targets}]"
         echo -e "\t- with gcc:           [${arg_with_gcc}]"
-    } >> /dev/stderr
+    } >&2
 }
 
 # The helpers shared with the other scripts. The standalone copy published for each release
@@ -226,7 +226,7 @@ do
       break
       ;;
     *)
-      echo "${this_script_name}: Unexpected option: [$1]" >> /dev/stderr
+      echo "${this_script_name}: Unexpected option: [$1]" >&2
       help
       ;;
   esac
