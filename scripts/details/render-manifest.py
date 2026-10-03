@@ -19,11 +19,12 @@ Usage, from the repository root - `--dockerfile` and `--renovate` default to pat
     python3 scripts/details/render-manifest.py --replace-region manifest --with note.md < body.md
     python3 scripts/details/render-manifest.py --print-date < body.md
 
-`--previous-ref` defaults to the newest release before `--tag`, 
-which is the base every caller wants, so no caller computes one.
+`--previous-ref` defaults to the newest release before `--tag`, which is the base every caller wants,
+so no caller computes one.
 Pass `--previous-ref ''` for a manifest with no changes section.
 A named ref that cannot be read, or that parses to no pins, is never silently rendered as "nothing moved":
-- `--bumps-yaml` fails, because an unverifiable `{}` in an immutable record reads as a verified one, and the markdown says it is not comparable.
+`--bumps-yaml` fails, because an unverifiable `{}` in an immutable record reads as a verified one,
+and the markdown says it is not comparable.
 
 `--replace-region` edits a release body in place around the `<!-- name:begin -->` markers this
 script emits, and refuses an unbalanced pair. Every caller that upserts a release body goes
@@ -34,8 +35,8 @@ one owner rather than a copy of it in the caller. A promotion re-run for a rollb
 from the release it already published, which has to say the day the release shipped rather than the
 day it was restored.
 
-`--changelog` places a block of markdown inside that same region, after the manifest:
-- what the repository changed, which only GitHub's generate-notes API can answer.
+`--changelog` places a block of markdown inside that same region, after the manifest: what the
+repository changed, which only GitHub's generate-notes API can answer.
 Fetching it belongs to the caller, which already holds a token - this script reads files and git, and nothing over the network.
 Inside the region rather than after it, so a re-run replaces both halves instead of stacking a second changelog under the first.
 
@@ -58,8 +59,8 @@ single image can be asked - the stage graph comes from the Dockerfile's own `FRO
 `--date` stamps the heading with the day the release is produced. Left out, the note carries no
 date, so a local render stays byte-comparable with the one before it.
 
-`--bumps-yaml` emits the moved pins as a YAML `bumps:`
-- mapping instead of the markdown manifest, the shape recorded in releases/v*.yaml and re-checked by check-release-file.py.
+`--bumps-yaml` emits the moved pins as a YAML `bumps:` mapping instead of the markdown manifest,
+the shape recorded in releases/v*.yaml and re-checked by check-release-file.py.
 """
 
 import argparse
