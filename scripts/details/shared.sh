@@ -5,8 +5,7 @@
 # One copy of each helper the scripts under scripts/ share.
 #
 # The public scripts - scripts/install/*.sh, and the three that scripts/checks/README.md tells you to
-# wget - have to work as a single file on a machine that has never seen this repository, so they
-# cannot source this one. Each carries its own copy of the helpers it uses.
+# wget - have to work as standalone scripts. Each carries its own copy of the helpers it uses.
 # The internal scripts already read their siblings by relative path, so they source this file instead.
 #
 # compose-standalone.py, beside this file, builds them:
