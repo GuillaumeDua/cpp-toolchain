@@ -207,8 +207,8 @@ RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Build: CMake (https://apt.kitware.com/)
-# The helpers the installer below sources. Its own directory is ${TOOLCHAIN_TMP_DIR}/scripts,
-#   so `../details/shared.sh` resolves here. .dockerignore carries the matching exception.
+# The helpers the installer below sources. The `runtime` stage explains the destination path.
+#   Copied again because `runtime` removes ${TOOLCHAIN_TMP_DIR} once its own install finishes.
 COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
 
 COPY ./scripts/install/cmake.sh ${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh
@@ -377,8 +377,7 @@ SHELL ["/bin/bash", "-c"]
 # C++ toolchain: LLVM/Clang - full toolchain (clang-tidy, clang-format, clangd, lldb, scan-build).
 #   Re-runs llvm.sh in `--mode=full` to install the analysis tools and register them alongside the
 #   clang/clang++ compilers the `build` stage already installed.
-# The helpers the installer below sources. Its own directory is ${TOOLCHAIN_TMP_DIR}/scripts,
-#   so `../details/shared.sh` resolves here. .dockerignore carries the matching exception.
+# The helpers the installer below sources. The `runtime` stage explains the destination path.
 COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
 
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
@@ -412,8 +411,7 @@ SHELL ["/bin/bash", "-c"]
 #   The `build` stage took the compilers only; re-run llvm.sh in `--mode=coverage` to add llvm-<N>
 #   and its alternatives - the GCC side (gcov) already ships with GCC and lcov (`genhtml`) is
 #   installed below.
-# The helpers the installer below sources. Its own directory is ${TOOLCHAIN_TMP_DIR}/scripts,
-#   so `../details/shared.sh` resolves here. .dockerignore carries the matching exception.
+# The helpers the installer below sources. The `runtime` stage explains the destination path.
 COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
 
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
