@@ -90,6 +90,10 @@ ARG OHMYZSH_COMMIT=7ea697fd8138550ddf7262456d412f0dcd1cbf84
 # renovate: datasource=github-tags depName=romkatv/powerlevel10k extractVersion=^v(?<version>.+)$
 ARG POWERLEVEL10K_VERSION=1.20.0
 
+# An ARG rather than an ENV: an ENV would publish this staging path in the environment of every
+# image from `build` up, and `dev` deletes the directory it names.
+ARG TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
+
 # ---------------------------------------------------------------------------------------------
 # Stage: runtime - minimal image able to run binaries produced by the `build` stage.
 # ---------------------------------------------------------------------------------------------
@@ -138,7 +142,7 @@ RUN apt-get update -qqy                                                         
 #   Both are needed because `build` produces binaries against both:
 #   - g++ and clang++ linking with libstdc++,
 #   - `clang++ -stdlib=libc++` linking with libc++.
-ARG TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
+ARG TOOLCHAIN_TMP_DIR
 # The helpers the installer below sources. Its own directory is ${TOOLCHAIN_TMP_DIR}/scripts,
 #   so `../details/shared.sh` resolves here. .dockerignore carries the matching exception.
 COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
@@ -170,7 +174,7 @@ FROM runtime AS build
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
-ENV TOOLCHAIN_TMP_DIR=/tmp/install_toolchain
+ARG TOOLCHAIN_TMP_DIR
 
 # Basics / installation prerequisites
 #   openssh-client (not the `ssh` metapackage) so no SSH server is shipped here:
@@ -373,6 +377,7 @@ RUN apt-get update -qqy --error-on=any -o Acquire::Retries=3                    
 FROM build AS static-analysis
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
+ARG TOOLCHAIN_TMP_DIR
 
 # C++ toolchain: LLVM/Clang - full toolchain (clang-tidy, clang-format, clangd, lldb, scan-build).
 #   Re-runs llvm.sh in `--mode=full` to install the analysis tools and register them alongside the
@@ -406,6 +411,7 @@ CMD ["/bin/bash"]
 FROM build AS documentation
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
+ARG TOOLCHAIN_TMP_DIR
 
 # Coverage: install and register the unversioned Clang coverage commands (llvm-cov, llvm-profdata).
 #   The `build` stage took the compilers only; re-run llvm.sh in `--mode=coverage` to add llvm-<N>
@@ -444,6 +450,7 @@ CMD ["/bin/bash"]
 FROM static-analysis AS dev
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
+ARG TOOLCHAIN_TMP_DIR
 
 # Tooling: documentation, dynamic analysis, debug, versioning extras, editors, misc.
 #   `dev` inherits `static-analysis`, not its `documentation` sibling, so the documentation tools are installed here too.
