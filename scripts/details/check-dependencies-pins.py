@@ -17,8 +17,7 @@ The renovate.json manager regexes are run over the Dockerfile and the matched ch
 an ARG line inside a span is one Renovate can actually see.
 So the check tests the real manager set rather than a naming convention, and an oddly-named pin (`ARG NODE_TAG=22`) fails instead of slipping through.
 
-`UBUNTU_SNAPSHOT` is the one documented exception - no datasource can enumerate snapshot timestamps,
-so it is bumped by .github/workflows/ubuntu-snapshot.yml instead.
+Two global ARGs carry no annotation; EXEMPT below names them and says why.
 
 Usage, from the repository root - both defaults are paths relative to it:
     python3 scripts/details/check-dependencies-pins.py [--dockerfile Dockerfile] [--renovate renovate.json]
@@ -42,6 +41,7 @@ from _loader import load
 # ARG name -> why it carries no Renovate annotation.
 EXEMPT = {
     "UBUNTU_SNAPSHOT": "bumped by .github/workflows/ubuntu-snapshot.yml - no datasource can enumerate snapshot timestamps",
+    "TOOLCHAIN_TMP_DIR": "not a dependency - the path an install script is staged at while the image builds",
 }
 
 # Values that mean "whatever is newest at build time".
