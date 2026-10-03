@@ -24,7 +24,7 @@ max_attempts=3
 retry_backoff_seconds=5
 
 help(){
-    echo "Usage: ${this_script_name}" 1>&2
+    echo "Usage: ${this_script_name}" >&2
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
@@ -40,7 +40,7 @@ help(){
     For instance, to list the versions currently available, then install one of them:
         sudo ./${this_script_name} --list-available
         sudo ./${this_script_name} --versions=\"3.29.6-0kitware1ubuntu24.04.1\"
-        " 1>&2
+        " >&2
     exit 0
 }
 clean(){
@@ -61,7 +61,7 @@ error_diagnosis(){
         echo -e "\t- apt codename:           [${codename:-<unresolved>}]"
         echo -e "\t- version requested:      [${arg_versions}]"
         echo -e "\t- apt.kitware.com source: [${sources:-<none registered>}]"
-    } >> /dev/stderr
+    } >&2
 }
 
 # The helpers shared with the other scripts. The standalone copy published for each release
@@ -109,7 +109,7 @@ do
         break
         ;;
     *)
-        echo "${this_script_name}: Unexpected option: [$1]" >> /dev/stderr
+        echo "${this_script_name}: Unexpected option: [$1]" >&2
         help
         ;;
   esac
@@ -136,7 +136,7 @@ log "arguments - rc:                [${arg_rc}]"
 # --- register the Kitware apt repository (https://apt.kitware.com/) ---
 
 if [ -f "${internal_script_path}" ]; then
-    echo -e "temporary file [${internal_script_path}] already exists" >> /dev/stderr # not using error to avoid deleting the file
+    echo -e "temporary file [${internal_script_path}] already exists" >&2 # not using error to avoid deleting the file
     exit 1
 fi
 

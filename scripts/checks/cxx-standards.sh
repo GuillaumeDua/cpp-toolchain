@@ -21,7 +21,7 @@ default_cxx='g++'
 source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
 
 help(){
-    echo "Usage: ${this_script_name} [--stable] [--greatest] [--format=<format>] [compiler]" 1>&2
+    echo "Usage: ${this_script_name} [--stable] [--greatest] [--format=<format>] [compiler]" >&2
     echo "
     Which standards are reported:
         [ --stable ]    : Only final standards, dropping draft spellings such as c++2c.
@@ -40,7 +40,7 @@ help(){
 
     --format=std is spelled as the compiler spells it, so it can be fed straight back to it:
         ${this_script_name} --greatest --stable --format=std g++-16   ->  c++26
-    " 1>&2
+    " >&2
     exit 0
 }
 

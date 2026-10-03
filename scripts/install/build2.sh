@@ -37,7 +37,7 @@ package_url=''
 package_status=''
 
 help(){
-    echo "Usage: ${this_script_name} --versions=<version> [options]" 1>&2
+    echo "Usage: ${this_script_name} --versions=<version> [options]" >&2
     echo "
     Boolean values: y|yes|1|true or n|no|0|false (case insensitive)
 
@@ -57,7 +57,7 @@ help(){
     For instance:
         sudo ./${this_script_name} --versions=0.18.1
         sudo ./${this_script_name} --versions=0.16.0 --cxx=g++   # no package for 0.16.0: source build
-        " 1>&2
+        " >&2
     exit 0
 }
 
@@ -75,7 +75,7 @@ error_diagnosis(){
         echo -e "\t- version requested:  [${arg_versions:-<unset>}]"
         echo -e "\t- binary package:     [${package_url:-<unresolved>}] -> [${package_status:-<not probed>}]"
         echo -e "\t- compiler:           [${arg_cxx}] $(command -v "${arg_cxx}" 2>/dev/null || echo '<not on PATH>')"
-    } >> /dev/stderr
+    } >&2
 }
 
 # The helpers shared with the other scripts. The standalone copy published for each release
@@ -115,7 +115,7 @@ do
         break
         ;;
     *)
-        echo "${this_script_name}: Unexpected option: [$1]" >> /dev/stderr
+        echo "${this_script_name}: Unexpected option: [$1]" >&2
         help
         ;;
   esac

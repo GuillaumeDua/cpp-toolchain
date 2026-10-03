@@ -45,11 +45,11 @@ USAGE
 }
 
 error(){
-    echo -e "[${this_script_name}]: $*" >> /dev/stderr
-    echo -e "[${this_script_name}]: diagnosis helper:" >> /dev/stderr
-    echo -e "\t- release tag:        [${tag:-<unset>}]" >> /dev/stderr
-    echo -e "\t- host architecture:  [${arch:-<unresolved>}]" >> /dev/stderr
-    echo -e "\t- install prefix:     [${prefix}]" >> /dev/stderr
+    echo -e "[${this_script_name}]: $*" >&2
+    echo -e "[${this_script_name}]: diagnosis helper:" >&2
+    echo -e "\t- release tag:        [${tag:-<unset>}]" >&2
+    echo -e "\t- host architecture:  [${arch:-<unresolved>}]" >&2
+    echo -e "\t- install prefix:     [${prefix}]" >&2
     exit 1
 }
 
@@ -61,13 +61,13 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --prefix=* ) prefix="${1#*=}"; prefix_given=true; shift ;;
         -h|--help )  usage; exit 0 ;;
-        -* )         usage >> /dev/stderr; error "unknown option [$1]" ;;
+        -* )         usage >&2; error "unknown option [$1]" ;;
         * )          tag="$1"; shift ;;
     esac
 done
 
 if [[ -z "${tag}" ]]; then
-    usage >> /dev/stderr
+    usage >&2
     exit 1
 fi
 

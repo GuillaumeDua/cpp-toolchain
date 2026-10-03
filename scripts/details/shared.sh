@@ -56,7 +56,7 @@ finish(){
 }
 
 error(){
-    echo -e "[${this_script_name}]: $*" >> /dev/stderr
+    echo -e "[${this_script_name}]: $*" >&2
     # The customization point: a script defines error_diagnosis to report the repository and the
     # arguments it works with. Tested here rather than defaulted above, so the hook works whichever
     # side of the source line the script defines it on, and survives being inlined by
@@ -66,7 +66,7 @@ error(){
 }
 
 warning(){
-    echo -e "[${this_script_name}]: $*" >> /dev/stderr
+    echo -e "[${this_script_name}]: $*" >&2
 }
 
 log(){
@@ -118,7 +118,7 @@ run(){
             cat "${output}"
             echo -e "[${this_script_name}]: --- end of output ---"
         fi
-    } >> /dev/stderr
+    } >&2
     rm -f "${output}"
     return "${status}"
 }
