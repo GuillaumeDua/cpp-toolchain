@@ -13,7 +13,7 @@ first call.
 A miss is refused rather than written: compose() checks its own output for a helper it names and does not carry,
 reading bare words where the scan reads command positions.
 
-A script that sources nothing composes to itself.
+A script that sources nothing composes to itself, and is held to that same check.
 
 Usage:
     python3 scripts/details/compose-standalone.py scripts/install/gcc.sh > gcc.sh
@@ -136,13 +136,33 @@ def needed_prelude(prelude, wanted, bodies, script_text):
     return "\n\n".join(kept)
 
 
+def check_helpers_carried(composed, bodies):
+    """Refuse `composed` if it names a helper of `bodies` that it does not define.
+
+    calls() reads command positions, so a call in a position it does not know drops a helper
+    from a published file, which answers `die: command not found` the first time a reader gets there.
+    This reads bare words instead, so it does not depend on that scan being complete.
+    """
+    carried = set(dict(declarations(composed)))
+    scanned = bare_words(composed)
+    missing = sorted(name for name in bodies if name not in carried
+                     and re.search(rf"(?<![\w.-]){name}(?![\w-])", scanned))
+    if missing:
+        named = ", ".join(f"{name}()" for name in missing)
+        raise SystemExit(f"::error::the composed script has no definition for {named}"
+                         " - a call position calls() does not read")
+
+
 def compose(script_text):
     """`script_text` with its `source` line replaced by the library helpers it needs."""
-    if not SOURCE_LINE.search(script_text):
-        return script_text
-
     library = LIBRARY.read_text(encoding="utf-8")
     bodies = dict(declarations(library))
+
+    if not SOURCE_LINE.search(script_text):
+        # Nothing to inline, and the shadowing check below does not apply: a script that sources
+        # nothing is free to declare a helper's name, as build-stages.sh does with its own die().
+        check_helpers_carried(script_text, bodies)
+        return script_text
 
     # A script that sources the library and also declares one of its helpers composes to a file
     # holding both, where the later definition silently wins. Refuse instead: whichever copy is
@@ -174,17 +194,7 @@ def compose(script_text):
     replacement = "\n".join(inlined).rstrip() + "\n"
     composed = SOURCE_LINE.sub(lambda _: replacement, script_text, count=1)
 
-    # calls() reads command positions, so a call in a position it does not know drops a helper
-    # from a published file, which answers `die: command not found` the first time a reader gets there.
-    # This reads bare words instead, so it does not depend on that scan being complete.
-    carried = set(dict(declarations(composed)))
-    scanned = bare_words(composed)
-    missing = sorted(name for name in bodies if name not in carried
-                     and re.search(rf"(?<![\w.-]){name}(?![\w-])", scanned))
-    if missing:
-        named = ", ".join(f"{name}()" for name in missing)
-        raise SystemExit(f"::error::the composed script has no definition for {named}"
-                         " - a call position calls() does not read")
+    check_helpers_carried(composed, bodies)
     return composed
 
 
