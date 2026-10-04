@@ -13,7 +13,7 @@ first call.
 A miss is refused rather than written: compose() checks its own output for a helper it names and does not carry,
 reading bare words where the scan reads command positions.
 
-A script that sources nothing composes to itself, which is how doxygen.sh passes through.
+A script that sources nothing composes to itself.
 
 Usage:
     python3 scripts/details/compose-standalone.py scripts/install/gcc.sh > gcc.sh

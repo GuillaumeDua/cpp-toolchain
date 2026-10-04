@@ -851,6 +851,11 @@ warn(){
     def test_only_the_helpers_a_script_calls_are_inlined(self):
         self.assertNotIn("warn()", self.compose('foo || die "x"'))
 
+    def test_a_script_that_sources_nothing_composes_to_itself(self):
+        # Nothing under scripts/ is in this shape, so this is the only exercise of the contract.
+        script = 'this_script_name=probe\nusage(){ echo usage; }\nusage\n'
+        self.assertEqual(compose_standalone.compose(script), script)
+
     def test_a_call_the_scan_cannot_see_is_refused_rather_than_dropped(self):
         # Standing in for the next command position calls() cannot read:
         # a scan that finds nothing composes a file naming a helper it does not carry.

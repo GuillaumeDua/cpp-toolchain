@@ -44,14 +44,18 @@ usage: ${this_script_name} [--prefix=<directory>] <release-tag>
 USAGE
 }
 
-error(){
-    echo -e "[${this_script_name}]: $*" >&2
-    echo -e "[${this_script_name}]: diagnosis helper:" >&2
-    echo -e "\t- release tag:        [${tag:-<unset>}]" >&2
-    echo -e "\t- host architecture:  [${arch:-<unresolved>}]" >&2
-    echo -e "\t- install prefix:     [${prefix}]" >&2
-    exit 1
+error_diagnosis(){
+    {
+        echo -e "[${this_script_name}]: diagnosis helper:"
+        echo -e "\t- release tag:        [${tag:-<unset>}]"
+        echo -e "\t- host architecture:  [${arch:-<unresolved>}]"
+        echo -e "\t- install prefix:     [${prefix}]"
+    } >&2
 }
+
+# The helpers shared with the other scripts. The standalone copy published for each release
+# carries them inlined here instead - scripts/details/compose-standalone.py.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
 
 prefix=/usr/local
 prefix_given=false
