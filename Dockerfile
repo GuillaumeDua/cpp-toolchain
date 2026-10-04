@@ -383,6 +383,9 @@ ARG TOOLCHAIN_TMP_DIR
 #   Re-runs llvm.sh in `--mode=full` to install the analysis tools and register them alongside the
 #   clang/clang++ compilers the `build` stage already installed.
 # The helpers the installer below sources. The `runtime` stage explains the destination path.
+#   `build` copies the same file and runs no cleanup, so this one overwrites it with the same bytes.
+#   Kept so a later cleanup in `build` breaks neither this install nor `dev`'s, which sources these
+#   helpers through doxygen.sh with no copy of its own.
 COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
 
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
@@ -418,6 +421,7 @@ ARG TOOLCHAIN_TMP_DIR
 #   and its alternatives - the GCC side (gcov) already ships with GCC and lcov (`genhtml`) is
 #   installed below.
 # The helpers the installer below sources. The `runtime` stage explains the destination path.
+#   Redundant with `build`'s copy, for the reason the `static-analysis` stage gives.
 COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
 
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
