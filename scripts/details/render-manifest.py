@@ -708,7 +708,8 @@ def bumps_yaml(current, previous, diffing):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--tag", help="tag being released, e.g. v1.2")
     parser.add_argument("--previous-ref", default=None,
                         help="git ref to diff against (default: the newest release before --tag; '' for no diff)")

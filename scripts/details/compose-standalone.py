@@ -189,7 +189,8 @@ def compose(script_text):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("script", help="the script to compose, or the source directory with --all")
     parser.add_argument("--all", metavar="OUT_DIR",
                         help="compose every .sh under `script` into OUT_DIR, keeping the file names")

@@ -378,7 +378,8 @@ def print_fields(record):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("file", nargs="?", help="releases/v*.yaml to validate")
     parser.add_argument("--check-supersession", action="store_true",
                         help="assert the candidate is the newest rc of its minor (tag list on stdin)")
