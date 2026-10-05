@@ -24,7 +24,7 @@ apt_indexed_sources=$(apt-cache policy 2>/dev/null)
 # The helpers shared with the other scripts.
 # This one is never published standalone: it runs inside the validate stages, which copy scripts/ whole,
 # and .dockerignore's exception is what puts the library in that copy.
-source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../details/shared.sh"
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../lib/shared.sh"
 
 is_installed(){
     dpkg-query --show --showformat='${Status}\n' "$1" 2>/dev/null \

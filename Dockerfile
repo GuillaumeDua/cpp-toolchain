@@ -23,7 +23,7 @@
 # Pinned versions - the single source of truth for the versions these images request.
 #
 #   Every version is pinned and `# renovate:`-annotated,
-#   so Renovate owns the updates and this block is what each release note lists: scripts/details/render-manifest.py reads these same lines.
+#   so Renovate owns the updates and this block is what each release note lists: scripts/internal/host/render_manifest.py reads these same lines.
 #   A pin is not always an exact version: GCC_VERSIONS and LLVM_VERSIONS name a major, and apt resolves the patch level at build time.
 #
 #   Declared once, before the first FROM, and re-declared bare (`ARG LLVM_VERSIONS`) in each stage that needs one.
@@ -144,8 +144,9 @@ RUN apt-get update -qqy                                                         
 #   - `clang++ -stdlib=libc++` linking with libc++.
 ARG TOOLCHAIN_TMP_DIR
 # The helpers the installer below sources. Its own directory is ${TOOLCHAIN_TMP_DIR}/scripts,
-#   so `../details/shared.sh` resolves here. .dockerignore carries the matching exception.
-COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
+#   so `../lib/shared.sh` resolves here - the same relative path the repository uses, which is why
+#   this destination mirrors scripts/lib rather than naming a directory of its own.
+COPY ./scripts/lib/shared.sh ${TOOLCHAIN_TMP_DIR}/lib/shared.sh
 
 COPY ./scripts/install/gcc.sh  ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
@@ -213,7 +214,7 @@ RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
 # Build: CMake (https://apt.kitware.com/)
 # The helpers the installer below sources. The `runtime` stage explains the destination path.
 #   Copied again because `runtime` removes ${TOOLCHAIN_TMP_DIR} once its own install finishes.
-COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
+COPY ./scripts/lib/shared.sh ${TOOLCHAIN_TMP_DIR}/lib/shared.sh
 
 COPY ./scripts/install/cmake.sh ${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
@@ -326,7 +327,7 @@ CMD ["/bin/bash"]
 #   scripts/ is copied whole rather than scripts/checks/details alone:
 #       the checks ask gcc.sh and llvm.sh which compilers are installed (--list-installed),
 #       and that only resolves if both directories keep their relative positions.
-#   .dockerignore keeps the top-level scripts/details out, all but shared.sh, which the checks source.
+#   .dockerignore keeps scripts/internal out; scripts/lib, which the checks source, stays in.
 #   It does not match scripts/checks/details, which is why the checks below are still in the build context.
 FROM build AS validate-build
 ARG DEBIAN_FRONTEND=noninteractive
@@ -386,7 +387,7 @@ ARG TOOLCHAIN_TMP_DIR
 #   `build` copies the same file and runs no cleanup, so this one overwrites it with the same bytes.
 #   Kept so a later cleanup in `build` breaks neither this install nor `dev`'s, which sources these
 #   helpers through doxygen.sh with no copy of its own.
-COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
+COPY ./scripts/lib/shared.sh ${TOOLCHAIN_TMP_DIR}/lib/shared.sh
 
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
@@ -422,7 +423,7 @@ ARG TOOLCHAIN_TMP_DIR
 #   installed below.
 # The helpers the installer below sources. The `runtime` stage explains the destination path.
 #   Redundant with `build`'s copy, for the reason the `static-analysis` stage gives.
-COPY ./scripts/details/shared.sh ${TOOLCHAIN_TMP_DIR}/details/shared.sh
+COPY ./scripts/lib/shared.sh ${TOOLCHAIN_TMP_DIR}/lib/shared.sh
 
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}

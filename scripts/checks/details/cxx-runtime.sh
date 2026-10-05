@@ -18,7 +18,7 @@ payload_source=''
 # The helpers shared with the other scripts.
 # This one is never published standalone: it runs inside the validate stages, which copy scripts/ whole,
 # and .dockerignore's exception is what puts the library in that copy.
-source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../details/shared.sh"
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../lib/shared.sh"
 
 # Binaries are reported as <directory>/<name>, so the libstdc++ and libc++ passes stay distinct.
 label(){

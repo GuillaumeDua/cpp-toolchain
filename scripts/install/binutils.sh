@@ -91,8 +91,8 @@ error_diagnosis(){
 }
 
 # The helpers shared with the other scripts. The standalone copy published for each release
-# carries them inlined here instead - scripts/details/compose-standalone.py.
-source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
+# carries them inlined here instead - scripts/internal/host/compose_standalone.py.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../lib/shared.sh"
 
 # Map a GNU target triplet (as used by `binutils-<triplet>`) to the Debian architecture alias (as used by `libc6-dev-<debarch>-cross`).
 # Empty output => no known cross-libc for that target.

@@ -80,9 +80,9 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --quiet origin main
-          python3 scripts/details/check-release-file.py "${FILE}" --check-git
-          git tag -l | python3 scripts/details/check-release-file.py "${FILE}" --check-supersession
-          python3 scripts/details/check-release-file.py "${FILE}" --print-targets > plan.txt
+          python3 scripts/internal/host/check_release_file.py "${FILE}" --check-git
+          git tag -l | python3 scripts/internal/host/check_release_file.py "${FILE}" --check-supersession
+          python3 scripts/internal/host/check_release_file.py "${FILE}" --print-targets > plan.txt
           cat plan.txt
 
       # With the asserts, before any tag moves: the changelog half reaches over the network, and a
@@ -114,8 +114,8 @@ jobs:
           # A release already carrying a date keeps it: a rollback re-runs an old promotion, and
           # re-dating the note there would say the release shipped on the day it was restored.
           date=$(gh release view "${VERSION}" --json body --jq .body 2>/dev/null \
-                 | python3 scripts/details/render-manifest.py --print-date || true)
-          python3 scripts/details/render-manifest.py \
+                 | python3 scripts/internal/host/render_manifest.py --print-date || true)
+          python3 scripts/internal/host/render_manifest.py \
             --tag "${VERSION}" --ref "${RC_COMMIT}" --date "${date:-$(date -u +%F)}" \
             --changelog "${CHANGELOG}" --versions "${FILE}" > note.md
           cat note.md >> "$GITHUB_STEP_SUMMARY"
@@ -172,7 +172,7 @@ jobs:
         if: steps.record.outputs.skip != 'true'
         run: |
           set -euo pipefail
-          images=$(python3 scripts/details/check-release-file.py --print-registries)
+          images=$(python3 scripts/internal/host/check_release_file.py --print-registries)
           while read -r digest source release latest; do
             for image in ${images}; do
               echo "::group::${image}:${release} + :${latest} <- ${digest}"
@@ -215,7 +215,7 @@ jobs:
             # Already exists: a records merge for a hand-cut major, or a re-run. Replace only the
             # marked manifest region, so hand-written release prose survives.
             gh release view "${VERSION}" --json body -q .body > body.md || true
-            python3 scripts/details/render-manifest.py \
+            python3 scripts/internal/host/render_manifest.py \
               --replace-region manifest --with note.md < body.md > merged.md
             gh release edit "${VERSION}" --notes-file merged.md
           else
@@ -260,7 +260,7 @@ jobs:
             echo "> Use the stable release; this pre-release remains as the record of what was validated."
             echo "<!-- promoted:end -->"
           } > banner.md
-          python3 scripts/details/render-manifest.py \
+          python3 scripts/internal/host/render_manifest.py \
             --replace-region promoted --with banner.md --when-absent prepend < rc-body.md > rc-merged.md
           gh release edit "${CANDIDATE}" --notes-file rc-merged.md
 
@@ -318,12 +318,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Newest existing release tag. check-release-file.py owns the rule - which tags count as
+          # Newest existing release tag. check_release_file.py owns the rule - which tags count as
           # releases, and how they order - so the minor derived here and the base the release note
           # diffs against are the same answer rather than two spellings of it.
           #   It fails rather than answering "none" when the tags are unreachable, so an incomplete
           #   checkout cannot restart the line at v1.0 over an existing release.
-          newest=$(python3 scripts/details/check-release-file.py --print-newest-release)
+          newest=$(python3 scripts/internal/host/check_release_file.py --print-newest-release)
 
           # Next minor: bump the newest release's minor, or start the line at v1.0.
           if [ -z "${newest}" ]; then
@@ -403,7 +403,7 @@ jobs:
           CHANGELOG: ${{ steps.changelog-dry-run.outputs.file }}
         run: |
           set -euo pipefail
-          python3 scripts/details/render-manifest.py --tag "${PRIMARY}" --changelog "${CHANGELOG}" > /dev/null
+          python3 scripts/internal/host/render_manifest.py --tag "${PRIMARY}" --changelog "${CHANGELOG}" > /dev/null
           echo "the release note renders, and .github/release.yml parses"
 
       - name: Set up Docker Buildx
@@ -434,9 +434,9 @@ jobs:
 
           # Read-only against the scopes a merge to main maintains: one exporter per scope, and merges
           #   refresh them far more often than this workflow's fortnightly cron.
-          build() { bash scripts/details/build-stages.sh --cache read "$@"; }
+          build() { bash scripts/internal/host/build-stages.sh --cache read "$@"; }
 
-          stages() { python3 scripts/details/check-release-file.py --print-stages "$1"; }
+          stages() { python3 scripts/internal/host/check_release_file.py --print-stages "$1"; }
 
           # Validate before publishing, so a stage that lost a package never reaches a registry.
           #   `cacheonly` because only the exit status matters - nothing is loaded or pushed,
@@ -471,22 +471,22 @@ jobs:
       #   Every published stage, in the canonical order, which is already the build order: each
       #   pull reuses its parent's layers, so the five together cost little more than the deepest.
       #   `buildx --push` leaves nothing in the local image store, so collecting means pulling.
-      #   scripts/ is mounted whole rather than scripts/details: the collector composes scripts/install
-      #   and scripts/checks, in the layout the Dockerfile gives the validate stages.
+      #   scripts/ is mounted whole rather than the collector alone: it composes scripts/install and
+      #   scripts/checks, in the layout the Dockerfile gives the validate stages.
       - name: Collect the installed versions
         if: steps.changed.outputs.skip != 'true'
         run: |
           set -euo pipefail
-          image=$(python3 scripts/details/check-release-file.py --print-registries ghcr)
+          image=$(python3 scripts/internal/host/check_release_file.py --print-registries ghcr)
           mkdir -p build-metadata/versions
-          for stage in $(python3 scripts/details/check-release-file.py --print-stages normal); do
-            digest=$(bash scripts/details/build-stages.sh \
+          for stage in $(python3 scripts/internal/host/check_release_file.py --print-stages normal); do
+            digest=$(bash scripts/internal/host/build-stages.sh \
               --variant normal --metadata-dir build-metadata --print-digest "${stage}")
             echo "collecting from ${stage} ${digest}"
             docker run --rm \
               --volume "${PWD}/scripts:/opt/cpp-toolchain-scripts:ro" \
               "${image}@${digest}" \
-              bash /opt/cpp-toolchain-scripts/details/cxx-toolchain-versions.sh \
+              bash /opt/cpp-toolchain-scripts/internal/image/cxx-toolchain-versions.sh \
               | tee "build-metadata/versions/${stage}.txt"
           done
 
@@ -508,26 +508,26 @@ jobs:
             [ "${MODE}" = "rc" ] && echo "candidate: \"${PRIMARY}\""
             echo "commit: \"${GITHUB_SHA}\""
             echo "digests:"
-            for stage in $(python3 scripts/details/check-release-file.py --print-stages normal); do
-              echo "  ${stage}: \"$(bash scripts/details/build-stages.sh \
+            for stage in $(python3 scripts/internal/host/check_release_file.py --print-stages normal); do
+              echo "  ${stage}: \"$(bash scripts/internal/host/build-stages.sh \
                 --variant normal --metadata-dir build-metadata --print-digest "${stage}")\""
             done
-            for stage in $(python3 scripts/details/check-release-file.py --print-stages cross); do
-              echo "  ${stage}-cross: \"$(bash scripts/details/build-stages.sh \
+            for stage in $(python3 scripts/internal/host/check_release_file.py --print-stages cross); do
+              echo "  ${stage}-cross: \"$(bash scripts/internal/host/build-stages.sh \
                 --variant cross --metadata-dir build-metadata --print-digest "${stage}")\""
             done
-            python3 scripts/details/render-manifest.py --tag "${VERSION}" --bumps-yaml
-            python3 scripts/details/render-manifest.py --collected build-metadata/versions
+            python3 scripts/internal/host/render_manifest.py --tag "${VERSION}" --bumps-yaml
+            python3 scripts/internal/host/render_manifest.py --collected build-metadata/versions
           } > "releases/${VERSION}.yaml"
 
           cat "releases/${VERSION}.yaml"
-          python3 scripts/details/check-release-file.py "releases/${VERSION}.yaml"
+          python3 scripts/internal/host/check_release_file.py "releases/${VERSION}.yaml"
 
       # After the record, which is where the installed versions live: the note reports them, and the
       # previous release's record is what it diffs them against.
       # The pins and the changelog already rendered before the build - this is the same note with the
       # half that needed the images, so a failure here costs a re-run rather than the build window.
-      # The changelog is fetched again rather than reusing that copy: render-manifest.py reads an
+      # The changelog is fetched again rather than reusing that copy: render_manifest.py reads an
       # empty --changelog as "no changelog", so a reference that stopped resolving would ship a note
       # missing a section without failing anything.
       - name: Generate the changelog
@@ -546,7 +546,7 @@ jobs:
           CHANGELOG: ${{ steps.changelog.outputs.file }}
         run: |
           set -euo pipefail
-          python3 scripts/details/render-manifest.py \
+          python3 scripts/internal/host/render_manifest.py \
             --tag "${PRIMARY}" --date "$(date -u +%F)" \
             --changelog "${CHANGELOG}" --versions "releases/${VERSION}.yaml" > note.md
           cat note.md >> "$GITHUB_STEP_SUMMARY"
@@ -588,7 +588,7 @@ jobs:
         run: |
           set -euo pipefail
           gh release view "${PRIMARY}" --json body -q .body > body.md || true
-          python3 scripts/details/render-manifest.py \
+          python3 scripts/internal/host/render_manifest.py \
             --replace-region manifest --with note.md < body.md > merged.md
           gh release edit "${PRIMARY}" --notes-file merged.md
 

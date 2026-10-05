@@ -61,21 +61,21 @@ Reproduce it locally before pushing (context is the repo root).
 This is the driver the gate runs, with the cache flags off:
 
 ```bash
-bash scripts/details/build-stages.sh --variant normal --cache none \
-  $(python3 scripts/details/check-release-file.py --print-stages normal)
+bash scripts/internal/host/build-stages.sh --variant normal --cache none \
+  $(python3 scripts/internal/host/check_release_file.py --print-stages normal)
 
-bash scripts/details/build-stages.sh --variant cross --cache none \
-  $(python3 scripts/details/check-release-file.py --print-stages cross)
+bash scripts/internal/host/build-stages.sh --variant cross --cache none \
+  $(python3 scripts/internal/host/check_release_file.py --print-stages cross)
 ```
 
 `build-stages.sh` calls `docker buildx build`. Without buildx, drive `docker build` over the same stage lists:
 
 ```bash
-for stage in $(python3 scripts/details/check-release-file.py --print-stages normal); do
+for stage in $(python3 scripts/internal/host/check_release_file.py --print-stages normal); do
   docker build --target "$stage" .
 done
 
-for stage in $(python3 scripts/details/check-release-file.py --print-stages cross); do
+for stage in $(python3 scripts/internal/host/check_release_file.py --print-stages cross); do
   docker build --target "$stage" --build-arg BINUTILS_TARGETS=common .
 done
 ```
@@ -103,7 +103,7 @@ Publishing is [docker-publish](.github/workflows/docker-publish.yml) - a **separ
 
 The full release procedure (promotion, urgent fixes, rollback, failure modes) is in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) - the cadence is stated there and nowhere else.
 
-Release notes are composed by [scripts/details/render-manifest.py](scripts/details/render-manifest.py) from three things: the versions a release pins, read from the Dockerfile's `ARG`s; what the images installed where a pin cannot say, read from the promotion record; and the pull requests merged since the previous release.
+Release notes are composed by [scripts/internal/host/render_manifest.py](scripts/internal/host/render_manifest.py) from three things: the versions a release pins, read from the Dockerfile's `ARG`s; what the images installed where a pin cannot say, read from the promotion record; and the pull requests merged since the previous release.
 That last part is a plain list of PR titles, so the title you give a PR is what a release note shows.
 What a pin does and does not fix is in [Tags & versioning](README.md#whats-inside-a-given-tag).
 
@@ -121,5 +121,5 @@ See [Tags & versioning](README.md#tags--versioning) for the full tag scheme.
 - [README.md](README.md) - the images themselves: stages, features, tags, what each contains.
 - [scripts/install/README.md](scripts/install/README.md) - the standalone `cmake.sh` / `gcc.sh` / `llvm.sh` / `binutils.sh` / `doxygen.sh` / `bazel.sh` / `build2.sh` options.
 - [releases/README.md](releases/README.md) - the promotion record behind each shipped release: the rc it came from, the commit built, and every stage's digest.
-- [scripts/details/README.md](scripts/details/README.md) - the repository's own tooling: pin guard, release-note renderer, promotion-record schema, smoke test.
+- [scripts/internal/README.md](scripts/internal/README.md) - the repository's own tooling: pin guard, release-note renderer, promotion-record schema, smoke test.
 - [docs/details/README.md](docs/details/README.md) - how this documentation is rendered and published, and how to preview it locally.

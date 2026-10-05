@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inline scripts/details/shared.sh into a script that sources it, producing the standalone copy.
+"""Inline scripts/lib/shared.sh into a script that sources it, producing the standalone copy.
 
 The scripts under scripts/install/ and scripts/checks/ source their shared helpers, so a checkout
 holds one body per helper. What is published for each release is this script's output: the same
@@ -16,8 +16,8 @@ reading bare words where the scan reads command positions.
 A script that sources nothing composes to itself, and is held to that same check.
 
 Usage:
-    python3 scripts/details/compose-standalone.py scripts/install/gcc.sh > gcc.sh
-    python3 scripts/details/compose-standalone.py --all <directory>
+    python3 scripts/internal/host/compose_standalone.py scripts/install/gcc.sh > gcc.sh
+    python3 scripts/internal/host/compose_standalone.py --all <directory>
 
 Writes to stdout, or with --all one file per script into the directory given.
 """
@@ -27,7 +27,7 @@ import pathlib
 import re
 
 HERE = pathlib.Path(__file__).resolve().parent
-LIBRARY = HERE / "shared.sh"
+LIBRARY = HERE.parent.parent / "lib" / "shared.sh"
 
 # The `source` line to replace, plus the comment block above it that explains why it is there.
 SOURCE_LINE = re.compile(
@@ -180,7 +180,7 @@ def compose(script_text):
             break
         wanted = grown
 
-    inlined = ["# Inlined from scripts/details/shared.sh by scripts/details/compose-standalone.py."]
+    inlined = ["# Inlined from scripts/lib/shared.sh by scripts/internal/host/compose_standalone.py."]
     prelude = needed_prelude(library[:PRELUDE_END.search(library).start()], wanted, bodies,
                              script_text)
     if prelude:

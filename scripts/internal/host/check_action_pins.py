@@ -24,7 +24,7 @@ Lines are matched with a regex rather than parsed as YAML, because an error here
 number and safe_load discards them.
 
 Usage, from the repository root - both defaults are paths relative to it:
-    python3 scripts/details/check-action-pins.py [--workflows .github/workflows] [--actions .github/actions]
+    python3 scripts/internal/host/check_action_pins.py [--workflows .github/workflows] [--actions .github/actions]
 
 Exits non-zero and reports every violation it found, rather than only the first.
 """

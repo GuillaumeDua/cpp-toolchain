@@ -13,11 +13,11 @@ cannot, neither shows it.
 so it is matched separately here and bumped by .github/workflows/ubuntu-snapshot.yml.
 
 Usage, from the repository root - `--dockerfile` and `--renovate` default to paths relative to it:
-    python3 scripts/details/render-manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
-    python3 scripts/details/render-manifest.py --tag v1.2 --changelog changelog.md --versions releases/v1.2.yaml --date 2026-08-25
-    python3 scripts/details/render-manifest.py --collected build-metadata/versions/
-    python3 scripts/details/render-manifest.py --replace-region manifest --with note.md < body.md
-    python3 scripts/details/render-manifest.py --print-date < body.md
+    python3 scripts/internal/host/render_manifest.py --tag v1.2 [--previous-ref v1.1] [--ref <sha>] [--bumps-yaml]
+    python3 scripts/internal/host/render_manifest.py --tag v1.2 --changelog changelog.md --versions releases/v1.2.yaml --date 2026-08-25
+    python3 scripts/internal/host/render_manifest.py --collected build-metadata/versions/
+    python3 scripts/internal/host/render_manifest.py --replace-region manifest --with note.md < body.md
+    python3 scripts/internal/host/render_manifest.py --print-date < body.md
 
 `--previous-ref` defaults to the newest release before `--tag`, which is the base every caller wants,
 so no caller computes one.
@@ -41,7 +41,7 @@ Fetching it belongs to the caller, which already holds a token - this script rea
 Inside the region rather than after it, so a re-run replaces both halves instead of stacking a second changelog under the first.
 
 Which tags count as releases, how they order, and where the images are published are all
-check-release-file.py's, read from here rather than restated: the tag docker-publish.yml
+check_release_file.py's, read from here rather than restated: the tag docker-publish.yml
 publishes, the base this manifest diffs against, and the reference it tells readers to pull cannot disagree.
 
 `--ref` reads the Dockerfile and renovate.json from a git ref instead of the worktree,
@@ -60,7 +60,7 @@ single image can be asked - the stage graph comes from the Dockerfile's own `FRO
 date, so a local render stays byte-comparable with the one before it.
 
 `--bumps-yaml` emits the moved pins as a YAML `bumps:` mapping instead of the markdown manifest,
-the shape recorded in releases/v*.yaml and re-checked by check-release-file.py.
+the shape recorded in releases/v*.yaml and re-checked by check_release_file.py.
 """
 
 import argparse
@@ -70,12 +70,12 @@ import re
 import subprocess
 import sys
 
-# Importing check-release-file.py below would drop a scripts/details/__pycache__/ next to the
+# Importing check_release_file.py below would drop a scripts/internal/host/__pycache__/ next to the
 # sources, on every local run and every CI run.
 sys.dont_write_bytecode = True
 
-# Below that line rather than with the imports above it, or the first thing cached is _loader itself.
-from _loader import load
+# Below that line rather than with the imports above it, or the first thing cached is the sibling itself.
+import check_release_file as schema
 
 HERE = pathlib.Path(__file__).resolve().parent
 
@@ -141,10 +141,9 @@ COLLECTED_BY_PIN = {
 PLATFORM = "linux/amd64"
 
 
-# check-release-file.py owns the version grammar and the registry references:
+# check_release_file.py owns the version grammar and the registry references:
 #   the tag the workflows publish, the base this note diffs against, and the image it tells
 #   readers to pull are then one answer rather than three spellings of it.
-schema = load("check-release-file")
 newest_release_before = schema.newest_release_before
 
 GHCR_REFERENCE = schema.REGISTRIES["ghcr"]
@@ -411,7 +410,7 @@ def library_rows(collected):
 def collected_keys(name, pinned, versions):
     """(group, [key]) the `Installed` cell of a pin reads, or None for a pin nothing collects.
 
-    A pin naming one major reads that major's key, and check-dependencies-pins.py keeps a pin to
+    A pin naming one major reads that major's key, and check_dependencies_pins.py keeps a pin to
     one token so there is only ever one. The installers also take selectors - `>=15`,
     `latest-stable`, `all` (docs/IMAGES_VALIDATION.md) - which name no major, so those read every
     key the component left in the group, ordered by major rather than as text: `gcc-9` before
@@ -600,7 +599,7 @@ def cross_targets():
     Read from the worktree rather than from `--ref`: it is a build input, not a pin, and the
     promote job renders for a recorded commit while checked out on main.
     """
-    script = HERE.parent / "install" / "binutils.sh"
+    script = HERE.parent.parent / "install" / "binutils.sh"
     listed = subprocess.run(["bash", str(script), "--list-targets", "--targets=common"],
                             capture_output=True, text=True)
     if listed.returncode != 0 or not listed.stdout.split():

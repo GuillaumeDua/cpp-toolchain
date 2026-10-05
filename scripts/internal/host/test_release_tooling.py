@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Tests for the four scripts the release path depends on:
-render-manifest.py, check-release-file.py, compose-standalone.py and check-dependencies-pins.py.
+render_manifest.py, check_release_file.py, compose_standalone.py and check_dependencies_pins.py.
 
 The first two write every public release page and the `bumps:` half of an immutable releases/v*.yaml record;
 the third writes the standalone scripts a release attaches,
@@ -16,7 +16,7 @@ Fixtures are inline rather than the live Dockerfile and releases/, so a pin bump
 test red.
 
 Usage, from the repository root:
-    python3 scripts/details/test-release-tooling.py
+    python3 scripts/internal/host/test_release_tooling.py
 """
 
 import contextlib
@@ -27,19 +27,18 @@ import sys
 import tempfile
 import unittest
 
-# Importing the scripts below would drop a scripts/details/__pycache__/ next to the sources,
-# on every local run and every CI run - the same reason check-dependencies-pins.py sets this.
+# Importing the scripts below would drop a scripts/internal/host/__pycache__/ next to the sources,
+# on every local run and every CI run - the same reason check_dependencies_pins.py sets this.
 sys.dont_write_bytecode = True
 
-# Below that line rather than with the imports above it, or the first thing cached is _loader itself.
-from _loader import load
+# Below that line rather than with the imports above it, or the first thing cached is the sibling itself.
+import check_dependencies_pins
+import check_release_file
+import compose_standalone
+import render_manifest
 
 HERE = pathlib.Path(__file__).resolve().parent
 
-render_manifest = load("render-manifest")
-check_release_file = load("check-release-file")
-compose_standalone = load("compose-standalone")
-check_dependencies_pins = load("check-dependencies-pins")
 
 DOXYGEN_SCHEME = r"regex:^Release_(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$"
 
@@ -101,7 +100,7 @@ def repository_with_tags(tags):
 
 
 def render(*arguments, changelog=None):
-    """render-manifest.py over the inline fixtures, in a throwaway directory."""
+    """render_manifest.py over the inline fixtures, in a throwaway directory."""
     with tempfile.TemporaryDirectory() as directory:
         root = pathlib.Path(directory)
         (root / "Dockerfile").write_text(DOCKERFILE, encoding="utf-8")
@@ -110,7 +109,7 @@ def render(*arguments, changelog=None):
             (root / "changelog.md").write_text(changelog, encoding="utf-8")
             arguments += ("--changelog", str(root / "changelog.md"))
         done = subprocess.run(
-            [sys.executable, str(HERE / "render-manifest.py"),
+            [sys.executable, str(HERE / "render_manifest.py"),
              "--dockerfile", str(root / "Dockerfile"),
              "--renovate", str(root / "renovate.json"), *arguments],
             capture_output=True, text=True, check=True,
@@ -119,9 +118,9 @@ def render(*arguments, changelog=None):
 
 
 def print_date(body):
-    """render-manifest.py --print-date over `body`, the way docker-publish.yml pipes a release body in."""
+    """render_manifest.py --print-date over `body`, the way docker-publish.yml pipes a release body in."""
     done = subprocess.run(
-        [sys.executable, str(HERE / "render-manifest.py"), "--print-date"],
+        [sys.executable, str(HERE / "render_manifest.py"), "--print-date"],
         input=body, capture_output=True, text=True, check=True,
     )
     return done.stdout.strip()
@@ -810,7 +809,7 @@ warn(){
 }
 """
 
-    SOURCE = 'source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"\n'
+    SOURCE = 'source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../lib/shared.sh"\n'
 
     # Every position bash starts a command in.
     # The `case` arm carries the most weight: it is how each published script reads its options,

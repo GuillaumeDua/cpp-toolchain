@@ -29,13 +29,13 @@ this_script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 # The installers own which majors they put there, and the standard library probe owns how a
 # runtime is read out of its ELF.
-install_scripts_dir="${this_script_dir}/../install"
-stdlibs_script="${this_script_dir}/../checks/cxx-stdlibs.sh"
-c_stdlibs_script="${this_script_dir}/../checks/c-stdlibs.sh"
+install_scripts_dir="${this_script_dir}/../../install"
+stdlibs_script="${this_script_dir}/../../checks/cxx-stdlibs.sh"
+c_stdlibs_script="${this_script_dir}/../../checks/c-stdlibs.sh"
 
 # The helpers shared with the other scripts. This one is not published standalone, so it sources the
 # library at run time where the others carry it inlined.
-source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/shared.sh"
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../lib/shared.sh"
 
 # `-dumpfullversion` on GCC, because `-dumpversion` has reported the major alone since GCC 7.
 # Clang has no such split. Both answer the upstream version, unlike dpkg, which reports
@@ -45,7 +45,7 @@ collect_compilers(){
     local major version
 
     [ -r "${install_scripts_dir}/${lister}" ] \
-      || die "cannot find ${lister} one level above scripts/details"
+      || die "cannot find ${lister} in scripts/install"
 
     for major in $(bash "${install_scripts_dir}/${lister}" --list-installed 2>/dev/null); do
         version=$("${driver}-${major}" "${version_flag}" 2>/dev/null)
@@ -67,7 +67,7 @@ collect_stdlibs(){
     local -A field
 
     [ -r "${probe}" ] \
-      || die "cannot find $(basename "${probe}") one level above scripts/details"
+      || die "cannot find $(basename "${probe}") in scripts/checks"
 
     while IFS= read -r row; do
         field=()

@@ -27,7 +27,7 @@ readonly CACHE_DIR="docs/details/.cache"
 readonly OUTPUT_DIR="docs/output"
 
 # The site renders with the doxygen the `documentation` image ships, so there is one pin rather than two:
-# Renovate owns it and scripts/details/check-dependencies-pins.py guards it.
+# Renovate owns it and scripts/internal/host/check_dependencies_pins.py guards it.
 readonly DOXYGEN_PIN_SOURCE="Dockerfile"
 
 # The theme is not installed in any image, so its pin lives here.

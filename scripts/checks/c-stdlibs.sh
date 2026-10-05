@@ -12,8 +12,8 @@ this_script_name=$(basename "$0")
 arg_format='default'
 
 # The helpers shared with the other scripts. The standalone copy published for each release
-# carries them inlined here instead - scripts/details/compose-standalone.py.
-source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
+# carries them inlined here instead - scripts/internal/host/compose_standalone.py.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../lib/shared.sh"
 
 help(){
     echo "Usage: ${this_script_name} [--format=<format>]" >&2
@@ -101,7 +101,7 @@ library_rows(){
 }
 
 # 'view=library' is emitted although this script has only one: a caller reading both scripts into
-# one stream - scripts/details/cxx-toolchain-versions.sh does - parses every line the same way.
+# one stream - scripts/internal/image/cxx-toolchain-versions.sh does - parses every line the same way.
 render(){
     case "${arg_format}" in
         default ) awk '{ printf "%s %s -> soname=%s abi=%s package=%s\n", $1, $2, $3, $5, $6 }' ;;

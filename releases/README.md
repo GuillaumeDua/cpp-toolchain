@@ -22,5 +22,5 @@ Merging a pull request that adds one **is** the promotion: the digests are re-ta
 
 ## Additional resources
 
-- Schema and validation: [scripts/details/check-release-file.py](../scripts/details/check-release-file.py).
+- Schema and validation: [scripts/internal/host/check_release_file.py](../scripts/internal/host/check_release_file.py).
 - Process: [docs/RELEASE_PROCESS.md](../docs/RELEASE_PROCESS.md).

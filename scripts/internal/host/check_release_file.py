@@ -11,22 +11,22 @@ Merging it to main is what promotes - so this file is the single place its schem
 
 The stage lists are the canonical ones (--print-stages) - docker-publish.yml reads them from this script rather than restating them,
 so the digests recorded by the rc build and the targets derived at promotion cannot drift apart.
-The version grammar and the registry references are here for the same reason: render-manifest.py
+The version grammar and the registry references are here for the same reason: render_manifest.py
 and both workflows read them, so the tag that is published, the base a release note diffs against
 and the reference a reader is told to pull are one answer.
 
 Usage, from the repository root - the git checks and the bumps recompute both read the worktree:
-    python3 scripts/details/check-release-file.py releases/v1.2.yaml                      # schema only (offline)
-    python3 scripts/details/check-release-file.py releases/v1.2.yaml --check-supersession # newest-rc assert, tags on stdin
-    python3 scripts/details/check-release-file.py releases/v1.2.yaml --check-git          # candidate tag / commit / main
-    python3 scripts/details/check-release-file.py releases/v1.2.yaml --check-bumps        # bumps == render-manifest recompute
-    python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-targets      # promotion plan, one line per prefix
-    python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-digest dev   # one recorded digest
-    python3 scripts/details/check-release-file.py releases/v1.2.yaml --print-fields       # version/commit/candidate as key=value
-    python3 scripts/details/check-release-file.py --print-stages normal|cross             # canonical stage lists
-    python3 scripts/details/check-release-file.py --print-stages validate-normal|validate-cross
-    python3 scripts/details/check-release-file.py --print-registries [dockerhub|ghcr]     # both references, or one
-    python3 scripts/details/check-release-file.py --print-newest-release [--tag v1.4]     # the release before a tag
+    python3 scripts/internal/host/check_release_file.py releases/v1.2.yaml                      # schema only (offline)
+    python3 scripts/internal/host/check_release_file.py releases/v1.2.yaml --check-supersession # newest-rc assert, tags on stdin
+    python3 scripts/internal/host/check_release_file.py releases/v1.2.yaml --check-git          # candidate tag / commit / main
+    python3 scripts/internal/host/check_release_file.py releases/v1.2.yaml --check-bumps        # bumps == render-manifest recompute
+    python3 scripts/internal/host/check_release_file.py releases/v1.2.yaml --print-targets      # promotion plan, one line per prefix
+    python3 scripts/internal/host/check_release_file.py releases/v1.2.yaml --print-digest dev   # one recorded digest
+    python3 scripts/internal/host/check_release_file.py releases/v1.2.yaml --print-fields       # version/commit/candidate as key=value
+    python3 scripts/internal/host/check_release_file.py --print-stages normal|cross             # canonical stage lists
+    python3 scripts/internal/host/check_release_file.py --print-stages validate-normal|validate-cross
+    python3 scripts/internal/host/check_release_file.py --print-registries [dockerhub|ghcr]     # both references, or one
+    python3 scripts/internal/host/check_release_file.py --print-newest-release [--tag v1.4]     # the release before a tag
 
 Exits non-zero and reports every schema violation it found, not only the first.
 The supersession, git and bumps checks run only once the schema is sound.
@@ -332,12 +332,12 @@ def check_git(data):
 
 
 def check_bumps(data):
-    """bumps: is generated, never hand-edited - assert it equals what render-manifest.py
+    """bumps: is generated, never hand-edited - assert it equals what render_manifest.py
     recomputes between the previous release and the recorded commit."""
     import yaml
     version = str(data.get("version", ""))
     commit = str(data.get("commit", ""))
-    cmd = [sys.executable, str(HERE / "render-manifest.py"),
+    cmd = [sys.executable, str(HERE / "render_manifest.py"),
            "--tag", version, "--ref", commit, "--bumps-yaml"]
     done = subprocess.run(cmd, capture_output=True, text=True)
     # A record predating a repository layout change has no comparable predecessor, so its bumps
@@ -386,7 +386,7 @@ def main():
     parser.add_argument("--check-git", action="store_true",
                         help="assert the candidate tag points at the recorded commit, contained in origin/main")
     parser.add_argument("--check-bumps", action="store_true",
-                        help="assert bumps equals the render-manifest.py recompute at the recorded commit")
+                        help="assert bumps equals the render_manifest.py recompute at the recorded commit")
     parser.add_argument("--print-targets", action="store_true",
                         help="print the promotion plan (digest, source, release and latest tags)")
     parser.add_argument("--print-digest", metavar="KEY", help="print one recorded digest, e.g. dev")
