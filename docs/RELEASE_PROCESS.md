@@ -87,7 +87,7 @@ Every moving part lives in two workflows, one schema and one configuration file:
   - bumps recompute
   - a smoke test of the image **by digest**.
     Make it a required status check on `main`.
-- [scripts/details/check-release-file.py](../scripts/details/check-release-file.py) - the single definition of the `releases/v*.yaml` schema, of the version grammar, and of the stage and registry lists.
+- [scripts/internal/host/check_release_file.py](../scripts/internal/host/check_release_file.py) - the single definition of the `releases/v*.yaml` schema, of the version grammar, and of the stage and registry lists.
 - [.github/release.yml](../.github/release.yml) - shapes the changelog half of a release note.
   Read from the commit the note is rendered for rather than from `main`, so a release carries the configuration of the tree it was built from.
 

@@ -7,7 +7,7 @@ description: >
 inputs:
   plan:
     description: >
-      The promotion plan `check-release-file.py --print-targets` wrote,
+      The promotion plan `check_release_file.py --print-targets` wrote,
       one `<digest> <source> <release> <latest>` line per tag prefix.
     required: false
     default: plan.txt
@@ -28,7 +28,7 @@ runs:
         HINT: ${{ inputs.hint }}
       run: |
         set -euo pipefail
-        images=$(python3 scripts/details/check-release-file.py --print-registries)
+        images=$(python3 scripts/internal/host/check_release_file.py --print-registries)
         checked=0
         while read -r digest source release latest; do
           for image in ${images}; do

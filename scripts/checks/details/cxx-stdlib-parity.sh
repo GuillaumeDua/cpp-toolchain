@@ -11,7 +11,7 @@ stdlibs_script="${this_script_dir}/../cxx-stdlibs.sh"
 # The helpers shared with the other scripts.
 # This one is never published standalone: it runs inside the validate stages, which copy scripts/ whole,
 # and .dockerignore's exception is what puts the library in that copy.
-source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../details/shared.sh"
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../lib/shared.sh"
 
 # What this image has, as '<impl> <soname> <version> <abi>', one line per distinct SONAME.
 #   The SONAME is the key rather than the package or the path: it is what the linker writes into a

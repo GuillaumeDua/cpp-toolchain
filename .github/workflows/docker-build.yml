@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Assert every version is pinned and watched
-        run: python3 scripts/details/check-dependencies-pins.py
+        run: python3 scripts/internal/host/check_dependencies_pins.py
 
       # The composed scripts are what each release publishes, and nothing else exercises them until then.
       # Composing here means a broken composer fails a pull request rather than a release.
@@ -35,8 +35,8 @@ jobs:
         run: |
           set -euo pipefail
           island=$(mktemp -d)
-          python3 scripts/details/compose-standalone.py --all "${island}" scripts/install
-          python3 scripts/details/compose-standalone.py --all "${island}" scripts/checks
+          python3 scripts/internal/host/compose_standalone.py --all "${island}" scripts/install
+          python3 scripts/internal/host/compose_standalone.py --all "${island}" scripts/checks
           cd "${island}"
           for script in *.sh; do
             bash -n "${script}"
@@ -51,10 +51,10 @@ jobs:
           echo "every standalone script composes and answers with nothing beside it"
 
       - name: Assert every action is pinned to a commit digest
-        run: python3 scripts/details/check-action-pins.py
+        run: python3 scripts/internal/host/check_action_pins.py
 
       - name: Test the release tooling
-        run: python3 scripts/details/test-release-tooling.py
+        run: python3 scripts/internal/host/test_release_tooling.py
 
       - name: Set up Docker Buildx
         uses: ./.github/actions/setup-buildx
@@ -68,10 +68,10 @@ jobs:
           build() {
             local cache=read
             if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then cache=write; fi
-            bash scripts/details/build-stages.sh --cache "${cache}" "$@"
+            bash scripts/internal/host/build-stages.sh --cache "${cache}" "$@"
           }
 
-          stages() { python3 scripts/details/check-release-file.py --print-stages "$1"; }
+          stages() { python3 scripts/internal/host/check_release_file.py --print-stages "$1"; }
 
           # The validate stages are the image validation gate (docs/IMAGES_VALIDATION.md),
           # appended to the list the job already builds so they cost a cache hit plus their own RUN.

@@ -1,6 +1,6 @@
 # Shapes the "What's Changed" half of a release note: the pull requests merged since the previous
 # release, fetched from the generate-notes API by .github/workflows/docker-publish.yml and spliced
-# into the note by scripts/details/render-manifest.py --changelog.
+# into the note by scripts/internal/host/render_manifest.py --changelog.
 #
 # Read at the commit the note is rendered for, not from the default branch, so a release carries
 # the configuration of the tree it was built from.

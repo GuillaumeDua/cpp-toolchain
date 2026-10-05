@@ -199,9 +199,9 @@ A check naming one of those keeps passing on the two it cannot see, so the packa
 The `details/` pair reaches [`scripts/install/`](../scripts/install/) by relative path, which is why the validate stages copy `scripts/` whole rather than `scripts/checks/details/` alone.
 A layout that separates the two fails with `cannot find scripts/install two levels above scripts/checks/details` rather than silently finding no compilers.
 
-This is not the top-level [`scripts/details/`](../scripts/details/).
-Both names mean the same thing - implementation details of the directory that encloses them - but the top-level one is host-side tooling that `.dockerignore` keeps out of the build context, whereas these checks have to ship *into* the image in order to validate it.
-`shared.sh` is the one file on the host side that still ships in: the install and checks scripts source it, so `.dockerignore` lets it through to every stage that runs one of them.
+This is not [`scripts/internal/`](../scripts/internal/), which holds the repository's own tooling and which `.dockerignore` keeps out of the build context.
+These checks have to ship *into* the image in order to validate it.
+The helpers both sets of scripts source live in [`scripts/lib/`](../scripts/lib/), which is in the build context like `install/` and `checks/` and needs no exception of its own.
 
 Each reports **every** failure before exiting, so one run tells you everything that is wrong.
 

@@ -20,8 +20,8 @@ default_stdlib='all'
 default_compilers='all'
 
 # The helpers shared with the other scripts. The standalone copy published for each release
-# carries them inlined here instead - scripts/details/compose-standalone.py.
-source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../details/shared.sh"
+# carries them inlined here instead - scripts/internal/host/compose_standalone.py.
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../lib/shared.sh"
 
 help(){
     echo "Usage: ${this_script_name} [--view=<view>] [--stdlib=<impl>] [--compilers[=<list>]] [--format=<format>]" >&2

@@ -54,7 +54,7 @@ LABEL_OF = {
     "docs/IMAGES_VALIDATION.md": "images-validation",
     "docs/RELEASE_PROCESS.md":   "release-process",
     "releases/README.md":        "release-records",
-    "scripts/details/README.md": "repository-tooling",
+    "scripts/internal/README.md": "repository-tooling",
     "docs/details/README.md":    "documentation-site",
 }
 

@@ -66,9 +66,9 @@ runs:
           exit 1
         fi
 
-        # check-release-file.py owns the schema, so it is also what reads a record's fields.
+        # check_release_file.py owns the schema, so it is also what reads a record's fields.
         {
           echo "skip=false"
           echo "file=${added[0]}"
-          python3 scripts/details/check-release-file.py "${added[0]}" --print-fields
+          python3 scripts/internal/host/check_release_file.py "${added[0]}" --print-fields
         } >> "$GITHUB_OUTPUT"

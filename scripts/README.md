@@ -9,15 +9,15 @@ In this repository they source their shared helpers instead of carrying them, so
 | [install/](install/) | **Public** - standalone | Toolchain installers - `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh`, `doxygen.sh`, `bazel.sh`, `build2.sh`. Reusable on any Debian/Ubuntu-based system, with no dependency on this repository. See [install/README.md](install/README.md) for the full option reference. |
 | [checks/](checks/) | **Public** - standalone | `cxx-standards.sh` - which C++ standards a compiler accepts. `cxx-stdlibs.sh` - which C++ standard libraries are installed, with the `SONAME` and ABI version a binary will need to find. `c-stdlibs.sh` - the same, for the C standard library. Point either at any machine, checkout or not. See [checks/README.md](checks/README.md). |
 | [checks/details/](checks/details/) | Internal | The image validation gate, which runs *inside* a built image: it knows this repo's expected package origins and asks its installers what is present. See [docs/IMAGES_VALIDATION.md](../docs/IMAGES_VALIDATION.md). |
-| [details/](details/) | Internal | This repository's own tooling - the version-pin guard, the release-note renderer, the standalone composer, the shared helper library it inlines, the promotion-record schema and the image smoke test. Not reusable: they parse this repo's `Dockerfile`, `renovate.json` and `releases/` records. See [details/README.md](details/README.md). |
+| [lib/](lib/) | Internal | `shared.sh` - one body per helper, sourced by every `install/` and `checks/` script that uses one. A published copy carries the helpers it needs inlined instead, composed from this file. |
+| [internal/](internal/) | Internal | This repository's own tooling, split by where it runs: `host/` - the version-pin guard, the release-note renderer, the standalone composer and the promotion-record schema; `image/` - the version collector and the smoke test, bind-mounted into a built image. Not reusable: they parse this repo's `Dockerfile`, `renovate.json` and `releases/` records. See [internal/README.md](internal/README.md). |
 
 The [Dockerfile](../Dockerfile) copies in and runs the `install/` scripts, one per stage that needs one, and copies `scripts/` whole into the throwaway validate stages so `checks/` can run there.  
-The top-level `details/` is host-side tooling that `.dockerignore` keeps out of the build context, with one exception: `shared.sh`.
-The `install/` and `checks/` scripts source the library, so it has to reach every stage that runs one, and without that exception their `COPY` lines have nothing to copy.
-The smoke test needs no exception - it reaches a built image by bind-mount instead.
+`lib/` is copied in beside them, because the `install/` and `checks/` scripts source it and it has to reach every stage that runs one.
+`internal/` is this repository's own tooling, which `.dockerignore` keeps out of the build context entirely - what has to reach a built image gets there by bind-mount instead.
 
-`checks/details/` is a different `details/` - implementation details of `checks/`, in the C++ sense of a nested `detail` namespace.
-Being repo-specific is what the two share; unlike the top-level one, these *must* ship into the image they validate.
+`checks/details/` is implementation detail of `checks/`, in the C++ sense of a nested `detail` namespace.
+Repo-specific like `internal/`, but unlike it these *must* ship into the image they validate.
 
 ## Using a public script on its own
 
@@ -62,8 +62,8 @@ base=https://github.com/GuillaumeDua/cpp-toolchain/releases/download/v1.3
 
 > [!NOTE]
 > The file in this repository is not the file you download.
-> Here, each script sources its shared helpers from [details/shared.sh](details/shared.sh), so a helper is written once.
-> The published copy carries them inlined, which is what makes it runnable on its own - see [details/compose-standalone.py](details/compose-standalone.py).
+> Here, each script sources its shared helpers from [lib/shared.sh](lib/shared.sh), so a helper is written once.
+> The published copy carries them inlined, which is what makes it runnable on its own - see [internal/host/compose_standalone.py](internal/host/compose_standalone.py).
 > Fetching `scripts/install/gcc.sh` out of the repository gets you a script that cannot find its helpers.
 
 The `Internal` rows are not published at all.

@@ -20,7 +20,7 @@ inputs:
 
 outputs:
   file:
-    description: Path of the markdown written, for render-manifest.py --changelog.
+    description: Path of the markdown written, for render_manifest.py --changelog.
     value: ${{ steps.generate.outputs.file }}
 
 runs:
@@ -37,7 +37,7 @@ runs:
       run: |
         set -euo pipefail
         # `previous` is empty only for a first release, where generate-notes bounds the range itself.
-        previous=$(python3 scripts/details/check-release-file.py --print-newest-release --tag "${TAG}")
+        previous=$(python3 scripts/internal/host/check_release_file.py --print-newest-release --tag "${TAG}")
         gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
           -f tag_name="${TAG}" \
           -f target_commitish="${COMMITISH}" \

@@ -8,8 +8,8 @@
 # wget - have to work as standalone scripts. Each carries its own copy of the helpers it uses.
 # The internal scripts already read their siblings by relative path, so they source this file instead.
 #
-# compose-standalone.py, beside this file, builds them:
-#     python3 scripts/details/compose-standalone.py scripts/install/gcc.sh > gcc.sh
+# compose_standalone.py, beside this file, builds them:
+#     python3 scripts/internal/host/compose_standalone.py scripts/install/gcc.sh > gcc.sh
 # It inlines only the helpers a script calls. The build gate composes all of them and runs each one
 # in an empty directory, and each release attaches the results.
 #
@@ -60,7 +60,7 @@ error(){
     # The customization point: a script defines error_diagnosis to report the repository and the
     # arguments it works with. Tested here rather than defaulted above, so the hook works whichever
     # side of the source line the script defines it on, and survives being inlined by
-    # compose-standalone.py, which carries functions and not the statements between them.
+    # compose_standalone.py, which carries functions and not the statements between them.
     declare -F error_diagnosis >/dev/null && error_diagnosis
     exit 1
 }

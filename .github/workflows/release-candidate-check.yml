@@ -39,15 +39,15 @@ jobs:
           context: pull request
 
       # Schema, candidate tag -> commit, containment in main, newest-rc supersession, and the
-      # bumps recompute (bumps is generated, never hand-edited - so it must equal what render-manifest.py derives at the recorded commit).
+      # bumps recompute (bumps is generated, never hand-edited - so it must equal what render_manifest.py derives at the recorded commit).
       - name: Validate the record
         if: steps.record.outputs.skip != 'true'
         env:
           FILE: ${{ steps.record.outputs.file }}
         run: |
           set -euo pipefail
-          python3 scripts/details/check-release-file.py "${FILE}" --check-git --check-bumps
-          git tag -l | python3 scripts/details/check-release-file.py "${FILE}" --check-supersession
+          python3 scripts/internal/host/check_release_file.py "${FILE}" --check-git --check-bumps
+          git tag -l | python3 scripts/internal/host/check_release_file.py "${FILE}" --check-supersession
 
       # The artifact under test is the digest, not the tag: this exercises the exact bytes a merge
       # would promote. Anonymous pull - GHCR needs no credentials for public images.
@@ -57,10 +57,10 @@ jobs:
           FILE: ${{ steps.record.outputs.file }}
         run: |
           set -euo pipefail
-          digest=$(python3 scripts/details/check-release-file.py "${FILE}" --print-digest dev)
-          image=$(python3 scripts/details/check-release-file.py --print-registries ghcr)
+          digest=$(python3 scripts/internal/host/check_release_file.py "${FILE}" --print-digest dev)
+          image=$(python3 scripts/internal/host/check_release_file.py --print-registries ghcr)
           echo "smoke-testing ${image}@${digest}"
           docker run --rm \
-            --volume "${PWD}/scripts/details:/opt/cpp-toolchain-scripts:ro" \
+            --volume "${PWD}/scripts:/opt/cpp-toolchain-scripts:ro" \
             "${image}@${digest}" \
-            bash /opt/cpp-toolchain-scripts/smoke-test.sh
+            bash /opt/cpp-toolchain-scripts/internal/image/smoke-test.sh

@@ -1,7 +1,7 @@
 name: Upload the standalone scripts
 description: >
   Compose the install and checks scripts into self-contained files and attach them to a release.
-  A checkout holds scripts that source scripts/details/shared.sh; what is published carries it inlined.
+  A checkout holds scripts that source scripts/lib/shared.sh; what is published carries it inlined.
 
 inputs:
   tag:
@@ -33,7 +33,10 @@ runs:
         assets=$(mktemp -d)
         git archive "${REF}" scripts | tar -x -C "${tree}"
 
-        composer="${tree}/scripts/details/compose-standalone.py"
+        # Resolved rather than spelled: this tree is the recorded commit's, which may predate a move
+        # of the composer, and the assets have to be composed by the version that shipped with it.
+        composer=$(find "${tree}/scripts" -name 'compose*standalone*.py' -print -quit)
+        [ -n "${composer}" ] || { echo "::error::no standalone composer in ${REF}"; exit 1; }
         python3 "${composer}" --all "${assets}" "${tree}/scripts/install"
         python3 "${composer}" --all "${assets}" "${tree}/scripts/checks"
 

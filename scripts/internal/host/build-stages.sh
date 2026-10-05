@@ -125,7 +125,7 @@ fi
 
 registries=()
 if [ "${push}" = 'yes' ]; then
-    read -r -a registries <<< "$(python3 "${HERE}/check-release-file.py" --print-registries)"
+    read -r -a registries <<< "$(python3 "${HERE}/check_release_file.py" --print-registries)"
     mkdir -p "${metadata_dir}"
 fi
 
