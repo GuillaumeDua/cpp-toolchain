@@ -245,17 +245,17 @@ What the build gate checks</h1>
 <p>It then runs the <b>images validation gate</b> - the <span class="tt">validate-build</span> and <span class="tt">validate-runtime</span> stages, which assert that every toolchain package still comes from the repository that owns it, and that a binary compiled in <span class="tt">build</span> still runs on <span class="tt">runtime</span>. <br  />
  Both are throwaway stages built on layers the job already has, so they cost a cache hit plus their own <span class="tt">RUN</span>. See <a class="el" href="images-validation.html#md_docs_2IMAGES__VALIDATION" title="docs/IMAGES_VALIDATION.md">docs/IMAGES_VALIDATION.md</a>.</p>
 <p>Reproduce it locally before pushing (context is the repo root). This is the driver the gate runs, with the cache flags off:</p>
-<div class="fragment"><div class="line">bash scripts/details/build-stages.sh --variant normal --cache none \</div>
-<div class="line">  $(python3 scripts/details/check-release-file.py --print-stages normal)</div>
+<div class="fragment"><div class="line">bash scripts/internal/host/build-stages.sh --variant normal --cache none \</div>
+<div class="line">  $(python3 scripts/internal/host/check_release_file.py --print-stages normal)</div>
 <div class="line"> </div>
-<div class="line">bash scripts/details/build-stages.sh --variant cross --cache none \</div>
-<div class="line">  $(python3 scripts/details/check-release-file.py --print-stages cross)</div>
+<div class="line">bash scripts/internal/host/build-stages.sh --variant cross --cache none \</div>
+<div class="line">  $(python3 scripts/internal/host/check_release_file.py --print-stages cross)</div>
 </div><!-- fragment --><p><span class="tt">build-stages.sh</span> calls <span class="tt">docker buildx build</span>. Without buildx, drive <span class="tt">docker build</span> over the same stage lists:</p>
-<div class="fragment"><div class="line">for stage in $(python3 scripts/details/check-release-file.py --print-stages normal); do</div>
+<div class="fragment"><div class="line">for stage in $(python3 scripts/internal/host/check_release_file.py --print-stages normal); do</div>
 <div class="line">  docker build --target &quot;$stage&quot; .</div>
 <div class="line">done</div>
 <div class="line"> </div>
-<div class="line">for stage in $(python3 scripts/details/check-release-file.py --print-stages cross); do</div>
+<div class="line">for stage in $(python3 scripts/internal/host/check_release_file.py --print-stages cross); do</div>
 <div class="line">  docker build --target &quot;$stage&quot; --build-arg BINUTILS_TARGETS=common .</div>
 <div class="line">done</div>
 </div><!-- fragment --><p>The heavy <span class="tt">build</span> layer is produced once and reused by <span class="tt">static-analysis</span> / <span class="tt">documentation</span> / <span class="tt">dev</span>, so a full local run is cheaper than five independent builds.</p>
@@ -275,7 +275,7 @@ How images get published</h1>
 <li>Images go to both <b>Docker Hub</b> and <b>GHCR</b>.</li>
 </ul>
 <p>The full release procedure (promotion, urgent fixes, rollback, failure modes) is in <a class="el" href="release-process.html#md_docs_2RELEASE__PROCESS" title="docs/RELEASE_PROCESS.md">docs/RELEASE_PROCESS.md</a> - the cadence is stated there and nowhere else.</p>
-<p>Release notes are composed by <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/details/render-manifest.py">scripts/details/render-manifest.py</a> from three things: the versions a release pins, read from the Dockerfile's <span class="tt">ARG</span>s; what the images installed where a pin cannot say, read from the promotion record; and the pull requests merged since the previous release. That last part is a plain list of PR titles, so the title you give a PR is what a release note shows. What a pin does and does not fix is in <a class="el" href="index.html#whats-inside-a-given-tag" title="What&#39;s inside a given tag">Tags &amp; versioning</a>.</p>
+<p>Release notes are composed by <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/internal/host/render_manifest.py">scripts/internal/host/render_manifest.py</a> from three things: the versions a release pins, read from the Dockerfile's <span class="tt">ARG</span>s; what the images installed where a pin cannot say, read from the promotion record; and the pull requests merged since the previous release. That last part is a plain list of PR titles, so the title you give a PR is what a release note shows. What a pin does and does not fix is in <a class="el" href="index.html#whats-inside-a-given-tag" title="What&#39;s inside a given tag">Tags &amp; versioning</a>.</p>
 <p>Guards protecting the registries:</p>
 <ul>
 <li><b>Tag format</b> - a hand-cut release tag that is not a major (<span class="tt">v&lt;major&gt;.0</span>) is rejected before anything is published: minors ship by merging a candidate PR, never by cutting a release.</li>
@@ -287,9 +287,9 @@ How images get published</h1>
 Related docs</h1>
 <ul>
 <li><a class="el" href="index.html#md_README" title="cpp-toolchain">README.md</a> - the images themselves: stages, features, tags, what each contains.</li>
-<li><a class="el" href="install-scripts.html#md_scripts_2install_2README" title="scripts/install/README.md">scripts/install/README.md</a> - the standalone <span class="tt">cmake.sh</span> / <span class="tt">gcc.sh</span> / <span class="tt">llvm.sh</span> / <span class="tt">binutils.sh</span> options.</li>
+<li><a class="el" href="install-scripts.html#md_scripts_2install_2README" title="scripts/install/README.md">scripts/install/README.md</a> - the standalone <span class="tt">cmake.sh</span> / <span class="tt">gcc.sh</span> / <span class="tt">llvm.sh</span> / <span class="tt">binutils.sh</span> / <span class="tt">doxygen.sh</span> / <span class="tt">bazel.sh</span> / <span class="tt">build2.sh</span> options.</li>
 <li><a class="el" href="release-records.html#md_releases_2README" title="releases/README.md">releases/README.md</a> - the promotion record behind each shipped release: the rc it came from, the commit built, and every stage's digest.</li>
-<li><a class="el" href="repository-tooling.html#md_scripts_2details_2README" title="scripts/details/README.md">scripts/details/README.md</a> - the repository's own tooling: pin guard, release-note renderer, promotion-record schema, smoke test.</li>
+<li><a class="el" href="repository-tooling.html#md_scripts_2internal_2README" title="scripts/internal/README.md">scripts/internal/README.md</a> - the repository's own tooling: pin guard, release-note renderer, promotion-record schema, smoke test.</li>
 <li><a class="el" href="documentation-site.html#md_docs_2details_2README" title="docs/details/README.md">docs/details/README.md</a> - how this documentation is rendered and published, and how to preview it locally. </li>
 </ul>
 </div></div><!-- contents -->

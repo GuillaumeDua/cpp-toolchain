@@ -196,22 +196,24 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('standalone-scr
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><div class="page-children"> <a class="el" href="install-scripts.html" title="Toolchain installation scripts">Toolchain installation scripts</a> <a class="el" href="check-scripts.html" title="Check scripts">Check scripts</a> </div><p><a class="anchor" id="md_scripts_2README"></a></p>
-<p>The public scripts are self-contained: fetch one and run it on any Debian/Ubuntu-based host, with no image and no checkout involved. <a class="el" href="images.html#md_docs_2IMAGES" title="docs/IMAGES.md">Using the images</a> is the Docker route instead.</p>
+<p>The public scripts are published self-contained: fetch one from a release and run it on any Debian/Ubuntu-based host, with no image and no checkout involved. In this repository they source their shared helpers instead of carrying them, so fetch the published copy rather than the file here - see <a class="el" href="#using-a-public-script-on-its-own" title="Using a public script on its own">Using a public script on its own</a>. <a class="el" href="images.html#md_docs_2IMAGES" title="docs/IMAGES.md">Using the images</a> is the Docker route instead.</p>
 <table class="markdownTable">
 <tr class="markdownTableHead">
 <th class="markdownTableHeadNone">Directory  </th><th class="markdownTableHeadNone">Scope  </th><th class="markdownTableHeadNone">What lives there  </th></tr>
 <tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts/install">install/</a>  </td><td class="markdownTableBodyNone"><b>Public</b> - standalone  </td><td class="markdownTableBodyNone">Toolchain installers - <span class="tt">cmake.sh</span>, <span class="tt">gcc.sh</span>, <span class="tt">llvm.sh</span>, <span class="tt">binutils.sh</span>, <span class="tt">doxygen.sh</span>. Reusable on any Debian/Ubuntu-based system, with no dependency on this repository. See <a class="el" href="install-scripts.html#md_scripts_2install_2README" title="scripts/install/README.md">install/README.md</a> for the full option reference.  </td></tr>
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts/install">install/</a>  </td><td class="markdownTableBodyNone"><b>Public</b> - standalone  </td><td class="markdownTableBodyNone">Toolchain installers - <span class="tt">cmake.sh</span>, <span class="tt">gcc.sh</span>, <span class="tt">llvm.sh</span>, <span class="tt">binutils.sh</span>, <span class="tt">doxygen.sh</span>, <span class="tt">bazel.sh</span>, <span class="tt">build2.sh</span>. Reusable on any Debian/Ubuntu-based system, with no dependency on this repository. See <a class="el" href="install-scripts.html#md_scripts_2install_2README" title="scripts/install/README.md">install/README.md</a> for the full option reference.  </td></tr>
 <tr class="markdownTableRowEven">
-<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts/checks">checks/</a>  </td><td class="markdownTableBodyNone"><b>Public</b> - standalone  </td><td class="markdownTableBodyNone"><span class="tt">cxx-standards.sh</span> - which C++ standards a compiler accepts. <span class="tt">cxx-stdlibs.sh</span> - which C++ standard libraries are installed, with the <span class="tt">SONAME</span> and ABI version a binary will need to find. Point either at any machine, checkout or not. See <a class="el" href="check-scripts.html#md_scripts_2checks_2README" title="scripts/checks/README.md">checks/README.md</a>.  </td></tr>
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts/checks">checks/</a>  </td><td class="markdownTableBodyNone"><b>Public</b> - standalone  </td><td class="markdownTableBodyNone"><span class="tt">cxx-standards.sh</span> - which C++ standards a compiler accepts. <span class="tt">cxx-stdlibs.sh</span> - which C++ standard libraries are installed, with the <span class="tt">SONAME</span> and ABI version a binary will need to find. <span class="tt">c-stdlibs.sh</span> - the same, for the C standard library. Point either at any machine, checkout or not. See <a class="el" href="check-scripts.html#md_scripts_2checks_2README" title="scripts/checks/README.md">checks/README.md</a>.  </td></tr>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts/checks/details">checks/details/</a>  </td><td class="markdownTableBodyNone">Internal  </td><td class="markdownTableBodyNone">The image validation gate, which runs <em>inside</em> a built image: it knows this repo's expected package origins and asks its installers what is present. See <a class="el" href="images-validation.html#md_docs_2IMAGES__VALIDATION" title="docs/IMAGES_VALIDATION.md">docs/IMAGES_VALIDATION.md</a>.  </td></tr>
 <tr class="markdownTableRowEven">
-<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts/details">details/</a>  </td><td class="markdownTableBodyNone">Internal  </td><td class="markdownTableBodyNone">This repository's own tooling - the version-pin guard, the release-note renderer, the install-script parity check, the promotion-record schema and the image smoke test. Not reusable: they parse this repo's <span class="tt">Dockerfile</span>, <span class="tt">renovate.json</span> and <span class="tt">releases/</span> records. See <a class="el" href="repository-tooling.html#md_scripts_2details_2README" title="scripts/details/README.md">details/README.md</a>.  </td></tr>
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts/lib">lib/</a>  </td><td class="markdownTableBodyNone">Internal  </td><td class="markdownTableBodyNone"><span class="tt">shared.sh</span> - one body per helper, sourced by every <span class="tt">install/</span> and <span class="tt">checks/</span> script that uses one. A published copy carries the helpers it needs inlined instead, composed from this file.  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts/internal">internal/</a>  </td><td class="markdownTableBodyNone">Internal  </td><td class="markdownTableBodyNone">This repository's own tooling, split by where it runs: <span class="tt">host/</span> - the version-pin guard, the release-note renderer, the standalone composer and the promotion-record schema; <span class="tt">image/</span> - the version collector and the smoke test, bind-mounted into a built image. Not reusable: they parse this repo's <span class="tt">Dockerfile</span>, <span class="tt">renovate.json</span> and <span class="tt">releases/</span> records. See <a class="el" href="repository-tooling.html#md_scripts_2internal_2README" title="scripts/internal/README.md">internal/README.md</a>.  </td></tr>
 </table>
 <p>The <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/Dockerfile">Dockerfile</a> copies in and runs the <span class="tt">install/</span> scripts, one per stage that needs one, and copies <span class="tt">scripts/</span> whole into the throwaway validate stages so <span class="tt">checks/</span> can run there. <br  />
- Nothing under the top-level <span class="tt">details/</span> ever enters an image: <span class="tt">.dockerignore</span> keeps it out of the build context entirely, and the smoke test reaches a built image by bind-mount instead.</p>
-<p><span class="tt">checks/details/</span> is a different <span class="tt">details/</span> - implementation details of <span class="tt">checks/</span>, in the C++ sense of a nested <span class="tt">detail</span> namespace. Being repo-specific is what the two share; unlike the top-level one, these <em>must</em> ship into the image they validate.</p>
+ <span class="tt">lib/</span> is copied in beside them, because the <span class="tt">install/</span> and <span class="tt">checks/</span> scripts source it and it has to reach every stage that runs one. <span class="tt">internal/</span> is this repository's own tooling, which <span class="tt">.dockerignore</span> keeps out of the build context entirely - what has to reach a built image gets there by bind-mount instead.</p>
+<p><span class="tt">checks/details/</span> is implementation detail of <span class="tt">checks/</span>, in the C++ sense of a nested <span class="tt">detail</span> namespace. Repo-specific like <span class="tt">internal/</span>, but unlike it these <em>must</em> ship into the image they validate.</p>
 <h1 class="doxsection"><a class="anchor" id="using-a-public-script-on-its-own"></a>
 Using a public script on its own</h1>
 <dl class="section attention"><dt>Caution</dt><dd>For all scripts in this repo: <br  />
@@ -221,25 +223,32 @@ Using a public script on its own</h1>
 <li>There are no positional arguments.</li>
 </ul>
 </dd></dl>
-<p>Everything marked <b>Public</b> is a single file that needs nothing around it, so you can pull it straight from <span class="tt">raw.githubusercontent.com</span> and drop it into a project, a CI job or a plain shell - no image to pull, no repository to clone, no commitment to the rest of this toolchain:</p>
-<div class="fragment"><div class="line">base=https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts</div>
+<p>Everything marked <b>Public</b> is published as a single file that needs nothing around it, so you can drop it into a project, a CI job or a plain shell - no image to pull, no repository to clone, no commitment to the rest of this toolchain:</p>
+<div class="fragment"><div class="line">base=https://github.com/GuillaumeDua/cpp-toolchain/releases/latest/download</div>
 <div class="line"> </div>
 <div class="line"># Install a toolchain on any Debian/Ubuntu-based host</div>
-<div class="line">wget &quot;${base}/install/gcc.sh&quot;</div>
+<div class="line">wget &quot;${base}/gcc.sh&quot;</div>
 <div class="line">sudo bash gcc.sh --versions=&#39;&gt;=13&#39;</div>
 <div class="line"> </div>
 <div class="line"># Ask a compiler which C++ standards it accepts - useful to drive a CI matrix</div>
-<div class="line">wget &quot;${base}/checks/cxx-standards.sh&quot;</div>
+<div class="line">wget &quot;${base}/cxx-standards.sh&quot;</div>
 <div class="line">bash cxx-standards.sh --greatest --stable --format=std g++</div>
 <div class="line"># -&gt; c++26</div>
 <div class="line"> </div>
 <div class="line"># Ask which ABI the installed libstdc++ exposes - the marker a &#39;GLIBCXX_... not found&#39; names</div>
-<div class="line">wget &quot;${base}/checks/cxx-stdlibs.sh&quot;</div>
+<div class="line">wget &quot;${base}/cxx-stdlibs.sh&quot;</div>
 <div class="line">bash cxx-stdlibs.sh --stdlib=libstdc++ --format=abi</div>
 <div class="line"># -&gt; GLIBCXX_3.4.35</div>
+<div class="line"> </div>
+<div class="line"># The same question about the C standard library</div>
+<div class="line">wget &quot;${base}/c-stdlibs.sh&quot;</div>
+<div class="line">bash c-stdlibs.sh --format=abi</div>
+<div class="line"># -&gt; GLIBC_2.39</div>
 </div><!-- fragment --><p>Every one of them describes itself with <span class="tt">--help</span>, so the fetched file is its own documentation.</p>
-<p>Swap <span class="tt">main</span> for a release tag when you want the URL pinned, which is what you usually want in CI - <span class="tt">main</span> moves.</p>
-<p>The <span class="tt">Internal</span> rows are not fetchable this way. They reach the rest of the tree by relative path and only work inside a checkout or an image. </p>
+<p><span class="tt">latest</span> is the newest release, and skips the release candidates. Swap it for <span class="tt">download/&lt;tag&gt;</span> when you want the URL pinned, which is what you usually want in CI:</p>
+<div class="fragment"><div class="line">base=https://github.com/GuillaumeDua/cpp-toolchain/releases/download/v1.3</div>
+</div><!-- fragment --><dl class="section note"><dt>Note</dt><dd>The file in this repository is not the file you download. Here, each script sources its shared helpers from <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/lib/shared.sh">lib/shared.sh</a>, so a helper is written once. The published copy carries them inlined, which is what makes it runnable on its own - see <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/internal/host/compose_standalone.py">internal/host/compose_standalone.py</a>. Fetching <span class="tt">scripts/install/gcc.sh</span> out of the repository gets you a script that cannot find its helpers.</dd></dl>
+<p>The <span class="tt">Internal</span> rows are not published at all. They reach the rest of the tree by relative path and only work inside a checkout or an image. </p>
 </div></div><!-- contents -->
 </div><!-- PageDoc -->
 </div><!-- doc-content -->

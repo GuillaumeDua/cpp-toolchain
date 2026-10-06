@@ -44,7 +44,10 @@ var how_to_contribute =
     [ "Release records", "release-records.html", [
       [ "Additional resources", "release-records.html#additional-resources", null ]
     ] ],
-    [ "Repository tooling", "repository-tooling.html", null ],
+    [ "Repository tooling", "repository-tooling.html", [
+      [ "host/", "repository-tooling.html#host", null ],
+      [ "image/", "repository-tooling.html#image", null ]
+    ] ],
     [ "Documentation site", "documentation-site.html", [
       [ "Rendering it locally", "documentation-site.html#rendering-it-locally", null ],
       [ "When something is wrong", "documentation-site.html#when-something-is-wrong", null ],

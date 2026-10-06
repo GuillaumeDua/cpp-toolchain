@@ -196,8 +196,8 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('install-script
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><p><a class="anchor" id="md_scripts_2install_2README"></a></p>
-<p>Standalone scripts to install <span class="tt">CMake</span>, <span class="tt">GCC</span>, <span class="tt">LLVM/Clang</span>, cross-compilation <span class="tt">binutils</span> (+ cross-libc), and <span class="tt">Doxygen</span>, reusable on any Debian/Ubuntu-based system. <br  />
- All take no dependency on each other and describe themselves with <span class="tt">--help</span>. Installing needs root. The exceptions run as any user: the <span class="tt">--list-installed</span> and <span class="tt">--list-targets</span> query modes, answered from <span class="tt">dpkg</span>, and <span class="tt">doxygen.sh --prefix=&lt;directory&gt;</span>, which installs under a directory of the caller's choosing.</p>
+<p>Scripts to install <span class="tt">CMake</span>, <span class="tt">GCC</span>, <span class="tt">LLVM/Clang</span>, cross-compilation <span class="tt">binutils</span> (+ cross-libc), <span class="tt">Doxygen</span>, <span class="tt">Bazel</span> and <span class="tt">build2</span>, reusable on any Debian/Ubuntu-based system. <br  />
+ All take no dependency on each other and describe themselves with <span class="tt">--help</span>. Each release publishes them as self-contained files; the copies here source their shared helpers from <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/lib/shared.sh">../lib/shared.sh</a>, so fetch the published one to run it outside a checkout - <a class="el" href="standalone-scripts.html#using-a-public-script-on-its-own" title="Using a public script on its own">scripts/README.md</a> has the detail. Installing needs root. The exceptions run as any user: the <span class="tt">--list-installed</span> and <span class="tt">--list-targets</span> query modes, answered from <span class="tt">dpkg</span>, and <span class="tt">doxygen.sh --prefix=&lt;directory&gt;</span>, which installs under a directory of the caller's choosing.</p>
 <ul>
 <li><span class="tt">gcc.sh</span> and <span class="tt">llvm.sh</span> can install <b>multiple compiler versions side by side</b> in the same environment (one <span class="tt">apt-get install</span> per requested version, wired together with <span class="tt">update-alternatives</span>) - see their <span class="tt">--versions</span> option below. <br  />
  Both default to <span class="tt">latest-stable</span>, i.e. a single version; pass a range (<span class="tt">&gt;=11</span>), a list (<span class="tt">'11 12 13'</span>), or <span class="tt">all</span> to get more.</li>
@@ -424,6 +424,52 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('install-script
 <p><b>Example</b>: the images' system-wide install, and a private one:</p>
 <div class="fragment"><div class="line">sudo ./doxygen.sh Release_1_17_0                        # -&gt; /usr/local/bin/doxygen</div>
 <div class="line">./doxygen.sh --prefix=&quot;${HOME}/.local&quot; Release_1_17_0   # -&gt; ~/.local/bin/doxygen, no root</div>
+</div><!-- fragment --><hr  />
+<h1 class="doxsection"><a class="anchor" id="bazelsh"></a>
+<span class="tt">bazel.sh</span></h1>
+<div class="fragment"><div class="line">sudo ./bazel.sh [options]</div>
+</div><!-- fragment --><p>Registers the <a href="https://bazel.build/install/ubuntu">Bazel apt repository</a> - signing key under <span class="tt">/usr/share/keyrings</span>, source under <span class="tt">/etc/apt/sources.list.d</span> - then installs the <span class="tt">bazel</span> package from it. No version is requested, so apt resolves whatever the repository currently serves.</p>
+<p><span class="tt">amd64</span> only. The repository publishes no deb for another architecture, so there the script says so and installs nothing rather than failing: it backs an optional build-system integration, and refusing the whole build over it would be the wrong trade. <a href="https://github.com/bazelbuild/bazelisk">Bazelisk</a> is the portable route on those hosts.</p>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Option  </th><th class="markdownTableHeadNone">Type  </th><th class="markdownTableHeadNone">Default  </th><th class="markdownTableHeadNone">Description  </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">-s</span>, <span class="tt">--silent</span>  </td><td class="markdownTableBodyNone">boolean  </td><td class="markdownTableBodyNone"><span class="tt">1</span>  </td><td class="markdownTableBodyNone">Suppress log output  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">-h</span>, <span class="tt">--help</span>  </td><td class="markdownTableBodyNone">-  </td><td class="markdownTableBodyNone">-  </td><td class="markdownTableBodyNone">Display usage  </td></tr>
+</table>
+<p>Boolean values accept <span class="tt">y|yes|1|true</span> / <span class="tt">n|no|0|false</span> (case-insensitive).</p>
+<p><b>Example</b>: what the images do behind <span class="tt">OPT_IN_INTEGRATE_BAZEL</span>, which is off by default - see <a class="el" href="images.html#build-your-own-image" title="Build your own image">Build your own image</a>:</p>
+<div class="fragment"><div class="line">sudo ./bazel.sh --silent=yes</div>
+</div><!-- fragment --><hr  />
+<h1 class="doxsection"><a class="anchor" id="build2sh"></a>
+<span class="tt">build2.sh</span></h1>
+<div class="fragment"><div class="line">sudo ./build2.sh --versions=&lt;version&gt; [options]</div>
+</div><!-- fragment --><p>Installs <span class="tt">b</span>, <span class="tt">bpkg</span>, <span class="tt">bdep</span> and <span class="tt">bx</span>, by whichever of two routes answers for the host:</p>
+<ol type="1">
+<li>the <b>binary package</b> upstream publishes under <span class="tt">bindist/</span>, per distribution, release and architecture.</li>
+<li>the <b>source installer</b>, which compiles build2 and so needs a C++ compiler already present - <span class="tt">gcc.sh</span> and <span class="tt">llvm.sh</span> next door install one.</li>
+</ol>
+<p>Compiling is the fallback rather than the default: it is minutes of CPU for an artifact upstream already produced. It is not dead code either - the binary packages cover <span class="tt">x86_64</span> alone, and only some releases carry them, so an <span class="tt">arm64</span> host or an older version still takes it.</p>
+<p>Either route checks what it downloaded against the <span class="tt">sha256</span> sidecar published beside it before installing or running it. No hash is pinned here, which is what keeps a version bump a one-line change.</p>
+<p>A <span class="tt">404</span> on the package is the signal to fall back. Anything else - a timeout, a <span class="tt">5xx</span> - fails instead: spending minutes on a source build over a transient network failure is not a recovery.</p>
+<p>There is no <span class="tt">latest</span>: build2 publishes no index a version could be resolved from, so <span class="tt">--versions</span> is required.</p>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Option  </th><th class="markdownTableHeadNone">Type  </th><th class="markdownTableHeadNone">Default  </th><th class="markdownTableHeadNone">Description  </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">-v</span>, <span class="tt">--versions</span>  </td><td class="markdownTableBodyNone">string  </td><td class="markdownTableBodyNone">-  </td><td class="markdownTableBodyNone">Required. A published build2 release, <span class="tt">0.18.1</span>  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">-c</span>, <span class="tt">--cxx</span>  </td><td class="markdownTableBodyNone">string  </td><td class="markdownTableBodyNone"><span class="tt">clang++</span>  </td><td class="markdownTableBodyNone">The compiler the source fallback builds with; unread on the package route  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">-s</span>, <span class="tt">--silent</span>  </td><td class="markdownTableBodyNone">boolean  </td><td class="markdownTableBodyNone"><span class="tt">1</span>  </td><td class="markdownTableBodyNone">Suppress log output  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">-h</span>, <span class="tt">--help</span>  </td><td class="markdownTableBodyNone">-  </td><td class="markdownTableBodyNone">-  </td><td class="markdownTableBodyNone">Display usage  </td></tr>
+</table>
+<p>Boolean values accept <span class="tt">y|yes|1|true</span> / <span class="tt">n|no|0|false</span> (case-insensitive).</p>
+<p><b>Example</b>: the two routes, on an <span class="tt">x86_64</span> Ubuntu host:</p>
+<div class="fragment"><div class="line">sudo ./build2.sh --versions=0.18.1             # a package exists -&gt; installed with apt</div>
+<div class="line">sudo ./build2.sh --versions=0.16.0 --cxx=g++   # none published   -&gt; compiled from source</div>
 </div><!-- fragment --> </div></div><!-- contents -->
 </div><!-- PageDoc -->
 </div><!-- doc-content -->

@@ -1,6 +1,7 @@
 var NAVTREEINDEX0 =
 {
 "check-scripts.html":[2,2],
+"check-scripts.html#c-stdlibssh":[2,2,0,2],
 "check-scripts.html#cxx-standardssh":[2,2,0,0],
 "check-scripts.html#cxx-stdlibssh":[2,2,0,1],
 "check-scripts.html#gate-scripts":[2,2,1],
@@ -72,7 +73,9 @@ var NAVTREEINDEX0 =
 "index.html#whats-inside":[0,3],
 "index.html#whats-inside-a-given-tag":[0,4,0],
 "install-scripts.html":[2,1],
+"install-scripts.html#bazelsh":[2,1,5],
 "install-scripts.html#binutilssh":[2,1,3],
+"install-scripts.html#build2sh":[2,1,6],
 "install-scripts.html#cmakesh":[2,1,0],
 "install-scripts.html#doxygensh":[2,1,4],
 "install-scripts.html#gccsh":[2,1,1],
@@ -95,6 +98,8 @@ var NAVTREEINDEX0 =
 "release-records.html":[4,8],
 "release-records.html#additional-resources":[4,8,0],
 "repository-tooling.html":[4,9],
+"repository-tooling.html#host":[4,9,0],
+"repository-tooling.html#image":[4,9,1],
 "standalone-scripts.html":[2],
 "standalone-scripts.html#using-a-public-script-on-its-own":[2,0]
 };

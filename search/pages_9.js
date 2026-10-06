@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['image_0',['image',['../images.html#build-your-own-image',1,'Build your own image'],['../images.html#pull-an-image',1,'Pull an image']]],
+  ['image_0',['image',['../images.html#build-your-own-image',1,'Build your own image'],['../repository-tooling.html#image',1,'image/'],['../images.html#pull-an-image',1,'Pull an image']]],
   ['image_20one_20per_20stage_1',['Pick your image (one per stage)',['../index.html#pick-your-image-one-per-stage',1,'']]],
   ['images_2',['Using the images',['../images.html',1,'']]],
   ['images_20get_20published_3',['How images get published',['../how-to-contribute.html#how-images-get-published',1,'']]],

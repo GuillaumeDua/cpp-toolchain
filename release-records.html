@@ -202,7 +202,8 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('release-record
 <li>the rc it was promoted from</li>
 <li>the exact commit that was built</li>
 <li>the manifest digest of every published stage</li>
-<li>what the <span class="tt">build</span> image installed where a pin cannot say it: the distribution point release, the compilers, and the standard libraries with their ABI levels</li>
+<li>what every published stage installed where a pin cannot say it: the distribution point release and archive snapshot, the compilers, the standard libraries with their ABI levels, and the toolchain commands</li>
+<li>which stage first carries each of them, in <span class="tt">introduced:</span>, which no single image can be asked</li>
 </ul>
 <p>Merging a pull request that adds one <b>is</b> the promotion: the digests are re-tagged as the release, byte-identical to the candidate that was validated.</p>
 <dl class="section attention"><dt>Caution</dt><dd>The <b>files are immutable once merged</b> editing one is how an already-shipped version would get silently re-promoted to different bytes, so the workflows refuse modified or deleted records. <br  />
@@ -210,7 +211,7 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('release-record
 <h1 class="doxsection"><a class="anchor" id="additional-resources"></a>
 Additional resources</h1>
 <ul>
-<li>Schema and validation: <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/details/check-release-file.py">scripts/details/check-release-file.py</a>.</li>
+<li>Schema and validation: <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/internal/host/check_release_file.py">scripts/internal/host/check_release_file.py</a>.</li>
 <li>Process: <a class="el" href="release-process.html#md_docs_2RELEASE__PROCESS" title="docs/RELEASE_PROCESS.md">docs/RELEASE_PROCESS.md</a>. </li>
 </ul>
 </div></div><!-- contents -->

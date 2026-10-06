@@ -277,7 +277,7 @@ The model</h1>
 <li>a smoke test of the image <b>by digest</b>. Make it a required status check on <span class="tt">main</span>.</li>
 </ul>
 </li>
-<li><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/details/check-release-file.py">scripts/details/check-release-file.py</a> - the single definition of the <span class="tt">releases/v*.yaml</span> schema, of the version grammar, and of the stage and registry lists.</li>
+<li><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/internal/host/check_release_file.py">scripts/internal/host/check_release_file.py</a> - the single definition of the <span class="tt">releases/v*.yaml</span> schema, of the version grammar, and of the stage and registry lists.</li>
 <li><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/release.yml">.github/release.yml</a> - shapes the changelog half of a release note. Read from the commit the note is rendered for rather than from <span class="tt">main</span>, so a release carries the configuration of the tree it was built from.</li>
 </ul>
 <h1 class="doxsection"><a class="anchor" id="the-normal-path"></a>
@@ -346,8 +346,8 @@ What the release process assumes</h1>
  it proves what this workflow built, not - to a third party - that this workflow built it.</li>
 <li>Anything holding <span class="tt">packages: write</span> or the Docker Hub token can move a tag between rc and merge. <br  />
  That is precisely what the digest assertion catches: promotion fails loudly rather than shipping moved bytes.</li>
-<li><span class="tt">versions:</span> is <b>collected once</b>, from the <span class="tt">build</span> image the rc pushed, and never recomputed. <br  />
- Unlike <span class="tt">bumps:</span>, which <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/release-candidate-check.yml">release-candidate-check.yml</a> re-derives, it can only be re-read by pulling that image again. It records what the build saw, not an independently verified fact. Every stage above <span class="tt">build</span> inherits those compilers and standard libraries, and the <a class="el" href="images-validation.html#md_docs_2IMAGES__VALIDATION" title="docs/IMAGES_VALIDATION.md">validation gate</a> fails a <span class="tt">runtime</span> carrying different ones, so one collection answers for all of them.</li>
+<li><span class="tt">versions:</span> is <b>collected from the images the rc pushed</b>, one run per published stage, and never recomputed. <br  />
+ Every stage is collected rather than the deepest one alone, because no single image can say which stage first carries a component, which is what <span class="tt">introduced:</span> records. Unlike <span class="tt">bumps:</span>, which <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/release-candidate-check.yml">release-candidate-check.yml</a> re-derives, it can only be re-read by pulling those images again. It records what the build saw, not an independently verified fact. A component two stages report at different versions fails the merge rather than resolving to a winner, so the recorded mapping is cross-checked rather than taken from one image on trust.</li>
 <li><span class="tt">releases/v*.yaml</span> is a file like any other: <br  />
  A hand-written <em>real</em> digest that was never tested cannot be caught mechanically. <br  />
  The smoke check covers <span class="tt">dev</span> by digest; the rest rides on review and branch protection.</li>

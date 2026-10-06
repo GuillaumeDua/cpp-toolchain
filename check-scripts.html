@@ -212,13 +212,17 @@ Standalone</h1>
 <td class="markdownTableBodyNone"><span class="tt">cxx-standards.sh</span>  </td><td class="markdownTableBodyNone">Which C++ standards a compiler accepts, ordered by <span class="tt">__cplusplus</span>  </td></tr>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">cxx-stdlibs.sh</span>  </td><td class="markdownTableBodyNone">Which C++ standard libraries are installed, and what ABI they expose  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">c-stdlibs.sh</span>  </td><td class="markdownTableBodyNone">Which C standard library is installed, and what ABI it exposes  </td></tr>
 </table>
-<p>These depend on nothing in this repository - point them at any compiler on any machine. <br  />
+<p>As published, these depend on nothing in this repository - point them at any compiler on any machine. <br  />
  Fetch either on its own when you want the answer without an image or a checkout:</p>
-<div class="fragment"><div class="line">base=https://raw.githubusercontent.com/GuillaumeDua/cpp-toolchain/main/scripts/checks</div>
+<div class="fragment"><div class="line">base=https://github.com/GuillaumeDua/cpp-toolchain/releases/latest/download</div>
 <div class="line">wget &quot;${base}/cxx-standards.sh&quot;</div>
 <div class="line">wget &quot;${base}/cxx-stdlibs.sh&quot;</div>
-</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="cxx-standardssh"></a>
+<div class="line">wget &quot;${base}/c-stdlibs.sh&quot;</div>
+</div><!-- fragment --><p>Swap <span class="tt">latest</span> for <span class="tt">download/&lt;tag&gt;</span> to pin the URL. The copy in this repository sources its shared helpers instead of carrying them, so fetch the published one rather than the file next door - <a class="el" href="standalone-scripts.html#using-a-public-script-on-its-own" title="Using a public script on its own">scripts/README.md</a> has the detail.</p>
+<h2 class="doxsection"><a class="anchor" id="cxx-standardssh"></a>
 <span class="tt">cxx-standards.sh</span></h2>
 <p>From a checkout it is the same script:</p>
 <div class="fragment"><div class="line">scripts/checks/cxx-standards.sh --stable g++-16</div>
@@ -330,6 +334,20 @@ The two views</h3>
 <div class="line"> </div>
 <div class="line">22.1.8</div>
 </div><!-- fragment --><p><span class="tt">--format=soname</span> is refused against the compiler view for the same reason: a compiler names the headers it reaches, and headers have no <span class="tt">SONAME</span>.</p>
+<p><span class="tt">--help</span> is the full reference.</p>
+<h2 class="doxsection"><a class="anchor" id="c-stdlibssh"></a>
+<span class="tt">c-stdlibs.sh</span></h2>
+<p>The same library view, asked of C:</p>
+<div class="fragment"><div class="line">scripts/checks/c-stdlibs.sh</div>
+<div class="line">glibc 2.39 -&gt; soname=libc.so.6 abi=GLIBC_2.39 package=libc6</div>
+<div class="line">glibc 2.39 -&gt; soname=libc.so.6 abi=GLIBC_2.39 package=libc6-i386</div>
+<div class="line">glibc 2.39 -&gt; soname=libc.so.6 abi=GLIBC_2.39 package=libc6-x32</div>
+</div><!-- fragment --><p>Rows repeat for the same reason they do above: one package is one row, and the secondary ABIs ship their own <span class="tt">libc.so.6</span> under <span class="tt">/usr/lib32</span> and <span class="tt">/usr/libx32</span>.</p>
+<p><span class="tt">abi</span> is the greatest <span class="tt">GLIBC_</span> symbol version in the ELF - what a <span class="tt">GLIBC_2.38 not found</span> at load time names, and the marker that decides whether a binary built here runs on an older distribution:</p>
+<div class="fragment"><div class="line">scripts/checks/c-stdlibs.sh --format=abi</div>
+<div class="line">GLIBC_2.39</div>
+</div><!-- fragment --><p><span class="tt">version</span> and <span class="tt">abi</span> answer two questions that usually give the same number: what is installed, and the newest contract it offers. A release that adds no symbol version leaves <span class="tt">abi</span> one release behind.</p>
+<p>There is no <span class="tt">--view</span> and no <span class="tt">--stdlib</span>, unlike its C++ counterpart: one view, one implementation, and a flag with a single legal value answers nothing. <span class="tt">--format</span> takes <span class="tt">default</span>, <span class="tt">version</span>, <span class="tt">abi</span> and <span class="tt">fields</span>.</p>
 <p><span class="tt">--help</span> is the full reference.</p>
 <h1 class="doxsection"><a class="anchor" id="gate-scripts"></a>
 Gate scripts</h1>
