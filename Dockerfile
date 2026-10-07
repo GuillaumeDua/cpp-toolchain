@@ -343,6 +343,7 @@ COPY ./test/cxx_runtime.cpp /opt/cpp-toolchain-scripts/checks/details/
 #   so the stage that runs the binaries can name the missing library rather than only an unresolved symbol.
 RUN apt-get update -qqy --error-on=any -o Acquire::Retries=3                                                \
     && bash /opt/cpp-toolchain-scripts/checks/details/package-origins.sh build                              \
+    && bash /opt/cpp-toolchain-scripts/checks/details/toolchain-commands.sh                                 \
     && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh compile /validate                      \
     && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh inspect /validate                      \
     && bash /opt/cpp-toolchain-scripts/checks/details/cxx-stdlib-parity.sh record /validate/stdlib.expected \
@@ -380,9 +381,22 @@ ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 ARG TOOLCHAIN_TMP_DIR
 
+# Dedicated static analyzers.
+#   QUICK-FIX: Before the LLVM install below, which is what keeps `clang` and `clang++` on LLVM_VERSIONS:
+#              iwyu depends on the archive's unversioned `clang` package, which ships both paths as symlinks to
+#              the archive's own major, and dpkg replaces whatever update-alternatives registered there.
+#   Running the LLVM install after it restores them, because --install takes over an existing symlink.
+# TODO: sonarlint
+RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
+        cppcheck \
+        iwyu \
+    && rm -rf /var/lib/apt/lists/*
+
 # C++ toolchain: LLVM/Clang - full toolchain (clang-tidy, clang-format, clangd, lldb, scan-build).
 #   Re-runs llvm.sh in `--mode=full` to install the analysis tools and register them alongside the
 #   clang/clang++ compilers the `build` stage already installed.
+#   It fetches and runs the apt.llvm.org installer, which refreshes the apt index itself,
+#    so the `rm -rf /var/lib/apt/lists/*` above costs it nothing.
 # The helpers the installer below sources. The `runtime` stage explains the destination path.
 #   `build` copies the same file and runs no cleanup, so this one overwrites it with the same bytes.
 #   Kept so a later cleanup in `build` breaks neither this install nor `dev`'s, which sources these
@@ -398,14 +412,20 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
     && ${script_path} --silent=yes --alias=yes --mode=full --versions="$LLVM_VERSIONS"  \
     && rm -rf /var/lib/apt/lists/*
 
-# Dedicated static analyzers
-# TODO: sonarlint
-RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
-        cppcheck \
-        iwyu \
-    && rm -rf /var/lib/apt/lists/*
-
 CMD ["/bin/bash"]
+
+# ---------------------------------------------------------------------------------------------
+# Stage: validate-static-analysis - the command half of the gate, on the stage that installs
+#   analyzers over an already-registered toolchain. See docs/IMAGES_VALIDATION.md
+#
+#   Here rather than appended after `dev`, for the reason validate-build sits where it does:
+#   `dev` has to stay the last stage in the file so a bare `docker build .` builds it.
+#   Reads and exits, so it needs neither an apt index nor the test sources validate-build copies.
+# ---------------------------------------------------------------------------------------------
+FROM static-analysis AS validate-static-analysis
+SHELL ["/bin/bash", "-c"]
+COPY ./scripts/ /opt/cpp-toolchain-scripts/
+RUN bash /opt/cpp-toolchain-scripts/checks/details/toolchain-commands.sh
 
 # ---------------------------------------------------------------------------------------------
 # Stage: documentation - documentation generation for CI, on top of `build`.
@@ -445,6 +465,15 @@ RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends graphviz
     && rm -rf /var/lib/apt/lists/*
 
 CMD ["/bin/bash"]
+
+# ---------------------------------------------------------------------------------------------
+# Stage: validate-documentation - the same check over the sibling branch, which registers the
+#   coverage commands (llvm-cov, llvm-profdata) through a third llvm.sh mode. See docs/IMAGES_VALIDATION.md
+# ---------------------------------------------------------------------------------------------
+FROM documentation AS validate-documentation
+SHELL ["/bin/bash", "-c"]
+COPY ./scripts/ /opt/cpp-toolchain-scripts/
+RUN bash /opt/cpp-toolchain-scripts/checks/details/toolchain-commands.sh
 
 # ---------------------------------------------------------------------------------------------
 # Stage: dev - full development environment.
