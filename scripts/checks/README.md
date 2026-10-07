@@ -2,9 +2,9 @@
 
 Scripts that ask a question about a compiler, or about a built image, and report the answer.
 
-The two under [`details/`](details/) are also the image validation gate:
+The scripts under [`details/`](details/) are also the image validation gate:
 
-- the `validate-build` and `validate-runtime` stages run them, and a non-zero exit fails the build.  
+- the `validate-*` stages run them, and a non-zero exit fails the build.  
 - What each one proves, which stage runs it and how to reproduce a failure is [docs/IMAGES_VALIDATION.md](../../docs/IMAGES_VALIDATION.md).
 
 ## Standalone
@@ -247,6 +247,7 @@ The image validation gate, in [`details/`](details/):
 | <code>package-origins.sh &lt;build\|runtime&gt;</code> | Every toolchain package comes from the repository that owns it, not from the Ubuntu archive              |
 | <code>cxx-runtime.sh &lt;compile\|inspect\|run&gt; &lt;directory&gt;</code> | Compiles the payload for every standard, proves it links against the expected C++ runtime dynamically, then runs it |
 | <code>cxx-stdlib-parity.sh &lt;record\|verify&gt; &lt;file&gt;</code> | The image that runs the binaries carries the same standard libraries the image that built them used      |
+| `toolchain-commands.sh`                              | `clang`, `gcc` and the tools beside them still resolve through the alternative their installer registered, rather than through a file a later package shipped |
 
 Both `package-origins.sh` and `cxx-stdlib-parity.sh` build on `cxx-stdlibs.sh` above: one to discover which package owns the installed libc++ - a name apt.llvm.org has changed twice - and the other to compare `SONAME`, version and ABI either side of a `COPY --from`.
 

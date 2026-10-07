@@ -2,13 +2,14 @@
 
 A gate that answers one question: **do the published images still fill their purpose?**
 
-Two things can quietly take that away, and neither shows up as a failed build:
+Multiple things can quietly take that away, and neither shows up as a failed build:
 
 | Where | What it can do |
 | --- | --- |
 | [`Dockerfile`](../Dockerfile) - the snapshot realignment | `apt-get dist-upgrade --allow-downgrades` can hand a package back to the Ubuntu archive, replacing a PPA version with a much older one |
 | [`Dockerfile`](../Dockerfile) - the runtime cleanup | `apt-get purge --auto-remove` can take more than it was asked to |
 | [`scripts/install/binutils.sh`](../scripts/install/binutils.sh) | cross packages install best-effort: a package that does not install warns and the build still succeeds |
+| any stage installing an apt package over a registered command | `update-alternatives` records a link group and never looks at the path again, so a package shipping `/usr/bin/clang` has dpkg overwrite the link with no conflict and no warning |
 
 Without this gate, a `-cross` image that installed **zero** cross toolchains builds green and says nothing.
 
@@ -61,7 +62,7 @@ When a build argument is a selector (`>=15`, `latest-stable`) rather than bare m
 
 ## Where it runs
 
-Two throwaway stages.
+Four throwaway stages.
 Nothing published inherits them, so no image gains a layer, and `dev` stays the last stage in the file so a bare `docker build .` is unchanged.
 
 ```mermaid
@@ -75,10 +76,12 @@ graph LR
 
     build --> vb["validate-build"]
     runtime --> vr["validate-runtime"]
+    sa --> vsa["validate-static-analysis"]
+    doc --> vdoc["validate-documentation"]
     vb -. "COPY --from<br/>/validate" .-> vr
 
     classDef gate fill:#2d6a4f,stroke:#95d5b2,color:#ffffff
-    class vb,vr gate
+    class vb,vr,vsa,vdoc gate
 ```
 
 The dotted edge compiles binaries in `build` and executes them in `runtime`, the only arrangement that proves what `runtime` ships can still run what `build` produces.  
@@ -181,6 +184,7 @@ Two of them are implementation details of this repository - they know its packag
 | Script in [`details/`](../scripts/checks/details/) | Purpose |
 | --- | --- |
 | <code>package-origins.sh &lt;build\|runtime&gt;</code> | every toolchain package comes from the repository that owns it |
+| `toolchain-commands.sh` | every toolchain command still resolves through the alternative its installer registered |
 | <code>cxx-runtime.sh &lt;compile\|inspect\|run&gt; &lt;directory&gt;</code> | build the payload, prove it links dynamically, prove it runs |
 | <code>cxx-stdlib-parity.sh &lt;record\|verify&gt; &lt;file&gt;</code> | the stage that runs the binaries has the libraries the stage that built them used |
 
@@ -247,10 +251,10 @@ $ scripts/checks/cxx-standards.sh --greatest --stable --format=cplusplus g++-16
 ```mermaid
 flowchart LR
     pr["pull request<br/>push to main"] --> dbuild["docker-build.yml"]
-    dbuild --> g1["validate-build + validate-runtime<br/>normal and cross variants"]
+    dbuild --> g1["the validate stages<br/>normal and cross variants"]
 
     trigger["release<br/>schedule<br/>dispatch"] --> dpub["docker-publish.yml"]
-    dpub --> g2["validate-build + validate-runtime<br/>--output type=cacheonly"]
+    dpub --> g2["the validate stages<br/>--output type=cacheonly"]
     g2 --> push["build + push"]
 
     classDef gate fill:#2d6a4f,stroke:#95d5b2,color:#ffffff
@@ -266,6 +270,8 @@ A stage that lost a package never reaches a registry.
 ```sh
 docker buildx build --target validate-build .
 docker buildx build --target validate-runtime .
+docker buildx build --target validate-static-analysis .
+docker buildx build --target validate-documentation .
 
 # The cross variant, which is where a silently skipped triplet shows up
 docker buildx build --target validate-build \
@@ -285,7 +291,12 @@ scripts/checks/details/cxx-stdlib-parity.sh record /tmp/validate/stdlib.expected
 scripts/checks/details/cxx-stdlib-parity.sh verify /tmp/validate/stdlib.expected
 
 GCC_VERSIONS=15 LLVM_VERSIONS=22 scripts/checks/details/package-origins.sh build
+
+scripts/checks/details/toolchain-commands.sh
 ```
+
+`toolchain-commands.sh` answers for the host it runs on, so on a machine whose `clang` was installed
+from the distribution rather than through an alternative it reports exactly the fault it exists to catch.
 
 `record` and `verify` back to back on one host trivially agree - what they are for is running either side of the `COPY --from`.
 To watch one fail, edit a version in the recorded file and verify again.
@@ -305,6 +316,7 @@ Each fault below must turn the corresponding check red:
 | drop `libc++1` from `llvm.sh`'s `runtime_libraries_for` | the origin check, then parity, then `run /validate/libcxx` |
 | drop `-stdlib=libc++` from the `libcxx/` compile line | `inspect` and `run`, both naming the implementation they expected |
 | edit a version in `/validate/stdlib.expected` | parity alone, before a single binary runs |
+| move the `iwyu` install below the LLVM one in `static-analysis` | the command check, naming `/usr/bin/clang` and the major it points at |
 
 ## What this deliberately does not check
 
@@ -317,7 +329,11 @@ Each fault below must turn the corresponding check red:
 - **The secondary ABIs, `-m32` and `-mx32`.**  
   `build` carries `lib32stdc++6` and `libx32stdc++6` through `gcc.sh --multilib`; `runtime` carries neither, and nothing here compiles a 32-bit payload to notice.
   Closing that means a `--multilib` runtime and a `-m32` arm in `compile` - a different axis from the one this gate covers, which is the standard library rather than the ABI it was built for.
-- **`static-analysis`, `documentation`, `dev`.**  
+- **`dev`, for the command check.**  
+  `static-analysis` and `documentation` have a gate stage each; `dev` cannot get one without displacing it as the last stage in the file, which is what makes a bare `docker build .` build it.
+  It inherits `static-analysis` already checked, and installs nothing that depends on a compiler, so what stays unguarded is a future package there that does.
+- **`static-analysis`, `documentation`, `dev`, for the package checks.**  
   All inherit `build`, and every operation that can remove or downgrade a package happens at or below `build`.
+  A package *added* above `build` is a separate matter: it cannot downgrade a library, and it can take a command over, which is why the command check runs where it does.
 - **Published images, by digest.**  
   These are build-time stages: they validate what the build produced, not what a registry currently serves.
