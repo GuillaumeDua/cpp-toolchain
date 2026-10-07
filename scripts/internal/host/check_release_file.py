@@ -48,7 +48,13 @@ CROSS_STAGES = ("build", "static-analysis", "documentation", "dev")  # runtime h
 # The image validation gate (docs/IMAGES_VALIDATION.md), kept apart from the two lists above:
 # those name what gets published and recorded as a digest, and a validate stage is neither.
 # The cross variant has no `runtime`, hence no validate-runtime.
-VALIDATE_NORMAL_STAGES = ("validate-build", "validate-runtime")
+#
+# The two command checks are normal-variant only. What they catch is apt resolving a dependency and
+# dpkg placing a file, neither of which varies by target architecture, while a pull request builds
+# the cross variant no further than `build` - naming them here would pull the whole cross tail into
+# every pull request for an answer the normal variant already gave.
+VALIDATE_NORMAL_STAGES = ("validate-build", "validate-runtime",
+                          "validate-static-analysis", "validate-documentation")
 VALIDATE_CROSS_STAGES = ("validate-build",)
 
 STAGE_LISTS = {
