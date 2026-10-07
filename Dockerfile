@@ -314,6 +314,8 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh;                       
 # Cleanup (keeps the published `build` image lean; `dev` re-runs `apt-get update` on top)
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /
+
 CMD ["/bin/bash"]
 
 # ---------------------------------------------------------------------------------------------
@@ -412,6 +414,8 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
     && ${script_path} --silent=yes --alias=yes --mode=full --versions="$LLVM_VERSIONS"  \
     && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /
+
 CMD ["/bin/bash"]
 
 # ---------------------------------------------------------------------------------------------
@@ -463,6 +467,8 @@ RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends graphviz
     && chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh                               \
     && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}"                   \
     && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /
 
 CMD ["/bin/bash"]
 
@@ -548,5 +554,7 @@ RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
 RUN apt-get clean \
     && rm -rf ${TOOLCHAIN_TMP_DIR} \
     && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /
 
 CMD ["/bin/bash"]
