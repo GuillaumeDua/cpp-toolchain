@@ -197,7 +197,7 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('images-validat
 <div class="contents">
 <div class="textblock"><p><a class="anchor" id="md_docs_2IMAGES__VALIDATION"></a></p>
 <p>A gate that answers one question: <b>do the published images still fill their purpose?</b></p>
-<p>Two things can quietly take that away, and neither shows up as a failed build:</p>
+<p>Multiple things can quietly take that away, and neither shows up as a failed build:</p>
 <table class="markdownTable">
 <tr class="markdownTableHead">
 <th class="markdownTableHeadNone">Where  </th><th class="markdownTableHeadNone">What it can do  </th></tr>
@@ -207,6 +207,8 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('images-validat
 <td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/Dockerfile"><span class="tt">Dockerfile</span></a> - the runtime cleanup  </td><td class="markdownTableBodyNone"><span class="tt">apt-get purge --auto-remove</span> can take more than it was asked to  </td></tr>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/install/binutils.sh"><span class="tt">scripts/install/binutils.sh</span></a>  </td><td class="markdownTableBodyNone">cross packages install best-effort: a package that does not install warns and the build still succeeds  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone">any stage installing an apt package over a registered command  </td><td class="markdownTableBodyNone"><span class="tt">update-alternatives</span> records a link group and never looks at the path again, so a package shipping <span class="tt">/usr/bin/clang</span> has dpkg overwrite the link with no conflict and no warning  </td></tr>
 </table>
 <p>Without this gate, a <span class="tt">-cross</span> image that installed <b>zero</b> cross toolchains builds green and says nothing.</p>
 <h1 class="doxsection"><a class="anchor" id="the-two-rules"></a>
@@ -238,7 +240,7 @@ Rule 2 - What is installed is discovered, not declared</h2>
 <p>When a build argument is a selector (<span class="tt">&gt;=15</span>, <span class="tt">latest-stable</span>) rather than bare majors, which majors it produced cannot be recomputed, so the check falls back to requiring that at least one installed compiler comes from the expected repository.</p>
 <h1 class="doxsection"><a class="anchor" id="where-it-runs"></a>
 Where it runs</h1>
-<p>Two throwaway stages. Nothing published inherits them, so no image gains a layer, and <span class="tt">dev</span> stays the last stage in the file so a bare <span class="tt">docker build .</span> is unchanged.</p>
+<p>Four throwaway stages. Nothing published inherits them, so no image gains a layer, and <span class="tt">dev</span> stays the last stage in the file so a bare <span class="tt">docker build .</span> is unchanged.</p>
 <div class="mermaidgraph">
 <pre class="mermaid">
 graph LR
@@ -251,10 +253,12 @@ graph LR
 
     build --&gt; vb[&quot;validate-build&quot;]
     runtime --&gt; vr[&quot;validate-runtime&quot;]
+    sa --&gt; vsa[&quot;validate-static-analysis&quot;]
+    doc --&gt; vdoc[&quot;validate-documentation&quot;]
     vb -. &quot;COPY --from&lt;br/&gt;/validate&quot; .-&gt; vr
 
     classDef gate fill:#2d6a4f,stroke:#95d5b2,color:#ffffff
-    class vb,vr gate</pre>
+    class vb,vr,vsa,vdoc gate</pre>
 </div>
 <p>The dotted edge compiles binaries in <span class="tt">build</span> and executes them in <span class="tt">runtime</span>, the only arrangement that proves what <span class="tt">runtime</span> ships can still run what <span class="tt">build</span> produces. <br  />
  <span class="tt">COPY --from</span> is a native BuildKit cross-stage copy, so this costs one compile and one exec - no image is loaded onto the host, nothing is pulled from a registry.</p>
@@ -340,8 +344,10 @@ The scripts</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>package-origins.sh &lt;build|runtime&gt;</code>  </td><td class="markdownTableBodyNone">every toolchain package comes from the repository that owns it  </td></tr>
 <tr class="markdownTableRowEven">
-<td class="markdownTableBodyNone"><code>cxx-runtime.sh &lt;compile|inspect|run&gt; &lt;directory&gt;</code>  </td><td class="markdownTableBodyNone">build the payload, prove it links dynamically, prove it runs  </td></tr>
+<td class="markdownTableBodyNone"><span class="tt">toolchain-commands.sh</span>  </td><td class="markdownTableBodyNone">every toolchain command still resolves through the alternative its installer registered  </td></tr>
 <tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>cxx-runtime.sh &lt;compile|inspect|run&gt; &lt;directory&gt;</code>  </td><td class="markdownTableBodyNone">build the payload, prove it links dynamically, prove it runs  </td></tr>
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>cxx-stdlib-parity.sh &lt;record|verify&gt; &lt;file&gt;</code>  </td><td class="markdownTableBodyNone">the stage that runs the binaries has the libraries the stage that built them used  </td></tr>
 </table>
 <p>One level up sit the two that depend on nothing here. The gate uses both, but they answer on any machine, checkout or not:</p>
@@ -392,10 +398,10 @@ In CI</h1>
 <pre class="mermaid">
 flowchart LR
     pr[&quot;pull request&lt;br/&gt;push to main&quot;] --&gt; dbuild[&quot;docker-build.yml&quot;]
-    dbuild --&gt; g1[&quot;validate-build + validate-runtime&lt;br/&gt;normal and cross variants&quot;]
+    dbuild --&gt; g1[&quot;the validate stages&lt;br/&gt;normal and cross variants&quot;]
 
     trigger[&quot;release&lt;br/&gt;schedule&lt;br/&gt;dispatch&quot;] --&gt; dpub[&quot;docker-publish.yml&quot;]
-    dpub --&gt; g2[&quot;validate-build + validate-runtime&lt;br/&gt;--output type=cacheonly&quot;]
+    dpub --&gt; g2[&quot;the validate stages&lt;br/&gt;--output type=cacheonly&quot;]
     g2 --&gt; push[&quot;build + push&quot;]
 
     classDef gate fill:#2d6a4f,stroke:#95d5b2,color:#ffffff
@@ -407,6 +413,8 @@ flowchart LR
 Running it locally</h1>
 <div class="fragment"><div class="line">docker buildx build --target validate-build .</div>
 <div class="line">docker buildx build --target validate-runtime .</div>
+<div class="line">docker buildx build --target validate-static-analysis .</div>
+<div class="line">docker buildx build --target validate-documentation .</div>
 <div class="line"> </div>
 <div class="line"># The cross variant, which is where a silently skipped triplet shows up</div>
 <div class="line">docker buildx build --target validate-build \</div>
@@ -421,7 +429,10 @@ Running it locally</h1>
 <div class="line">scripts/checks/details/cxx-stdlib-parity.sh verify /tmp/validate/stdlib.expected</div>
 <div class="line"> </div>
 <div class="line">GCC_VERSIONS=15 LLVM_VERSIONS=22 scripts/checks/details/package-origins.sh build</div>
-</div><!-- fragment --><p><span class="tt">record</span> and <span class="tt">verify</span> back to back on one host trivially agree - what they are for is running either side of the <span class="tt">COPY --from</span>. To watch one fail, edit a version in the recorded file and verify again.</p>
+<div class="line"> </div>
+<div class="line">scripts/checks/details/toolchain-commands.sh</div>
+</div><!-- fragment --><p><span class="tt">toolchain-commands.sh</span> answers for the host it runs on, so on a machine whose <span class="tt">clang</span> was installed from the distribution rather than through an alternative it reports exactly the fault it exists to catch.</p>
+<p><span class="tt">record</span> and <span class="tt">verify</span> back to back on one host trivially agree - what they are for is running either side of the <span class="tt">COPY --from</span>. To watch one fail, edit a version in the recorded file and verify again.</p>
 <p>To narrow the matrix, copy <span class="tt">scripts/</span> elsewhere and stub <span class="tt">gcc.sh</span>/<span class="tt">llvm.sh</span> <span class="tt">--list-installed</span> to return only the majors you care about.</p>
 <h1 class="doxsection"><a class="anchor" id="proving-the-gate-can-fail"></a>
 Proving the gate can fail</h1>
@@ -443,6 +454,8 @@ Proving the gate can fail</h1>
 <td class="markdownTableBodyNone">drop <span class="tt">-stdlib=libc++</span> from the <span class="tt">libcxx/</span> compile line  </td><td class="markdownTableBodyNone"><span class="tt">inspect</span> and <span class="tt">run</span>, both naming the implementation they expected  </td></tr>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone">edit a version in <span class="tt">/validate/stdlib.expected</span>  </td><td class="markdownTableBodyNone">parity alone, before a single binary runs  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone">move the <span class="tt">iwyu</span> install below the LLVM one in <span class="tt">static-analysis</span>  </td><td class="markdownTableBodyNone">the command check, naming <span class="tt">/usr/bin/clang</span> and the major it points at  </td></tr>
 </table>
 <h1 class="doxsection"><a class="anchor" id="what-this-deliberately-does-not-check"></a>
 What this deliberately does not check</h1>
@@ -453,8 +466,10 @@ What this deliberately does not check</h1>
  <span class="tt">runtime</span> is x86-64 only; running foreign binaries needs QEMU and a multi-platform <span class="tt">runtime</span> (see issue #33). Linking already proves the cross libc and libstdc++ survived.</li>
 <li><b>The secondary ABIs, <span class="tt">-m32</span> and <span class="tt">-mx32</span>.</b> <br  />
  <span class="tt">build</span> carries <span class="tt">lib32stdc++6</span> and <span class="tt">libx32stdc++6</span> through <span class="tt">gcc.sh --multilib</span>; <span class="tt">runtime</span> carries neither, and nothing here compiles a 32-bit payload to notice. Closing that means a <span class="tt">--multilib</span> runtime and a <span class="tt">-m32</span> arm in <span class="tt">compile</span> - a different axis from the one this gate covers, which is the standard library rather than the ABI it was built for.</li>
-<li><b><span class="tt">static-analysis</span>, <span class="tt">documentation</span>, <span class="tt">dev</span>.</b> <br  />
- All inherit <span class="tt">build</span>, and every operation that can remove or downgrade a package happens at or below <span class="tt">build</span>.</li>
+<li><b><span class="tt">dev</span>, for the command check.</b> <br  />
+ <span class="tt">static-analysis</span> and <span class="tt">documentation</span> have a gate stage each; <span class="tt">dev</span> cannot get one without displacing it as the last stage in the file, which is what makes a bare <span class="tt">docker build .</span> build it. It inherits <span class="tt">static-analysis</span> already checked, and installs nothing that depends on a compiler, so what stays unguarded is a future package there that does.</li>
+<li><b><span class="tt">static-analysis</span>, <span class="tt">documentation</span>, <span class="tt">dev</span>, for the package checks.</b> <br  />
+ All inherit <span class="tt">build</span>, and every operation that can remove or downgrade a package happens at or below <span class="tt">build</span>. A package <em>added</em> above <span class="tt">build</span> is a separate matter: it cannot downgrade a library, and it can take a command over, which is why the command check runs where it does.</li>
 <li><b>Published images, by digest.</b> <br  />
  These are build-time stages: they validate what the build produced, not what a registry currently serves. </li>
 </ul>

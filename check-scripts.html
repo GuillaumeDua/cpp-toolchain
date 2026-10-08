@@ -197,9 +197,9 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('check-scripts.
 <div class="contents">
 <div class="textblock"><p><a class="anchor" id="md_scripts_2checks_2README"></a></p>
 <p>Scripts that ask a question about a compiler, or about a built image, and report the answer.</p>
-<p>The two under <a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts/checks/details"><span class="tt">details/</span></a> are also the image validation gate:</p>
+<p>The scripts under <a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts/checks/details"><span class="tt">details/</span></a> are also the image validation gate:</p>
 <ul>
-<li>the <span class="tt">validate-build</span> and <span class="tt">validate-runtime</span> stages run them, and a non-zero exit fails the build. <br  />
+<li>the <span class="tt">validate-*</span> stages run them, and a non-zero exit fails the build. <br  />
 </li>
 <li>What each one proves, which stage runs it and how to reproduce a failure is <a class="el" href="images-validation.html#md_docs_2IMAGES__VALIDATION" title="docs/IMAGES_VALIDATION.md">docs/IMAGES_VALIDATION.md</a>.</li>
 </ul>
@@ -361,6 +361,8 @@ Gate scripts</h1>
 <td class="markdownTableBodyNone"><code>cxx-runtime.sh &lt;compile|inspect|run&gt; &lt;directory&gt;</code>  </td><td class="markdownTableBodyNone">Compiles the payload for every standard, proves it links against the expected C++ runtime dynamically, then runs it  </td></tr>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>cxx-stdlib-parity.sh &lt;record|verify&gt; &lt;file&gt;</code>  </td><td class="markdownTableBodyNone">The image that runs the binaries carries the same standard libraries the image that built them used  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">toolchain-commands.sh</span>  </td><td class="markdownTableBodyNone"><span class="tt">clang</span>, <span class="tt">gcc</span> and the tools beside them still resolve through the alternative their installer registered, rather than through a file a later package shipped  </td></tr>
 </table>
 <p>Both <span class="tt">package-origins.sh</span> and <span class="tt">cxx-stdlib-parity.sh</span> build on <span class="tt">cxx-stdlibs.sh</span> above: one to discover which package owns the installed libc++ - a name apt.llvm.org has changed twice - and the other to compare <span class="tt">SONAME</span>, version and ABI either side of a <span class="tt">COPY --from</span>.</p>
 <p>Implementation details of this gate, in the C++ sense of a nested <span class="tt">detail</span> namespace: they know this repo's expected package origins, and they ask <a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/scripts/install"><span class="tt">scripts/install/</span></a> which compilers are installed rather than guessing. That reach is why the validate stages copy <span class="tt">scripts/</span> whole - a layout that separates the two fails loudly rather than silently finding no compilers.</p>
