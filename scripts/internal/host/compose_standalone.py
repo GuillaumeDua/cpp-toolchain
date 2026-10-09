@@ -16,10 +16,11 @@ reading bare words where the scan reads command positions.
 A script that sources nothing composes to itself, and is held to that same check.
 
 Usage:
-    python3 scripts/internal/host/compose_standalone.py scripts/install/gcc.sh > gcc.sh
-    python3 scripts/internal/host/compose_standalone.py --all <directory>
+    python3 scripts/internal/host/compose_standalone.py scripts/install/gcc.sh > install_gcc.sh
+    python3 scripts/internal/host/compose_standalone.py --all <out-dir> <source-dir>
 
-Writes to stdout, or with --all one file per script into the directory given.
+Writes to stdout, or with --all one file per script into the directory given, named for the
+directory it came from - `scripts/install/gcc.sh` composes to `install_gcc.sh`.
 """
 
 import argparse
@@ -203,7 +204,8 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("script", help="the script to compose, or the source directory with --all")
     parser.add_argument("--all", metavar="OUT_DIR",
-                        help="compose every .sh under `script` into OUT_DIR, keeping the file names")
+                        help="compose every .sh under `script` into OUT_DIR, each prefixed with the"
+                             " directory it came from")
     arguments = parser.parse_args()
 
     if not LIBRARY.is_file():
@@ -215,8 +217,13 @@ def main():
 
     out_dir = pathlib.Path(arguments.all)
     out_dir.mkdir(parents=True, exist_ok=True)
+    # A release asset name carries no directory of its own, so the one a script comes from
+    # survives inside the name instead.
+    # `_` separates it from the basename, which hyphenates its own words.
+    # The prefix also leaves the install and checks runs, which share one output directory,
+    # unable to collide.
     for path in sorted(pathlib.Path(arguments.script).glob("*.sh")):
-        composed = out_dir / path.name
+        composed = out_dir / f"{path.parent.name}_{path.name}"
         composed.write_text(compose(path.read_text(encoding="utf-8")), encoding="utf-8")
         composed.chmod(0o755)
         print(f"{path} -> {composed}")

@@ -27,38 +27,47 @@ Repo-specific like `internal/`, but unlike it these *must* ship into the image t
 > - Optional value needs `<name>=<value>` semantic
 > - There are no positional arguments.
 
-Everything marked **Public** is published as a single file that needs nothing around it, so you can drop it into a project, a CI job or a plain shell - no image to pull, no repository to clone, no commitment to the rest of this toolchain:
+Every file marked **Public** is published as a standalone file, so you can drop it into a project, a CI job or a plain shell - no image to pull, no repository to clone, no commitment to the rest of this toolchain:
 
 ```bash
 base=https://github.com/GuillaumeDua/cpp-toolchain/releases/latest/download
 
-# Install a toolchain on any Debian/Ubuntu-based host
-wget "${base}/gcc.sh"
-sudo bash gcc.sh --versions='>=13'
+# Install GCC on any Debian/Ubuntu-based host
+wget "${base}/install_gcc.sh"
+sudo bash install_gcc.sh --versions='>=13'
+
+# Install LLVM on any Debian/Ubuntu-based host
+wget "${base}/install_llvm.sh"
+sudo bash install_llvm.sh --versions='21 23' --mode='full'
+# clang-21, clang-22, clang-tidy-21, clang-tidy-22, clang-format-21,  etc.
 
 # Ask a compiler which C++ standards it accepts - useful to drive a CI matrix
-wget "${base}/cxx-standards.sh"
-bash cxx-standards.sh --greatest --stable --format=std g++
+wget "${base}/checks_cxx-standards.sh"
+bash checks_cxx-standards.sh --greatest --stable --format=std g++
 # -> c++26
 
 # Ask which ABI the installed libstdc++ exposes - the marker a 'GLIBCXX_... not found' names
-wget "${base}/cxx-stdlibs.sh"
-bash cxx-stdlibs.sh --stdlib=libstdc++ --format=abi
+wget "${base}/checks_cxx-stdlibs.sh"
+bash checks_cxx-stdlibs.sh --stdlib=libstdc++ --format=abi
 # -> GLIBCXX_3.4.35
 
 # The same question about the C standard library
-wget "${base}/c-stdlibs.sh"
-bash c-stdlibs.sh --format=abi
+wget "${base}/checks_c-stdlibs.sh"
+bash checks_c-stdlibs.sh --format=abi
 # -> GLIBC_2.39
 ```
 
 Every one of them describes itself with `--help`, so the fetched file is its own documentation.
 
+An asset is named for the directory it comes from, since a release asset name carries no directory of its own.
+
 `latest` is the newest release, and skips the release candidates. Swap it for `download/<tag>` when you want the URL pinned, which is what you usually want in CI:
 
 ```bash
-base=https://github.com/GuillaumeDua/cpp-toolchain/releases/download/v1.3
+base=https://github.com/GuillaumeDua/cpp-toolchain/releases/download/v1.4
 ```
+
+`v1.4` publishes these without the prefix, as `gcc.sh` rather than `install_gcc.sh`; no release before it attaches them at all.
 
 > [!NOTE]
 > The file in this repository is not the file you download.

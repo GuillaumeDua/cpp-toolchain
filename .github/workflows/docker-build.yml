@@ -42,12 +42,12 @@ jobs:
             bash -n "${script}"
             bash "${script}" --help > /dev/null 2>&1
           done
-          bash gcc.sh           --list-installed > /dev/null
-          bash llvm.sh          --list-installed > /dev/null
-          bash binutils.sh      --list-targets   > /dev/null
-          bash cxx-standards.sh --greatest       > /dev/null
-          bash c-stdlibs.sh     --format=abi     > /dev/null
-          bash cxx-stdlibs.sh   --format=abi     > /dev/null
+          bash install_gcc.sh          --list-installed > /dev/null
+          bash install_llvm.sh         --list-installed > /dev/null
+          bash install_binutils.sh     --list-targets   > /dev/null
+          bash checks_cxx-standards.sh --greatest       > /dev/null
+          bash checks_c-stdlibs.sh     --format=abi     > /dev/null
+          bash checks_cxx-stdlibs.sh   --format=abi     > /dev/null
           echo "every standalone script composes and answers with nothing beside it"
 
       - name: Assert every action is pinned to a commit digest

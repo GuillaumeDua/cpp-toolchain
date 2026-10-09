@@ -20,9 +20,9 @@ Fetch either on its own when you want the answer without an image or a checkout:
 
 ```bash
 base=https://github.com/GuillaumeDua/cpp-toolchain/releases/latest/download
-wget "${base}/cxx-standards.sh"
-wget "${base}/cxx-stdlibs.sh"
-wget "${base}/c-stdlibs.sh"
+wget "${base}/checks_cxx-standards.sh"
+wget "${base}/checks_cxx-stdlibs.sh"
+wget "${base}/checks_c-stdlibs.sh"
 ```
 
 Swap `latest` for `download/<tag>` to pin the URL. The copy in this repository sources its shared
