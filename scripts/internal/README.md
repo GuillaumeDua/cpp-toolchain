@@ -12,7 +12,7 @@ and `build-stages.sh` uses it as the build context.
 | `check_dependencies_pins.py` | Asserts every global `ARG` is pinned to a single exact version, matched by a [renovate.json](../../renovate.json) manager, and not shadowed by a stage-local re-declaration |
 | `check_action_pins.py` | Asserts every third-party GitHub Action a workflow or composite action uses is pinned to a commit digest, carrying the tag it was pinned from |
 | `render_manifest.py` | Renders those pins as the markdown "what's inside" note used for the GitHub release description, or (`--bumps-yaml`) as the `bumps:` mapping of a promotion record. `--versions` adds the `Installed` and `Stage introducing` columns from a record and diffs both against the previous one, `--collected` turns one collector output per published stage into those mappings, `--date` stamps the heading; `--changelog` splices a merged-pull-request list into the same marked region; `--replace-region` edits a release body around those markers, refusing an unbalanced pair |
-| `compose_standalone.py` | Inlines [`lib/shared.sh`](../lib/shared.sh) into a script that sources it, producing the self-contained copy published per release. Only the helpers a script calls are inlined, closed over the library's own calls. Refuses a script that both sources the library and redeclares one of its helpers |
+| `compose_standalone.py` | Inlines [`lib/shared.sh`](../lib/shared.sh) into a script that sources it, producing the self-contained copy published per release. Only the helpers a script calls are inlined, closed over the library's own calls. Refuses a script that both sources the library and redeclares one of its helpers. `--all` names each output for the directory it came from, which is the name a release attaches it under |
 | `check_release_file.py` | The single definition of the `releases/v*.yaml` schema, of the version grammar (which tags are releases and how they order), of the collected-key grammar, of the canonical stage and registry lists, and of the promotion plan derived from a record |
 | `build-stages.sh` | Builds a list of Dockerfile stages, one buildx invocation each. Owns the buildx flags and the layer cache scopes for both [docker-build](../../.github/workflows/docker-build.yml) and [docker-publish](../../.github/workflows/docker-publish.yml) |
 | `test_release_tooling.py` | Covers the four scripts the release path depends on - `render_manifest.py`, `check_release_file.py`, `compose_standalone.py` and `check_dependencies_pins.py`. Inline fixtures, so a pin bump never turns a test red |
@@ -28,7 +28,7 @@ Run inside a container, over a bind-mounted `scripts/`, not here.
 
 ```bash
 python3 scripts/internal/host/check_dependencies_pins.py               # exits non-zero and reports every violation
-python3 scripts/internal/host/compose_standalone.py scripts/install/gcc.sh  # the published, self-contained gcc.sh
+python3 scripts/internal/host/compose_standalone.py scripts/install/gcc.sh  # the published, self-contained install_gcc.sh
 python3 scripts/internal/host/check_action_pins.py                     # every `uses:` is a commit digest
 python3 scripts/internal/host/test_release_tooling.py                  # the release tooling's own tests
 python3 scripts/internal/host/render_manifest.py --tag v1.2            # diffed against the newest release before it

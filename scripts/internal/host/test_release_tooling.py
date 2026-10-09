@@ -870,6 +870,27 @@ warn(){
             self.compose('die "x"')
 
 
+class ComposeAll(unittest.TestCase):
+    """What `--all` names its output, which is what a release attaches."""
+
+    def test_each_output_is_named_for_the_directory_it_came_from(self):
+        # One basename under two directories therefore lands as two assets.
+        # The install and checks runs share an output directory, so without the prefix the second
+        # overwrites the first, and the upload action's expected-against-attached comparison reads
+        # the same shortened list on both sides and passes.
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            out_dir = root / "assets"
+            for leaf in ("install", "checks"):
+                (root / leaf).mkdir()
+                (root / leaf / "probe.sh").write_text("this_script_name=probe\n", encoding="utf-8")
+                subprocess.run([sys.executable, str(HERE / "compose_standalone.py"),
+                                "--all", str(out_dir), str(root / leaf)],
+                               capture_output=True, text=True, check=True)
+            self.assertEqual(sorted(path.name for path in out_dir.iterdir()),
+                             ["checks_probe.sh", "install_probe.sh"])
+
+
 class Pins(unittest.TestCase):
     """The one pin invariant that reads past the value: everything after it has to be one version or nothing."""
 
