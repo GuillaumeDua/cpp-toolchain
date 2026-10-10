@@ -223,31 +223,38 @@ Using a public script on its own</h1>
 <li>There are no positional arguments.</li>
 </ul>
 </dd></dl>
-<p>Everything marked <b>Public</b> is published as a single file that needs nothing around it, so you can drop it into a project, a CI job or a plain shell - no image to pull, no repository to clone, no commitment to the rest of this toolchain:</p>
+<p>Every file marked <b>Public</b> is published as a standalone file, so you can drop it into a project, a CI job or a plain shell - no image to pull, no repository to clone, no commitment to the rest of this toolchain:</p>
 <div class="fragment"><div class="line">base=https://github.com/GuillaumeDua/cpp-toolchain/releases/latest/download</div>
 <div class="line"> </div>
-<div class="line"># Install a toolchain on any Debian/Ubuntu-based host</div>
-<div class="line">wget &quot;${base}/gcc.sh&quot;</div>
-<div class="line">sudo bash gcc.sh --versions=&#39;&gt;=13&#39;</div>
+<div class="line"># Install GCC on any Debian/Ubuntu-based host</div>
+<div class="line">wget &quot;${base}/install_gcc.sh&quot;</div>
+<div class="line">sudo bash install_gcc.sh --versions=&#39;&gt;=13&#39;</div>
+<div class="line"> </div>
+<div class="line"># Install LLVM on any Debian/Ubuntu-based host</div>
+<div class="line">wget &quot;${base}/install_llvm.sh&quot;</div>
+<div class="line">sudo bash install_llvm.sh --versions=&#39;21 23&#39; --mode=&#39;full&#39;</div>
+<div class="line"># clang-21, clang-22, clang-tidy-21, clang-tidy-22, clang-format-21,  etc.</div>
 <div class="line"> </div>
 <div class="line"># Ask a compiler which C++ standards it accepts - useful to drive a CI matrix</div>
-<div class="line">wget &quot;${base}/cxx-standards.sh&quot;</div>
-<div class="line">bash cxx-standards.sh --greatest --stable --format=std g++</div>
+<div class="line">wget &quot;${base}/checks_cxx-standards.sh&quot;</div>
+<div class="line">bash checks_cxx-standards.sh --greatest --stable --format=std g++</div>
 <div class="line"># -&gt; c++26</div>
 <div class="line"> </div>
 <div class="line"># Ask which ABI the installed libstdc++ exposes - the marker a &#39;GLIBCXX_... not found&#39; names</div>
-<div class="line">wget &quot;${base}/cxx-stdlibs.sh&quot;</div>
-<div class="line">bash cxx-stdlibs.sh --stdlib=libstdc++ --format=abi</div>
+<div class="line">wget &quot;${base}/checks_cxx-stdlibs.sh&quot;</div>
+<div class="line">bash checks_cxx-stdlibs.sh --stdlib=libstdc++ --format=abi</div>
 <div class="line"># -&gt; GLIBCXX_3.4.35</div>
 <div class="line"> </div>
 <div class="line"># The same question about the C standard library</div>
-<div class="line">wget &quot;${base}/c-stdlibs.sh&quot;</div>
-<div class="line">bash c-stdlibs.sh --format=abi</div>
+<div class="line">wget &quot;${base}/checks_c-stdlibs.sh&quot;</div>
+<div class="line">bash checks_c-stdlibs.sh --format=abi</div>
 <div class="line"># -&gt; GLIBC_2.39</div>
 </div><!-- fragment --><p>Every one of them describes itself with <span class="tt">--help</span>, so the fetched file is its own documentation.</p>
+<p>An asset is named for the directory it comes from, since a release asset name carries no directory of its own.</p>
 <p><span class="tt">latest</span> is the newest release, and skips the release candidates. Swap it for <span class="tt">download/&lt;tag&gt;</span> when you want the URL pinned, which is what you usually want in CI:</p>
-<div class="fragment"><div class="line">base=https://github.com/GuillaumeDua/cpp-toolchain/releases/download/v1.3</div>
-</div><!-- fragment --><dl class="section note"><dt>Note</dt><dd>The file in this repository is not the file you download. Here, each script sources its shared helpers from <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/lib/shared.sh">lib/shared.sh</a>, so a helper is written once. The published copy carries them inlined, which is what makes it runnable on its own - see <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/internal/host/compose_standalone.py">internal/host/compose_standalone.py</a>. Fetching <span class="tt">scripts/install/gcc.sh</span> out of the repository gets you a script that cannot find its helpers.</dd></dl>
+<div class="fragment"><div class="line">base=https://github.com/GuillaumeDua/cpp-toolchain/releases/download/v1.4</div>
+</div><!-- fragment --><p><span class="tt">v1.4</span> publishes these without the prefix, as <span class="tt">gcc.sh</span> rather than <span class="tt">install_gcc.sh</span>; no release before it attaches them at all.</p>
+<dl class="section note"><dt>Note</dt><dd>The file in this repository is not the file you download. Here, each script sources its shared helpers from <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/lib/shared.sh">lib/shared.sh</a>, so a helper is written once. The published copy carries them inlined, which is what makes it runnable on its own - see <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/scripts/internal/host/compose_standalone.py">internal/host/compose_standalone.py</a>. Fetching <span class="tt">scripts/install/gcc.sh</span> out of the repository gets you a script that cannot find its helpers.</dd></dl>
 <p>The <span class="tt">Internal</span> rows are not published at all. They reach the rest of the tree by relative path and only work inside a checkout or an image. </p>
 </div></div><!-- contents -->
 </div><!-- PageDoc -->
