@@ -92,7 +92,7 @@ The stages form a diamond: `static-analysis` and `documentation` both build on `
 
 </details>
 
-`build` installs Clang minimalistically: only `clang`/`clang++` answer to an unversioned name there, though the upstream installer's default set also leaves `lld-<N>`, `lldb-<N>` and `clangd-<N>` behind.
+`build` installs Clang minimalistically: only `clang`/`clang++` answer to an unversioned name there, though the upstream installer's default set also leaves `lld-<N>`, `lldb-<N>` and `clangd-<N>` behind.  
 The full LLVM tooling (`clang-tidy`, `clang-format`, `clangd`, `lldb`, `scan-build`, ...) is installed and registered in `static-analysis`, and inherited by `dev`.
 
 ## Tags & versioning
@@ -121,8 +121,8 @@ A scheduled run **publishes nothing when nothing changed**: an unchanged tree ha
 
 > [!NOTE]
 > A minor is not rebuilt from its rc's commit - it **is** the rc: promotion re-tags the exact image digests that were validated, so `v1.2` is byte-identical to the `v1.2-rc.<n>` it was promoted from.
-> Both tags resolve to that one digest, which is the digest `releases/v1.2.yaml` records.
-> rc tags stay published and cost nothing (shared digests).
+> Both tags resolve to that one digest, which is the digest `releases/v1.2.yaml` records.  
+> RC tags stay published and cost nothing (shared digests).
 > How releases are cut is documented in [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md).
 
 `dev` is the Dockerfile's default target, so it also answers to the **unprefixed** versions - `cpp-toolchain:latest` is the same digest as `cpp-toolchain:dev-latest`, and likewise for `v1.0` / `v1.2-rc.1` (and `cross-latest` = `dev-cross-latest`).
@@ -130,9 +130,9 @@ Every other stage must be named explicitly.
 
 ### What's inside a given tag
 
-Every release note lists the versions that release pins - compilers, build systems, dependency managers, documentation tooling - beside what the images resolved them to, what moved since the previous release, and the pull requests merged in between.
+Every release note lists the versions that release pins - compilers, build systems, dependency managers, documentation tooling - beside what the images resolved them to, what moved since the previous release, and the pull requests merged in between.  
 A pin is what the image **requests**, which is not always what it carries.
-GCC and Clang pin a **major** and install from rolling apt sources (`ppa:ubuntu-toolchain-r/test` and `apt.llvm.org`), so two builds of the same commit weeks apart can carry different patch releases of the same compiler major.
+`GCC` and `Clang` pin a **major** and install from rolling apt sources (`ppa:ubuntu-toolchain-r/test` and `apt.llvm.org`), so two builds of the same commit weeks apart can carry different patch releases of the same compiler major.  
 `ubuntu:24.04` is a rolling tag that resolves to whichever point release is current, and the Ubuntu archive behind it is pinned by `UBUNTU_SNAPSHOT`; the rest pins an upstream version.
 The standard libraries carry no pin at all, so they get a table of their own, with the ABI levels a binary is linked against.
 
@@ -190,9 +190,9 @@ No pin spells `latest`, so two builds of one commit request the same versions.
 
 That has two consequences worth knowing:
 
-- **Updates arrive as reviewable pull requests**, not silently on a rebuild.
+- **Updates arrive as reviewable pull requests**, not silently on a rebuild.  
   A version bump that the upstream apt repository has not published yet fails the build gate, so it stays a red PR instead of a broken image.
-- **The ~20 distro packages** (`ninja`, `cppcheck`, `valgrind`, `gdb`, `lcov`, ...) are frozen by an [Ubuntu archive snapshot](https://snapshot.ubuntu.com) rather than pinned one by one.
+- **The ~20 distro packages** (`ninja`, `cppcheck`, `valgrind`, `gdb`, `lcov`, ...) are frozen by an [Ubuntu archive snapshot](https://snapshot.ubuntu.com) rather than pinned one by one.  
   The timestamp moves monthly via [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) - Renovate cannot track it, because the service publishes no index of valid timestamps.
 
 > [!NOTE]
