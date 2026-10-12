@@ -1,0 +1,60 @@
+name: dockerhub-description
+
+# The Docker Hub repository page, from `.github/dockerhub/`: `description.md` is the overview,
+# `short-description.txt` the one line under the title.
+#   Docker Hub is the only published surface no build renders, so the page drifts on its own:
+#   nothing reads it, and the Docker Hub UI edits it outside of git entirely.
+#
+# Publishing only. What the two texts have to satisfy is asserted by the build gate on every pull request,
+# through scripts/internal/host/check_dockerhub_description.py - which is also what hands the action its
+# `short-description`, so what reaches the page is what was checked.
+#
+# Path-filtered: the page is republished when its text changes, not on every merge to `main`.
+#
+# KNOWN-LIMITATION: nothing asserts the overview still agrees with README.md.
+#   The two are written separately, so a stage or a channel can be described in one and not the other,
+#   and only a reader catches it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/dockerhub/**
+      - .github/workflows/dockerhub-description.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read # the texts come from the checkout; the Docker Hub write authenticates on its own
+
+concurrency:
+  group: dockerhub-description-${{ github.ref }}
+  # The publish is a single PATCH carrying both texts, so a cancelled run leaves the page as it was
+  # and the run that replaced it publishes the newer text.
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Read the short description
+        id: text
+        run: python3 scripts/internal/host/check_dockerhub_description.py --print-short >> "${GITHUB_OUTPUT}"
+
+      # workflow_dispatch takes a ref, so this is what keeps a manual run on a feature branch from
+      # publishing that branch's text; such a run checks the two files and stops, which is a dry run.
+      #
+      # `repository` is spelled out because the input defaults to `github.repository`, whose owner is
+      # capitalized, while the Docker Hub namespace is lowercase.
+      # `enable-url-completion` stays at its default: it rewrites relative link targets, including the
+      # ones inside code blocks, so every link in `description.md` is absolute instead.
+      - name: Sync the description to Docker Hub
+        if: github.ref == 'refs/heads/main'
+        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: guillaumedua/cpp-toolchain
+          readme-filepath: .github/dockerhub/description.md
+          short-description: ${{ steps.text.outputs.short }}
