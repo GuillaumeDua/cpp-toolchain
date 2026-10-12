@@ -53,8 +53,6 @@ jobs:
       - name: Assert every action is pinned to a commit digest
         run: python3 scripts/internal/host/check_action_pins.py
 
-      # The Docker Hub page is the one published surface no build renders, and Docker Hub truncates
-      # an over-long text and mis-resolves a relative link without failing anything.
       - name: Assert the Docker Hub description fits what Docker Hub accepts
         run: python3 scripts/internal/host/check_dockerhub_description.py
 

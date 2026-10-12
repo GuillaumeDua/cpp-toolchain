@@ -2,8 +2,8 @@ name: dockerhub-description
 
 # The Docker Hub repository page, from `.github/dockerhub/`: `description.md` is the overview,
 # `short-description.txt` the one line under the title.
-#   Docker Hub is the only published surface no build renders, so the page drifts on its own:
-#   nothing reads it, and the Docker Hub UI edits it outside of git entirely.
+#   Docker Hub is the only published surface no build renders, and its UI edits the page outside git,
+#   so left alone the page drifts.
 #
 # Publishing only. What the two texts have to satisfy is asserted by the build gate on every pull request,
 # through scripts/internal/host/check_dockerhub_description.py - which is also what hands the action its
@@ -47,8 +47,8 @@ jobs:
       #
       # `repository` is spelled out because the input defaults to `github.repository`, whose owner is
       # capitalized, while the Docker Hub namespace is lowercase.
-      # `enable-url-completion` stays at its default: it rewrites relative link targets, including the
-      # ones inside code blocks, so every link in `description.md` is absolute instead.
+      # `enable-url-completion` stays at its default: every link in `description.md` is absolute,
+      # which the gate asserts.
       - name: Sync the description to Docker Hub
         if: github.ref == 'refs/heads/main'
         uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
