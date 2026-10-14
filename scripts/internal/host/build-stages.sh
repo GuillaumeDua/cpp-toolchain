@@ -12,7 +12,7 @@
 # Runs from the repository root - the build context is `.` and the Dockerfile path is relative to it.
 #
 # Usage:
-#   build-stages.sh --variant <normal|cross> --cache <read|write|none> [--output cacheonly] STAGE...
+#   build-stages.sh --variant <normal|cross> --cache <read|write|none> [--output cacheonly] [--retries N] STAGE...
 #   build-stages.sh --variant <normal|cross> --cache <read|write|none> \
 #                   --push --tags "<tag> <tag>" --metadata-dir <dir> STAGE...
 #   build-stages.sh --variant <normal|cross> --metadata-dir <dir> --print-digest STAGE
@@ -22,6 +22,8 @@
 #   --cache         read imports every scope, write also exports the one this variant/stage pair owns,
 #                   none passes no cache flags at all.
 #   --output        cacheonly solves the stage for its exit status without producing an image.
+#   --retries       attempts per stage. Above 1, a build that failed on a transient fetch error is
+#                   retried; any other failure stops on the first attempt. Default 1.
 #   --push          tags for every registry and pushes. Requires --tags and --metadata-dir.
 #   --print-digest  print the digest --push recorded for one stage, and build nothing. Reads the file
 #                   --variant and --metadata-dir name between them, so no caller spells that name.
@@ -33,6 +35,15 @@ readonly HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Cross-arch target triplets. `common` is an alias resolved by scripts/install/binutils.sh,
 # which is where the triplets are listed.
 readonly CROSS_TARGETS='common'
+
+# A stage that failed is retried only when its log names a transient cause: every stage installs from a
+# third-party host, and a refused or stalled request is not a broken tree.
+#   Keyed on the cause rather than on an exit status, because buildx answers 1 to every solve failure,
+#   and apt answers 100 to a 503 and to a package that does not exist alike.
+#   A 404 is deliberately absent: a version that left the mirror is a real error, and a retry only
+#   delays the report.
+readonly TRANSIENT_FAILURE='50[234] +(Service Unavailable|Bad Gateway|Gateway Time-?out)|Connection timed out|Connection failed|Temporary failure resolving|429 Too Many Requests|TLS handshake timeout|i/o timeout|connection reset by peer'
+readonly RETRY_PAUSE_SECONDS=30
 
 # Layer cache, keyed <variant>:<stage> and valued by the scope that build exports.
 #   One scope per exporting build - a second export to a scope replaces its index instead of merging into it,
@@ -58,6 +69,7 @@ die() {
 variant=''
 cache=''
 output=''
+retries=1
 push='no'
 print_digest='no'
 tags=''
@@ -69,6 +81,7 @@ while [ $# -gt 0 ]; do
         --variant)      variant="${2:-}"; shift 2 ;;
         --cache)        cache="${2:-}"; shift 2 ;;
         --output)       output="${2:-}"; shift 2 ;;
+        --retries)      retries="${2:-}"; shift 2 ;;
         --tags)         tags="${2:-}"; shift 2 ;;
         --metadata-dir) metadata_dir="${2:-}"; shift 2 ;;
         --push)         push='yes'; shift ;;
@@ -108,6 +121,10 @@ case "${output}" in
     *) die "--output only accepts cacheonly, got '${output}'" ;;
 esac
 
+case "${retries}" in
+    ''|*[!0-9]*|0) die "--retries must be a positive integer, got '${retries}'" ;;
+esac
+
 [ "${#stages[@]}" -gt 0 ] || die "no stage given"
 
 if [ "${push}" = 'yes' ]; then
@@ -127,6 +144,14 @@ registries=()
 if [ "${push}" = 'yes' ]; then
     read -r -a registries <<< "$(python3 "${HERE}/check_release_file.py" --print-registries)"
     mkdir -p "${metadata_dir}"
+fi
+
+# Classifying a failure means reading the build's own output, so it is captured when retrying.
+# `tee` keeps it streaming meanwhile, as scripts/lib/shared.sh does for the same reason.
+build_log=''
+if [ "${retries}" -gt 1 ]; then
+    build_log="$(mktemp)"
+    trap 'rm -f "${build_log}"' EXIT
 fi
 
 for stage in "${stages[@]}"; do
@@ -168,7 +193,41 @@ for stage in "${stages[@]}"; do
         label='build'
     fi
 
-    echo "::group::${label} cpp-toolchain:${stage} [variant=${variant}]"
-    docker buildx build "${build_args[@]}" .
-    echo "::endgroup::"
+    attempt=1
+    while true; do
+        group="${label} cpp-toolchain:${stage} [variant=${variant}]"
+        if [ "${retries}" -gt 1 ]; then
+            group+=" - attempt ${attempt}/${retries}"
+        fi
+        echo "::group::${group}"
+
+        # Nothing to classify with a single attempt, so the output is left alone: errexit reports the
+        # failure, and buildx keeps its interactive progress for a local build.
+        if [ "${retries}" -eq 1 ]; then
+            docker buildx build "${build_args[@]}" .
+            echo "::endgroup::"
+            break
+        fi
+
+        status=0
+        docker buildx build "${build_args[@]}" . 2>&1 | tee "${build_log}" >&2 || status=$?
+        echo "::endgroup::"
+
+        if [ "${status}" -eq 0 ]; then
+            break
+        fi
+
+        if ! grep -qE "${TRANSIENT_FAILURE}" "${build_log}"; then
+            exit "${status}"
+        fi
+
+        if [ "${attempt}" -ge "${retries}" ]; then
+            echo "::error::${stage} [variant=${variant}]: every attempt failed fetching from a third-party host - check whether the hosts this stage installs from are degraded" >&2
+            exit "${status}"
+        fi
+
+        echo "::warning::${stage} [variant=${variant}]: transient fetch failure - retrying in ${RETRY_PAUSE_SECONDS}s" >&2
+        sleep "${RETRY_PAUSE_SECONDS}"
+        attempt=$(( attempt + 1 ))
+    done
 done

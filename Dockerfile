@@ -102,6 +102,17 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG UBUNTU_SNAPSHOT
 SHELL ["/bin/bash", "-c"]
 
+# DESIGN: Every stage installs from one host, snapshot.ubuntu.com, which answers 503 under load, and apt's
+# default is to carry on with the package list it managed to fetch - the install then fails on a
+# package the index never named.
+#   `Acquire::Retries` (apt.conf(5)) re-fetches a refused file instead.
+#   `Acquire::http::Timeout` (apt-transport-http(1)) "applies to the connection as well as the data
+#   timeout", so a connection that stops delivering is dropped for the retry to replace, while one
+#   that is merely slow keeps going.
+#   Written as configuration rather than as flags on each `apt-get` line: every stage inherits it,
+#   including the ones added later.
+RUN printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/99-acquire-retries
+
 # apt -> Ubuntu archive snapshot, so every stage below installs from a frozen archive.
 #
 #   snapshot.ubuntu.com is HTTPS-only and the base image has no CA bundle, so ca-certificates comes from the live archive first.
@@ -343,7 +354,7 @@ COPY ./test/cxx_runtime.cpp /opt/cpp-toolchain-scripts/checks/details/
 #   Every tree it produces is either run in `runtime`, the only place that proves anything, or not runnable (`cross`).
 #   It leaves the standard libraries it compiled against behind,
 #   so the stage that runs the binaries can name the missing library rather than only an unresolved symbol.
-RUN apt-get update -qqy --error-on=any -o Acquire::Retries=3                                                \
+RUN apt-get update -qqy --error-on=any                                                                      \
     && bash /opt/cpp-toolchain-scripts/checks/details/package-origins.sh build                              \
     && bash /opt/cpp-toolchain-scripts/checks/details/toolchain-commands.sh                                 \
     && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh compile /validate                      \
@@ -366,7 +377,7 @@ COPY ./scripts/ /opt/cpp-toolchain-scripts/
 # Parity first:
 #   it names a version or ABI that drifted,
 #   while the runs below would only report the same drift as a symbol that failed to resolve.
-RUN apt-get update -qqy --error-on=any -o Acquire::Retries=3                                                \
+RUN apt-get update -qqy --error-on=any                                                                      \
     && bash /opt/cpp-toolchain-scripts/checks/details/package-origins.sh runtime                            \
     && bash /opt/cpp-toolchain-scripts/checks/details/cxx-stdlib-parity.sh verify /validate/stdlib.expected \
     && bash /opt/cpp-toolchain-scripts/checks/details/cxx-runtime.sh run /validate/libstdcxx                \
