@@ -434,7 +434,7 @@ jobs:
 
           # Read-only against the scopes a merge to main maintains: one exporter per scope, and merges
           #   refresh them far more often than this workflow's fortnightly cron.
-          build() { bash scripts/internal/host/build-stages.sh --cache read "$@"; }
+          build() { bash scripts/internal/host/build-stages.sh --cache read --retries 2 "$@"; }
 
           stages() { python3 scripts/internal/host/check_release_file.py --print-stages "$1"; }
 
