@@ -42,7 +42,9 @@ readonly CROSS_TARGETS='common'
 #   and apt answers 100 to a 503 and to a package that does not exist alike.
 #   A 404 is deliberately absent: a version that left the mirror is a real error, and a retry only
 #   delays the report.
-readonly TRANSIENT_FAILURE='50[234] +(Service Unavailable|Bad Gateway|Gateway Time-?out)|Connection timed out|Connection failed|Temporary failure resolving|429 Too Many Requests|TLS handshake timeout|i/o timeout|connection reset by peer'
+#   The server's status is matched, never its reason phrase: snapshot.ubuntu.com answers 503 from nginx
+#   as "Service Unavailable" and from its load balancer as "No server is available to handle this request".
+readonly TRANSIENT_FAILURE='(Err:[0-9]+|Failed to fetch).* 5[0-9][0-9]( |$)|Connection timed out|Connection failed|Could not resolve|Temporary failure resolving|429 Too Many Requests|TLS handshake timeout|i/o timeout|connection reset by peer'
 readonly RETRY_PAUSE_SECONDS=30
 
 # Layer cache, keyed <variant>:<stage> and valued by the scope that build exports.
