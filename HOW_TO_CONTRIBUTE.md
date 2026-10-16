@@ -17,7 +17,7 @@ There is a hard split between **building** (gate, runs on every PR) and **publis
 | [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) | monthly schedule (25th), manual dispatch | opens a PR moving the Ubuntu archive snapshot forward | ❌ |
 
 What those workflows share lives in [.github/actions/](.github/actions/) as composite actions:
-buildx setup, registry login, promotion-record identification, and the sticky issue the two report steps share.
+registry login, promotion-record identification, and the sticky issue the two report steps share.
 
 > [!IMPORTANT]
 > **PR validation**
@@ -35,9 +35,10 @@ buildx setup, registry login, promotion-record identification, and the sticky is
 4. Keep the PR green: every stage the gate builds must build before it can merge.
 
 The gate is deliberately **not** path-filtered - it is a required status check, so it runs on every PR (a path-filtered workflow that never runs would leave the PR waiting forever on a check that never reports).  
-When the Dockerfile and scripts are untouched the GitHub Actions cache makes it a near-no-op.  
-Only a push to `main` writes that cache, so a PR replays the layers the last merge exported, and the first PR after a snapshot bump pays for a cold build.  
-Nothing is pushed, no registry credentials are needed, and the gate therefore also works for PRs coming from forks (which have no access to secrets).
+When the Dockerfile and scripts are untouched the layer cache makes it a near-no-op.  
+That cache is `buildcache-*` tags on the [GHCR repository](https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain).  
+Only a push to `main` writes it, so a PR replays the layers the last merge exported, and the first PR after a snapshot bump pays for a cold build.  
+No image is pushed and a PR needs no credentials, so the gate also works for PRs coming from forks (which have no access to secrets).
 
 ## What the build gate checks
 

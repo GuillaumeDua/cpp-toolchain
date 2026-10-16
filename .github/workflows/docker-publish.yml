@@ -408,7 +408,7 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.changed.outputs.skip != 'true'
-        uses: ./.github/actions/setup-buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Log in to both registries
         if: steps.changed.outputs.skip != 'true'
@@ -421,7 +421,7 @@ jobs:
 
       # Single job, built in dependency order on one buildx builder:
       #   the heavy `build` layer is produced once and reused by static-analysis / documentation / dev
-      # The gha cache is a plain speed-up here:
+      # The layer cache is a plain speed-up here:
       #   with every version pinned, a cache hit means the inputs really are unchanged, so replaying a layer cannot smuggle in a stale toolchain.
       # Each build writes a metadata file:
       #   the digests in there become the promotion record, so whatever this step pushes is exactly what a later promotion re-tags.
@@ -432,7 +432,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Read-only against the scopes a merge to main maintains: one exporter per scope, and merges
+          # Read-only against the cache tags a merge to main maintains: one exporter per tag, and merges
           #   refresh them far more often than this workflow's fortnightly cron.
           build() { bash scripts/internal/host/build-stages.sh --cache read "$@"; }
 

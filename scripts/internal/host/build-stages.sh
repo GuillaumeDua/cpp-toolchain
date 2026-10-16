@@ -7,7 +7,7 @@
 #
 # The single driver for both workflows: docker-build.yml builds without pushing, docker-publish.yml
 # validates and then builds with tags. They differ in flags, not in how a stage is built, so the buildx
-# flags and the cache scope table below are defined here and nowhere else.
+# flags and the cache table below are defined here and nowhere else.
 #
 # Runs from the repository root - the build context is `.` and the Dockerfile path is relative to it.
 #
@@ -19,7 +19,7 @@
 #
 #   --variant       normal builds the lean image; cross adds the cross-compilation toolchains.
 #                   It also decides the tag infix and the metadata file suffix, so a caller cannot pair them wrongly.
-#   --cache         read imports every scope, write also exports the one this variant/stage pair owns,
+#   --cache         read imports every cache tag, write also exports the one this variant/stage pair owns,
 #                   none passes no cache flags at all.
 #   --output        cacheonly solves the stage for its exit status without producing an image.
 #   --push          tags for every registry and pushes. Requires --tags and --metadata-dir.
@@ -34,17 +34,25 @@ readonly HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # which is where the triplets are listed.
 readonly CROSS_TARGETS='common'
 
-# Layer cache, keyed <variant>:<stage> and valued by the scope that build exports.
-#   One scope per exporting build - a second export to a scope replaces its index instead of merging into it,
-#   "leaving only the final cache" (https://docs.docker.com/build/cache/backends/gha/).
-#   Scopes are cheap: blobs are keyed by digest and only the index is scoped, so what the scopes share is stored once.
+# Layer cache, keyed <variant>:<stage> and valued by the tag that build exports.
+#   The tags sit on the GHCR repository the images publish to: a pull request imports with no credentials,
+#   and GHCR creates a new package private.
+#   One tag per exporting build - a second export to a tag replaces the manifest there instead of merging into it.
 #   These three carry every layer a pull request builds - the runtime -> build -> static-analysis -> dev chain,
 #   documentation's branch off build, and the cross binutils tail.
 declare -A CACHE_EXPORTS=(
-    ['normal:dev']=cpp-toolchain-dev
-    ['normal:documentation']=cpp-toolchain-documentation
-    ['cross:build']=cpp-toolchain-build-cross
+    ['normal:dev']=buildcache-dev
+    ['normal:documentation']=buildcache-documentation
+    ['cross:build']=buildcache-build-cross
 )
+
+# The registry backend's export parameters (https://docs.docker.com/build/cache/backends/registry/):
+#   ignore-error, because the export is the last thing a build does: without it a registry hiccup fails a
+#     build whose every stage succeeded, while the tag already there stays importable.
+#   image-manifest, because docker-publish.yml sweeps every untagged version of this package: under an index
+#     the cache manifests are untagged children, where a single manifest is the tagged version itself.
+#     It applies to OCI media types only, hence the pair.
+readonly CACHE_EXPORT_FLAGS='type=registry,mode=max,ignore-error=true,oci-mediatypes=true,image-manifest=true'
 
 usage() {
     sed -n '/^# Usage:/,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -118,8 +126,10 @@ fi
 
 cache_from=()
 if [ "${cache}" != 'none' ]; then
-    for scope in "${CACHE_EXPORTS[@]}"; do
-        cache_from+=(--cache-from "type=gha,scope=${scope}")
+    # The registry name belongs to check_release_file.py, cache tags included.
+    cache_image="$(python3 "${HERE}/check_release_file.py" --print-registries ghcr)"
+    for cache_tag in "${CACHE_EXPORTS[@]}"; do
+        cache_from+=(--cache-from "type=registry,ref=${cache_image}:${cache_tag}")
     done
 fi
 
@@ -138,9 +148,9 @@ for stage in "${stages[@]}"; do
     build_args+=("${cache_from[@]}")
 
     if [ "${cache}" = 'write' ]; then
-        scope="${CACHE_EXPORTS["${variant}:${stage}"]:-}"
-        if [ -n "${scope}" ]; then
-            build_args+=(--cache-to "type=gha,mode=max,scope=${scope}")
+        cache_tag="${CACHE_EXPORTS["${variant}:${stage}"]:-}"
+        if [ -n "${cache_tag}" ]; then
+            build_args+=(--cache-to "${CACHE_EXPORT_FLAGS},ref=${cache_image}:${cache_tag}")
         fi
     fi
 
