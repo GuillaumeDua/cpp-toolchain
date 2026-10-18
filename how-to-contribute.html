@@ -218,7 +218,7 @@ The workflows</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/ubuntu-snapshot.yml">ubuntu-snapshot</a>  </td><td class="markdownTableBodyNone">monthly schedule (25th), manual dispatch  </td><td class="markdownTableBodyNone">opens a PR moving the Ubuntu archive snapshot forward  </td><td class="markdownTableBodyCenter">❌  </td></tr>
 </table>
-<p>What those workflows share lives in <a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/.github/actions">.github/actions/</a> as composite actions: buildx setup, registry login, promotion-record identification, and the sticky issue the two report steps share.</p>
+<p>What those workflows share lives in <a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/.github/actions">.github/actions/</a> as composite actions: registry login, promotion-record identification, and the sticky issue the two report steps share.</p>
 <dl class="section important"><dt>Important</dt><dd><b>PR validation</b> <br  />
 <br  />
  Every PR to <span class="tt">main</span> must still build all five stages of the normal variant, plus the cross-arch toolchain and its validation (<a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-build.yml">docker-build</a>); publishing is a separate workflow that refuses to push anything whose commit is not contained in <span class="tt">main</span>.</dd></dl>
@@ -232,9 +232,10 @@ Opening a pull request</h1>
 <li>Keep the PR green: every stage the gate builds must build before it can merge.</li>
 </ol>
 <p>The gate is deliberately <b>not</b> path-filtered - it is a required status check, so it runs on every PR (a path-filtered workflow that never runs would leave the PR waiting forever on a check that never reports). <br  />
- When the Dockerfile and scripts are untouched the GitHub Actions cache makes it a near-no-op. <br  />
- Only a push to <span class="tt">main</span> writes that cache, so a PR replays the layers the last merge exported, and the first PR after a snapshot bump pays for a cold build. <br  />
- Nothing is pushed, no registry credentials are needed, and the gate therefore also works for PRs coming from forks (which have no access to secrets).</p>
+ When the Dockerfile and scripts are untouched the layer cache makes it a near-no-op. <br  />
+ That cache is <span class="tt">buildcache-*</span> tags on the <a href="https://github.com/GuillaumeDua/cpp-toolchain/pkgs/container/cpp-toolchain">GHCR repository</a>. <br  />
+ Only a push to <span class="tt">main</span> writes it, so a PR replays the layers the last merge exported, and the first PR after a snapshot bump pays for a cold build. <br  />
+ No image is pushed and a PR needs no credentials, so the gate also works for PRs coming from forks (which have no access to secrets).</p>
 <h1 class="doxsection"><a class="anchor" id="what-the-build-gate-checks"></a>
 What the build gate checks</h1>
 <p><a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/docker-build.yml">docker-build</a> builds, in dependency order on a single buildx builder, both image variants:</p>
