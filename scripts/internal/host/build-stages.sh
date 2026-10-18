@@ -51,16 +51,20 @@ readonly RETRY_PAUSE_SECONDS=30
 #   The tags sit on the GHCR repository the images publish to: a pull request imports with no credentials,
 #   and GHCR creates a new package private.
 #   One tag per exporting build - a second export to a tag replaces the manifest there instead of merging into it.
-#   Between them they carry every layer a pull request builds - the runtime -> build -> static-analysis -> dev
-#   chain, documentation's branch off build, and the cross binutils tail.
+#   Every stage a variant publishes, and no validate-* stage: a cached validate stage would be a cache hit
+#   on an unchanged tree, where what it is for is that its RUN runs.
 #   A tag on a stage another tag already covers costs a manifest and no bytes, since the registry stores one
 #   blob per digest, and it banks that stage when a later one fails.
 declare -A CACHE_EXPORTS=(
     ['normal:runtime']=buildcache-runtime
     ['normal:build']=buildcache-build
+    ['normal:static-analysis']=buildcache-static-analysis
     ['normal:documentation']=buildcache-documentation
     ['normal:dev']=buildcache-dev
     ['cross:build']=buildcache-build-cross
+    ['cross:static-analysis']=buildcache-static-analysis-cross
+    ['cross:documentation']=buildcache-documentation-cross
+    ['cross:dev']=buildcache-dev-cross
 )
 
 # The registry backend's export parameters (https://docs.docker.com/build/cache/backends/registry/):
