@@ -51,11 +51,15 @@ readonly RETRY_PAUSE_SECONDS=30
 #   The tags sit on the GHCR repository the images publish to: a pull request imports with no credentials,
 #   and GHCR creates a new package private.
 #   One tag per exporting build - a second export to a tag replaces the manifest there instead of merging into it.
-#   These three carry every layer a pull request builds - the runtime -> build -> static-analysis -> dev chain,
-#   documentation's branch off build, and the cross binutils tail.
+#   Between them they carry every layer a pull request builds - the runtime -> build -> static-analysis -> dev
+#   chain, documentation's branch off build, and the cross binutils tail.
+#   A tag on a stage another tag already covers costs a manifest and no bytes, since the registry stores one
+#   blob per digest, and it banks that stage when a later one fails.
 declare -A CACHE_EXPORTS=(
-    ['normal:dev']=buildcache-dev
+    ['normal:runtime']=buildcache-runtime
+    ['normal:build']=buildcache-build
     ['normal:documentation']=buildcache-documentation
+    ['normal:dev']=buildcache-dev
     ['cross:build']=buildcache-build-cross
 )
 
