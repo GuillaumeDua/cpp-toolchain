@@ -36,6 +36,11 @@ docker run --rm ghcr.io/guillaumedua/cpp-toolchain:build-latest g++ --version
 docker run --rm --volume "${PWD}:/src" --workdir /src \
     ghcr.io/guillaumedua/cpp-toolchain:build-latest \
     g++ -std=c++23 main.cpp -o main
+
+# Interactive shell, working directory mounted
+docker run --rm --interactive --tty \
+    --volume "${PWD}:/workspace" --workdir /workspace \
+    ghcr.io/guillaumedua/cpp-toolchain:dev-latest
 ```
 
 ## Visual Studio Code - Dev container
