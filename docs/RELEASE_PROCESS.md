@@ -179,8 +179,8 @@ So the guarantees are not read as stronger than they are:
 ### Setup prerequisites
 
 - **`RELEASE_PR_TOKEN`** (repository secret) - a fine-grained PAT, `pull-requests: write` + `contents: read`.  
-  Used for exactly one call: creating the candidate PR.  
-  A PR created with `GITHUB_TOKEN` fires no `pull_request` events, so its validation checks would never run.
+  Creates the candidate PR here, and the snapshot bump PR in [ubuntu-snapshot.yml](../.github/workflows/ubuntu-snapshot.yml); nothing else.  
+  A PR created with `GITHUB_TOKEN` leaves its workflow runs in `action_required`, waiting on a manual "Approve and run".
 - **`DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN`** - read+write is sufficient; nothing deletes registry content anymore.
 - Branch protection on `main` requiring the `validate-candidate` check.
 - The candidate PR must be **merged by a human** (or native auto-merge enabled by one) - a merge performed with `GITHUB_TOKEN` would suppress the push event that triggers promotion.
