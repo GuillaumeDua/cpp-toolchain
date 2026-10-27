@@ -45,6 +45,9 @@ readonly CROSS_TARGETS='common'
 #   The server's status is matched, never its reason phrase: snapshot.ubuntu.com answers 503 from nginx
 #   as "Service Unavailable" and from its load balancer as "No server is available to handle this request".
 readonly TRANSIENT_FAILURE='(Err:[0-9]+|Failed to fetch).* 5[0-9][0-9]( |$)|Connection timed out|Connection failed|Could not resolve|Temporary failure resolving|429 Too Many Requests|TLS handshake timeout|i/o timeout|connection reset by peer'
+# A base unit: the pause is this times the attempt number,
+# because a host shedding load recovers slower than a single pause covers.
+# Same shape as the outer loop in .github/workflows/docker-publish.yml.
 readonly RETRY_PAUSE_SECONDS=30
 
 # Layer cache, keyed <variant>:<stage> and valued by the tag that build exports.
@@ -246,8 +249,9 @@ for stage in "${stages[@]}"; do
             exit "${status}"
         fi
 
-        echo "::warning::${stage} [variant=${variant}]: transient fetch failure - retrying in ${RETRY_PAUSE_SECONDS}s" >&2
-        sleep "${RETRY_PAUSE_SECONDS}"
+        pause=$(( attempt * RETRY_PAUSE_SECONDS ))
+        echo "::warning::${stage} [variant=${variant}]: transient fetch failure - retrying in ${pause}s" >&2
+        sleep "${pause}"
         attempt=$(( attempt + 1 ))
     done
 done

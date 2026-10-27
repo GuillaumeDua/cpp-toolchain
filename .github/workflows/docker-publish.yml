@@ -434,7 +434,7 @@ jobs:
 
           # Read-only against the cache tags a merge to main maintains: one exporter per tag, and merges
           #   refresh them far more often than this workflow's fortnightly cron.
-          build() { bash scripts/internal/host/build-stages.sh --cache read --retries 2 "$@"; }
+          build() { bash scripts/internal/host/build-stages.sh --cache read --retries 3 "$@"; }
 
           stages() { python3 scripts/internal/host/check_release_file.py --print-stages "$1"; }
 

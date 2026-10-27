@@ -81,7 +81,7 @@ jobs:
           build() {
             local cache=read
             if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then cache=write; fi
-            bash scripts/internal/host/build-stages.sh --cache "${cache}" --retries 2 "$@"
+            bash scripts/internal/host/build-stages.sh --cache "${cache}" --retries 3 "$@"
           }
 
           stages() { python3 scripts/internal/host/check_release_file.py --print-stages "$1"; }

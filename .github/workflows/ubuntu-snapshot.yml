@@ -61,8 +61,8 @@ jobs:
       # A pull request GITHUB_TOKEN opens leaves its workflow runs in `action_required`,
       # waiting on a manual "Approve and run", so RELEASE_PR_TOKEN opens this one.
       #   `branch-token` keeps the push on GITHUB_TOKEN, so the PAT needs no `contents: write` - see docs/RELEASE_PROCESS.md.
-      #   A push under GITHUB_TOKEN fires no `synchronize`: a re-dispatch mid-month rewrites this pull
-      #   request while its checks still describe the previous snapshot.
+      # KNOWN-LIMITATION: a push under GITHUB_TOKEN fires no `synchronize`,
+      # so a re-dispatch mid-month rewrites this pull request while its checks still describe the previous snapshot.
       - name: Open the pull request
         if: steps.snapshot.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
