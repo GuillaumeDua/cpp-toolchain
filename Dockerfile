@@ -102,16 +102,20 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG UBUNTU_SNAPSHOT
 SHELL ["/bin/bash", "-c"]
 
-# DESIGN: Every stage installs from one host, snapshot.ubuntu.com, which answers 503 under load, and apt's
-# default is to carry on with the package list it managed to fetch - the install then fails on a
-# package the index never named.
-#   `Acquire::Retries` (apt.conf(5)) re-fetches a refused file instead.
-#   `Acquire::http::Timeout` (apt-transport-http(1)) "applies to the connection as well as the data
-#   timeout", so a connection that stops delivering is dropped for the retry to replace, while one
-#   that is merely slow keeps going.
-#   Written as configuration rather than as flags on each `apt-get` line: every stage inherits it,
-#   including the ones added later.
-RUN printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/99-acquire-retries
+# DESIGN: Every stage installs from one host, snapshot.ubuntu.com, which answers 503 under load.
+#   `APT::Update::Error-Mode "any"` makes a transient fetch failure an error.
+#   Its default, `persistent`, warns and carries on with the indices it fetched,
+#   leaving the install to fail on a package the partial index never named, or to resolve against a stale one.
+#   `Acquire::Retries` (apt.conf(5)) re-fetches a refused file.
+#   The pause between attempts is `1 << n` seconds capped at `Acquire::Retries::Delay::Maximum`, default 30s,
+#   so six attempts span a minute.
+#   `Acquire::http::Timeout` (apt-transport-http(1)) "applies to the connection as well as the data timeout",
+#   so a connection that stops delivering is dropped for the retry to replace,
+#   while one that is merely slow keeps going.
+#   Neither the backoff nor Error-Mode is in apt.conf(5): see `pkgAcquire::Worker::HandleFailure` and apt-pkg/update.cc.
+#   Written as configuration rather than as flags on each `apt-get` line:
+#   every stage inherits it, including the ones added later.
+RUN printf 'APT::Update::Error-Mode "any";\nAcquire::Retries "6";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/99-fetch-resilience
 
 # apt -> Ubuntu archive snapshot, so every stage below installs from a frozen archive.
 #
