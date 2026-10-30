@@ -222,6 +222,11 @@ One-off container</h1>
 <div class="line">docker run --rm --volume &quot;${PWD}:/src&quot; --workdir /src \</div>
 <div class="line">    ghcr.io/guillaumedua/cpp-toolchain:build-latest \</div>
 <div class="line">    g++ -std=c++23 main.cpp -o main</div>
+<div class="line"> </div>
+<div class="line"># Interactive shell, working directory mounted</div>
+<div class="line">docker run --rm --interactive --tty \</div>
+<div class="line">    --volume &quot;${PWD}:/workspace&quot; --workdir /workspace \</div>
+<div class="line">    ghcr.io/guillaumedua/cpp-toolchain:dev-latest</div>
 </div><!-- fragment --><h1 class="doxsection"><a class="anchor" id="visual-studio-code---dev-container"></a>
 Visual Studio Code - Dev container</h1>
 <p>Put a <span class="tt">.devcontainer/devcontainer.json</span> in <b>your</b> <span class="tt">vscode</span> project - the image reference is the whole file:</p>

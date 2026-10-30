@@ -356,8 +356,8 @@ What the release process assumes</h1>
 Setup prerequisites</h2>
 <ul>
 <li><b><span class="tt">RELEASE_PR_TOKEN</span></b> (repository secret) - a fine-grained PAT, <span class="tt">pull-requests: write</span> + <span class="tt">contents: read</span>. <br  />
- Used for exactly one call: creating the candidate PR. <br  />
- A PR created with <span class="tt">GITHUB_TOKEN</span> fires no <span class="tt">pull_request</span> events, so its validation checks would never run.</li>
+ Creates the candidate PR here, and the snapshot bump PR in <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/ubuntu-snapshot.yml">ubuntu-snapshot.yml</a>; nothing else. <br  />
+ A PR created with <span class="tt">GITHUB_TOKEN</span> leaves its workflow runs in <span class="tt">action_required</span>, waiting on a manual "Approve and run".</li>
 <li><b><span class="tt">DOCKERHUB_USERNAME</span> / <span class="tt">DOCKERHUB_TOKEN</span></b> - read+write is sufficient; nothing deletes registry content anymore.</li>
 <li>Branch protection on <span class="tt">main</span> requiring the <span class="tt">validate-candidate</span> check.</li>
 <li>The candidate PR must be <b>merged by a human</b> (or native auto-merge enabled by one) - a merge performed with <span class="tt">GITHUB_TOKEN</span> would suppress the push event that triggers promotion.</li>
