@@ -117,6 +117,20 @@ SHELL ["/bin/bash", "-c"]
 #   every stage inherits it, including the ones added later.
 RUN printf 'APT::Update::Error-Mode "any";\nAcquire::Retries "6";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/99-fetch-resilience
 
+# DESIGN: every apt-get below mounts /var/cache/apt as a build cache, so a package already downloaded
+#   for this snapshot installs from the mount rather than from the pool that answered 503.
+#   apt checks every file there against the index it just fetched, so an archive carried over from an
+#   earlier build cannot change which bytes are installed.
+#   The base image ships /etc/apt/apt.conf.d/docker-clean, whose post-invoke hooks delete
+#   /var/cache/apt/archives/*.deb after every apt-get run, which would leave the mount empty.
+#   Only that deletion is in the way, so the two Dir::Cache settings the same file carries are restated:
+#   pkgcache.bin and srcpkgcache.bin stay off, and the mount holds nothing but the .debs it exists for.
+#   Docker's example pairs the removal with `Binary::apt::APT::Keep-Downloaded-Packages "true"`
+#   (https://docs.docker.com/reference/dockerfile/#run---mounttypecache) instead. That one is scoped to
+#   the `apt` binary, which nothing here calls, and `apt-get` already keeps what it downloads.
+RUN rm -f /etc/apt/apt.conf.d/docker-clean \
+    && printf 'Dir::Cache::pkgcache "";\nDir::Cache::srcpkgcache "";\n' > /etc/apt/apt.conf.d/99-no-binary-caches
+
 # apt -> Ubuntu archive snapshot, so every stage below installs from a frozen archive.
 #
 #   snapshot.ubuntu.com is HTTPS-only and the base image has no CA bundle, so ca-certificates comes from the live archive first.
@@ -132,7 +146,8 @@ RUN printf 'APT::Update::Error-Mode "any";\nAcquire::Retries "6";\nAcquire::http
 #   and drag libstdc++6 and friends back down to their Ubuntu archive versions.
 #
 #   This is what prevents build failures such as "The following packages have unmet dependencies: libssl-dev : Depends: libssl3t64 (= 3.0.13-0ubuntu3.11) but 3.0.13-0ubuntu3.12 is to be installed"
-RUN apt-get update -qqy                                                                             \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update -qqy                                                                             \
     && apt-get install -qqy --no-install-recommends ca-certificates                                 \
     && for src in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do                  \
            [[ -f "${src}" ]] && sed -i -E                                                           \
@@ -167,7 +182,8 @@ COPY ./scripts/install/gcc.sh  ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
-RUN scripts_dir=${TOOLCHAIN_TMP_DIR}/scripts;                                               \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    scripts_dir=${TOOLCHAIN_TMP_DIR}/scripts;                                               \
     echo -e "[C++ toolchain] Installing the C++ runtimes, libc++ from LLVM_VERSIONS=[$LLVM_VERSIONS] ..."; \
     apt-get update -qqy                                                                     \
     && apt-get install -qqy --no-install-recommends                                         \
@@ -197,7 +213,8 @@ ARG TOOLCHAIN_TMP_DIR
 #   remote access is an opt-in layer (see ssh_support.dockerfile).
 #   sudo serves that same layer and has no caller in any published image:
 #   it backs the sudoer `vscodeuser` that ssh_support.dockerfile adds.
-RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         ca-certificates debian-keyring                      \
         gpg gpg-agent gnupg                                 \
         software-properties-common lsb-release apt-utils    \
@@ -222,7 +239,8 @@ RUN git config --system --add safe.directory '*'
 # C++ toolchain: native libc dev headers.
 #   Cross-arch toolchains (opt-in, per target) are installed at the end of this stage by binutils.sh,
 #   so the expensive layers below stay shared between the normal and cross-arch image variants.
-RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         libc6-dev                                              \
     && rm -rf /var/lib/apt/lists/*
 
@@ -234,7 +252,8 @@ COPY ./scripts/lib/shared.sh ${TOOLCHAIN_TMP_DIR}/lib/shared.sh
 COPY ./scripts/install/cmake.sh ${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG CMAKE_VERSION
-RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh;                          \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    script_path=${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh;                          \
     echo -e "[C++ toolchain] Installing CMAKE_VERSION=[$CMAKE_VERSION] ..." ;   \
     chmod +x ${script_path}                                                     \
     && ${script_path} --silent=yes --alias=yes --versions="$CMAKE_VERSION"      \
@@ -246,7 +265,8 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/cmake.sh;                          
 COPY ./scripts/install/bazel.sh ${TOOLCHAIN_TMP_DIR}/scripts/bazel.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG OPT_IN_INTEGRATE_BAZEL='no'
-RUN if [[ "${OPT_IN_INTEGRATE_BAZEL}" =~ ^([Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee])$ ]]; then    \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    if [[ "${OPT_IN_INTEGRATE_BAZEL}" =~ ^([Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee])$ ]]; then    \
         script_path=${TOOLCHAIN_TMP_DIR}/scripts/bazel.sh;                                    \
         echo -e "[C++ toolchain] Installing Bazel ...";                                       \
         chmod +x ${script_path}                                                               \
@@ -265,7 +285,7 @@ RUN \
     && /opt/vcpkg/bootstrap-vcpkg.sh -disableMetrics            \
     && ln -s /opt/vcpkg/vcpkg /usr/local/bin/vcpkg
 ARG CONAN_VERSION
-RUN \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # conan (with work-around for pip "error: externally-managed-environment")
     apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         pipx                                                    \
@@ -278,7 +298,8 @@ RUN \
 COPY ./scripts/install/gcc.sh ${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG GCC_VERSIONS
-RUN apt-get update -qqy                                                       \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update -qqy                                                       \
     && script_path=${TOOLCHAIN_TMP_DIR}/scripts/gcc.sh                        \
     && echo -e "[C++ toolchain] Installing GCC_VERSIONS=[$GCC_VERSIONS] ..."  \
     && chmod +x ${script_path}                                               \
@@ -291,7 +312,8 @@ RUN apt-get update -qqy                                                       \
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
-RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           \
     echo -e "[C++ toolchain] Installing LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ;   \
     chmod +x ${script_path}                                                     \
     && ${script_path} --silent=yes --alias=yes --mode=minimalistic --versions="$LLVM_VERSIONS"
@@ -304,7 +326,8 @@ COPY ./scripts/install/build2.sh ${TOOLCHAIN_TMP_DIR}/scripts/build2.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG BUILD2_VERSION
 ARG OPT_IN_INTEGRATE_BUILD2='no'
-RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" =~ ^([Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee])$ ]]; then    \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    if [[ "${OPT_IN_INTEGRATE_BUILD2}" =~ ^([Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee])$ ]]; then    \
         script_path=${TOOLCHAIN_TMP_DIR}/scripts/build2.sh;                                   \
         echo -e "[C++ toolchain] Installing BUILD2_VERSION=[$BUILD2_VERSION] ...";            \
         chmod +x ${script_path}                                                               \
@@ -320,7 +343,8 @@ RUN if [[ "${OPT_IN_INTEGRATE_BUILD2}" =~ ^([Yy]|[Yy][Ee][Ss]|1|[Tt][Rr][Uu][Ee]
 COPY ./scripts/install/binutils.sh ${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG BINUTILS_TARGETS=''
-RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh;                                              \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    script_path=${TOOLCHAIN_TMP_DIR}/scripts/binutils.sh;                                              \
     echo -e "[C++ toolchain] Installing cross toolchains BINUTILS_TARGETS=[$BINUTILS_TARGETS] ...";    \
     chmod +x ${script_path}                                                                            \
     && ${script_path} --silent=yes --targets="$BINUTILS_TARGETS"                                       \
@@ -404,7 +428,8 @@ ARG TOOLCHAIN_TMP_DIR
 #              the archive's own major, and dpkg replaces whatever update-alternatives registered there.
 #   Running the LLVM install after it restores them, because --install takes over an existing symlink.
 # TODO: sonarlint
-RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         cppcheck \
         iwyu \
     && rm -rf /var/lib/apt/lists/*
@@ -423,7 +448,8 @@ COPY ./scripts/lib/shared.sh ${TOOLCHAIN_TMP_DIR}/lib/shared.sh
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
-RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                   \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                   \
     echo -e "[C++ analysis] Installing LLVM tools LLVM_VERSIONS=[$LLVM_VERSIONS] ..." ; \
     chmod +x ${script_path}                                                             \
     && ${script_path} --silent=yes --alias=yes --mode=full --versions="$LLVM_VERSIONS"  \
@@ -467,7 +493,8 @@ COPY ./scripts/lib/shared.sh ${TOOLCHAIN_TMP_DIR}/lib/shared.sh
 COPY ./scripts/install/llvm.sh ${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh
 WORKDIR ${TOOLCHAIN_TMP_DIR}
 ARG LLVM_VERSIONS
-RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                            \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                                            \
     echo -e "[C++ coverage] Installing LLVM coverage tools LLVM_VERSIONS=[$LLVM_VERSIONS] ...";  \
     chmod +x ${script_path}                                                                      \
     && ${script_path} --silent=yes --alias=yes --mode=coverage --versions="$LLVM_VERSIONS"       \
@@ -477,7 +504,8 @@ RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/llvm.sh;                           
 #   lcov (`genhtml`) covers the GCC coverage path of CMake `doc` targets; gcov ships with GCC already.
 ARG DOXYGEN_RELEASE
 COPY ./scripts/install/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
-RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends graphviz lcov \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update -qqy && apt-get install -qqy --no-install-recommends graphviz lcov \
     && rm -rf /var/lib/apt/lists/*                                                    \
     && chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh                               \
     && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}"                   \
@@ -510,7 +538,8 @@ ARG TOOLCHAIN_TMP_DIR
 # Tooling: documentation, dynamic analysis, debug, versioning extras, editors, misc.
 #   `dev` inherits `static-analysis`, not its `documentation` sibling, so the documentation tools are installed here too.
 #   A stage has a single FROM, and apt packages cannot be cleanly COPY --from'd.
-RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         # doxygen itself is installed as a pre-built binary below; graphviz -> `dot`, lcov -> coverage `genhtml`
         graphviz lcov                                       \
         valgrind                                            \
@@ -523,7 +552,8 @@ RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
 # Documentation: Doxygen pre-built binary, for the same reason graphviz is installed above.
 ARG DOXYGEN_RELEASE
 COPY ./scripts/install/doxygen.sh ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh
-RUN chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh \
     && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}" \
     && rm -rf /var/lib/apt/lists/*
 
@@ -535,7 +565,8 @@ RUN chmod +x ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh \
 #   TODO: compare this .zshrc against what zsh-in-docker generates for this configuration.
 ARG OHMYZSH_COMMIT
 ARG POWERLEVEL10K_VERSION
-RUN apt-get update -qqy && apt-get install -qqy --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         bash zsh locales                                                \
     && rm -rf /var/lib/apt/lists/*                                      \
     # oh-my-zsh, pinned by commit: the repository publishes no tags at all.

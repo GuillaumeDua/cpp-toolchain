@@ -70,6 +70,9 @@ bash scripts/internal/host/build-stages.sh --variant cross --cache none \
   $(python3 scripts/internal/host/check_release_file.py --print-stages cross)
 ```
 
+The apt install steps mount `/var/cache/apt` as a build cache, so BuildKit is required.
+It is the default since Docker 23; `DOCKER_BUILDKIT=0` selects the legacy builder, which rejects `RUN --mount`.
+
 `build-stages.sh` calls `docker buildx build`. Without buildx, drive `docker build` over the same stage lists:
 
 ```bash

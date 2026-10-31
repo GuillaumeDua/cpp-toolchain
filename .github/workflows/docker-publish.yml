@@ -407,8 +407,36 @@ jobs:
           echo "the release note renders, and .github/release.yml parses"
 
       - name: Set up Docker Buildx
+        id: buildx
         if: steps.changed.outputs.skip != 'true'
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      # Read-only against the apt archive a merge to main maintains, for the reason this job reads the
+      # layer cache without exporting it. docker-build.yml holds why the entry is keyed as it is.
+      - name: Prepare the apt archive
+        id: archive
+        if: steps.changed.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          snapshot=$(sed -n 's/^ARG UBUNTU_SNAPSHOT=//p' Dockerfile)
+          [ -n "${snapshot}" ] || { echo "::error::no ARG UBUNTU_SNAPSHOT=<value> in Dockerfile"; exit 1; }
+          mkdir -p .apt-cache
+          echo "key=apt-archive-${snapshot}" >> "${GITHUB_OUTPUT}"
+
+      - name: Restore the apt archive
+        if: steps.changed.outputs.skip != 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .apt-cache
+          key: ${{ steps.archive.outputs.key }}
+
+      - name: Inject the apt archive into the build cache
+        if: steps.changed.outputs.skip != 'true'
+        uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-map: '{".apt-cache": "/var/cache/apt"}'
+          skip-extraction: true
 
       - name: Log in to both registries
         if: steps.changed.outputs.skip != 'true'
