@@ -11,7 +11,8 @@ build
 *.pem
 *.key
 
-# Ignore all hidden files and directories (.git, .github, .devcontainer, .vscode, .claude, ...)
+# Ignore all hidden files and directories (.git, .github, .devcontainer, .vscode, .claude, ...),
+# which is also what keeps CI's .apt-cache out of the context.
 .*
 
 # Repository tooling - pin guard, release-note renderer, promotion-record schema, smoke test.
