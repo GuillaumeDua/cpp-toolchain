@@ -129,12 +129,15 @@ RUN printf 'APT::Update::Error-Mode "any";\nAcquire::Retries "6";\nAcquire::http
 #   earlier build cannot change which bytes are installed.
 #   The base image ships /etc/apt/apt.conf.d/docker-clean, whose post-invoke hooks delete
 #   /var/cache/apt/archives/*.deb after every apt-get run, which would leave the mount empty.
+#   Hook lists are additive, so the file has to be absent rather than overridden - it is moved aside
+#   instead of deleted, and `dev` and `documentation` put the original bytes back at their tails.
+#   /etc/apt is not a config directory, so nothing reads it where it lands and apt reports no notice.
 #   Only that deletion is in the way, so the two Dir::Cache settings the same file carries are restated:
 #   pkgcache.bin and srcpkgcache.bin stay off, and the mount holds nothing but the .debs it exists for.
 #   Docker's example pairs the removal with `Binary::apt::APT::Keep-Downloaded-Packages "true"`
 #   (https://docs.docker.com/reference/dockerfile/#run---mounttypecache) instead. That one is scoped to
 #   the `apt` binary, which nothing here calls, and `apt-get` already keeps what it downloads.
-RUN rm -f /etc/apt/apt.conf.d/docker-clean \
+RUN mv /etc/apt/apt.conf.d/docker-clean /etc/apt/docker-clean.disabled \
     && printf 'Dir::Cache::pkgcache "";\nDir::Cache::srcpkgcache "";\n' > /etc/apt/apt.conf.d/99-no-binary-caches
 
 # apt -> Ubuntu archive snapshot, so every stage below installs from a frozen archive.
@@ -517,6 +520,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && ${TOOLCHAIN_TMP_DIR}/scripts/doxygen.sh "${DOXYGEN_RELEASE}"                   \
     && rm -rf /var/lib/apt/lists/*
 
+# The base image's apt cleanup, restored for whoever runs apt in the published image: without it their
+#   own installs keep every .deb, which is what it exists to prevent.
+#   Only here and in `dev`, the two published stages nothing builds on top of - a stage with children
+#   would re-arm the post-invoke deletion for their mounted installs and empty the archive.
+#   Last layer of the stage, so no mounted apt-get runs under it. `validate-documentation` installs nothing.
+RUN cp /etc/apt/docker-clean.disabled /etc/apt/apt.conf.d/docker-clean
+
 WORKDIR /
 
 CMD ["/bin/bash"]
@@ -602,10 +612,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         "POWERLEVEL9K_STATUS_CROSS=true"                                \
         > "${HOME}/.zshrc"
 
-# Cleanup
+# Cleanup, and the base image's apt cleanup restored - see the `documentation` stage for why these two.
 RUN apt-get clean \
     && rm -rf ${TOOLCHAIN_TMP_DIR} \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && cp /etc/apt/docker-clean.disabled /etc/apt/apt.conf.d/docker-clean
 
 WORKDIR /
 
