@@ -732,9 +732,6 @@ def main():
                         help="the replacement block, for --replace-region")
     parser.add_argument("--when-absent", choices=["append", "prepend"], default="append",
                         help="where to put the block when the region is not there yet (default: append)")
-    parser.add_argument("--print-snapshot", action="store_true",
-                        help="print the Ubuntu archive snapshot the Dockerfile pins, and nothing else. "
-                             "The CI caches keyed on it read it here rather than matching the ARG themselves")
     parser.add_argument("--print-date", action="store_true",
                         help="print the date in a release body read on stdin, empty when it carries none (no --tag needed)")
     parser.add_argument("--dockerfile", default="Dockerfile")
@@ -746,15 +743,6 @@ def main():
             parser.error("--replace-region needs --with FILE")
         replacement = pathlib.Path(args.replacement).read_text(encoding="utf-8")
         print(replace_region(sys.stdin.read(), args.replace_region, replacement, args.when_absent))
-        return
-
-    if args.print_snapshot:
-        pins, _ = parse(pathlib.Path(args.dockerfile).read_text(encoding="utf-8"),
-                        pathlib.Path(args.renovate).read_text(encoding="utf-8"))
-        snapshot = pins.get("UBUNTU_SNAPSHOT")
-        if not snapshot:
-            raise SystemExit(f"::error::no ARG UBUNTU_SNAPSHOT=<value> in {args.dockerfile}")
-        print(snapshot)
         return
 
     if args.print_date:
