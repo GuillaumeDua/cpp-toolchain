@@ -122,6 +122,10 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build all stages (no push)
+        # The same hosts and the same failure as the publish path, so a stage tolerates as long an
+        # outage here - see docker-publish.yml, which states what the number spans.
+        env:
+          MAX_BUILD_ATTEMPTS: 7
         run: |
           set -euo pipefail
 
@@ -130,7 +134,7 @@ jobs:
           build() {
             local cache=read
             if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then cache=write; fi
-            bash scripts/internal/host/build-stages.sh --cache "${cache}" --retries 3 "$@"
+            bash scripts/internal/host/build-stages.sh --cache "${cache}" --retries "${MAX_BUILD_ATTEMPTS}" "$@"
           }
 
           stages() { python3 scripts/internal/host/check_release_file.py --print-stages "$1"; }

@@ -271,10 +271,12 @@ jobs:
   build-and-push:
     if: github.event_name != 'push'
     runs-on: ubuntu-24.04
-    # How many times the whole build is attempted - the upstream apt hosts are why.
-    # Job-level so the retry loop and the failure issue quote one number.
+    # How many times a stage is attempted - the upstream apt hosts are why.
+    # Job-level so build-stages.sh and the failure issue quote one number.
+    #   Seven spans about eighteen minutes of outage: each attempt spends a minute inside apt's own
+    #   retries, and build-stages.sh pauses `attempt * 30s` between them.
     env:
-      MAX_BUILD_ATTEMPTS: 3
+      MAX_BUILD_ATTEMPTS: 7
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -462,7 +464,16 @@ jobs:
 
           # Read-only against the cache tags a merge to main maintains: one exporter per tag, and merges
           #   refresh them far more often than this workflow's fortnightly cron.
-          build() { bash scripts/internal/host/build-stages.sh --cache read --retries 3 "$@"; }
+          # apt.llvm.org and snapshot.ubuntu.com both fail intermittently, and a fetch that fails twenty
+          #   minutes in would otherwise cost the whole window until the next cron, so a stage gets
+          #   MAX_BUILD_ATTEMPTS of them.
+          #   build-stages.sh retries a stage only where the log names a transient cause, so a package
+          #   that left the mirror still reports on the first attempt instead of after the whole backoff.
+          #   An attempt resumes at the failing layer: everything already solved is in the builder's local cache.
+          #   The backoff outlasts the throttling window apt.llvm.org applies (scripts/install/llvm.sh).
+          build() {
+            bash scripts/internal/host/build-stages.sh --cache read --retries "${MAX_BUILD_ATTEMPTS}" "$@"
+          }
 
           stages() { python3 scripts/internal/host/check_release_file.py --print-stages "$1"; }
 
@@ -471,27 +482,10 @@ jobs:
           #   and the layers these solves build are the ones the pushes then reuse from the local cache.
           # Normal variant first, so its shared toolchain layers populate the local cache the cross pass reuses.
           #   `runtime` carries no toolchain, so it gets no cross variant (a cross runtime would be byte-identical).
-          publish_all_stages() {
-            build --variant normal --output cacheonly $(stages validate-normal) || return 1
-            build --variant cross  --output cacheonly $(stages validate-cross)  || return 1
-            build --variant normal --push --tags "${TAGS}" --metadata-dir build-metadata $(stages normal) || return 1
-            build --variant cross  --push --tags "${TAGS}" --metadata-dir build-metadata $(stages cross)  || return 1
-          }
-
-          # apt.llvm.org and snapshot.ubuntu.com both fail intermittently,
-          #   and a fetch that fails twenty minutes in would otherwise cost the whole window until the next cron.
-          #   A retry resumes at the failing layer: everything already solved is in the builder's local cache.
-          #   The backoff outlasts the throttling window apt.llvm.org applies (scripts/install/llvm.sh).
-          attempt=1
-          until publish_all_stages; do
-            if [ "${attempt}" -ge "${MAX_BUILD_ATTEMPTS}" ]; then
-              echo "::error::every one of the ${MAX_BUILD_ATTEMPTS} build attempts failed"
-              exit 1
-            fi
-            echo "::warning::build attempt ${attempt}/${MAX_BUILD_ATTEMPTS} failed - retrying in $(( attempt * 60 ))s"
-            sleep $(( attempt * 60 ))
-            attempt=$(( attempt + 1 ))
-          done
+          build --variant normal --output cacheonly $(stages validate-normal)
+          build --variant cross  --output cacheonly $(stages validate-cross)
+          build --variant normal --push --tags "${TAGS}" --metadata-dir build-metadata $(stages normal)
+          build --variant cross  --push --tags "${TAGS}" --metadata-dir build-metadata $(stages cross)
 
       # The only place these answers exist: GCC and Clang pin a major and install from rolling apt
       # sources, the standard libraries arrive as dependencies with no pin at all, and which stage
@@ -736,7 +730,7 @@ jobs:
               echo "- intended tag: ${PRIMARY:-(not resolved - the run failed before the tag was computed)}"
               echo "- run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
               echo
-              echo "The build is attempted ${MAX_BUILD_ATTEMPTS} times with a backoff before this fires,"
+              echo "A stage is attempted ${MAX_BUILD_ATTEMPTS} times with a backoff before this fires,"
               echo "so a single upstream blip does not reach here: read the log before re-running."
               echo
               echo "Re-run it with:"
