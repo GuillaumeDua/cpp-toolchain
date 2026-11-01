@@ -206,7 +206,7 @@ host/</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">check_dependencies_pins.py</span>  </td><td class="markdownTableBodyNone">Asserts every global <span class="tt">ARG</span> is pinned to a single exact version, matched by a <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/renovate.json">renovate.json</a> manager, and not shadowed by a stage-local re-declaration  </td></tr>
 <tr class="markdownTableRowEven">
-<td class="markdownTableBodyNone"><span class="tt">check_action_pins.py</span>  </td><td class="markdownTableBodyNone">Asserts every third-party GitHub Action a workflow or composite action uses is pinned to a commit digest, carrying the tag it was pinned from  </td></tr>
+<td class="markdownTableBodyNone"><span class="tt">check_action_pins.py</span>  </td><td class="markdownTableBodyNone">Asserts every third-party GitHub Action a workflow or composite action uses is pinned to a commit digest, carrying the tag it was pinned from, and that one repository is pinned at one digest across the tree  </td></tr>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">check_dockerhub_description.py</span>  </td><td class="markdownTableBodyNone">Asserts the two texts in <a href="https://github.com/GuillaumeDua/cpp-toolchain/tree/main/.github/dockerhub">.github/dockerhub/</a> fit what Docker Hub accepts: the byte limits it truncates past, absolute link targets, and no GitHub alert block. <span class="tt">--print-short</span> hands <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/.github/workflows/dockerhub-description.yml">dockerhub-description.yml</a> the short description it publishes  </td></tr>
 <tr class="markdownTableRowEven">

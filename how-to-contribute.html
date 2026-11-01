@@ -253,7 +253,8 @@ What the build gate checks</h1>
 <div class="line"> </div>
 <div class="line">bash scripts/internal/host/build-stages.sh --variant cross --cache none \</div>
 <div class="line">  $(python3 scripts/internal/host/check_release_file.py --print-stages cross)</div>
-</div><!-- fragment --><p><span class="tt">build-stages.sh</span> calls <span class="tt">docker buildx build</span>. Without buildx, drive <span class="tt">docker build</span> over the same stage lists:</p>
+</div><!-- fragment --><p>The apt install steps mount <span class="tt">/var/cache/apt</span> as a build cache, so BuildKit is required. It is the default since Docker 23; <span class="tt">DOCKER_BUILDKIT=0</span> selects the legacy builder, which rejects <span class="tt">RUN --mount</span>.</p>
+<p><span class="tt">build-stages.sh</span> calls <span class="tt">docker buildx build</span>. Without buildx, drive <span class="tt">docker build</span> over the same stage lists:</p>
 <div class="fragment"><div class="line">for stage in $(python3 scripts/internal/host/check_release_file.py --print-stages normal); do</div>
 <div class="line">  docker build --target &quot;$stage&quot; .</div>
 <div class="line">done</div>
