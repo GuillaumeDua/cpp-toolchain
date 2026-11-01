@@ -24,6 +24,8 @@
 #   --output        cacheonly solves the stage for its exit status without producing an image.
 #   --retries       attempts per stage. Above 1, a build that failed on a transient fetch error is
 #                   retried; any other failure stops on the first attempt. Default 1.
+#                   Both workflows pass their MAX_BUILD_ATTEMPTS, where the count and the outage it
+#                   spans are stated.
 #   --push          tags for every registry and pushes. Requires --tags and --metadata-dir.
 #   --print-digest  print the digest --push recorded for one stage, and build nothing. Reads the file
 #                   --variant and --metadata-dir name between them, so no caller spells that name.
@@ -47,7 +49,8 @@ readonly CROSS_TARGETS='common'
 readonly TRANSIENT_FAILURE='(Err:[0-9]+|Failed to fetch).* 5[0-9][0-9]( |$)|Connection timed out|Connection failed|Could not resolve|Temporary failure resolving|429 Too Many Requests|TLS handshake timeout|i/o timeout|connection reset by peer'
 # A base unit: the pause is this times the attempt number,
 # because a host shedding load recovers slower than a single pause covers.
-# Same shape as the outer loop in .github/workflows/docker-publish.yml.
+# It grows so that the attempt count alone sets how long an outage a stage survives:
+# n attempts span the apt retries inside each one plus `30 * n * (n - 1) / 2` seconds of pauses.
 readonly RETRY_PAUSE_SECONDS=30
 
 # Layer cache, keyed <variant>:<stage> and valued by the tag that build exports.
