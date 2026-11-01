@@ -271,10 +271,14 @@ jobs:
   build-and-push:
     if: github.event_name != 'push'
     runs-on: ubuntu-24.04
+    # Observed runs take up to 13 minutes. The retry budget bounds what one build-stages.sh invocation
+    # spends waiting, and this job makes four, so this is the backstop over all of them.
+    timeout-minutes: 120
     # How many times a stage is attempted - the upstream apt hosts are why.
     # Job-level so build-stages.sh and the failure issue quote one number.
-    #   Seven spans about eighteen minutes of outage: each attempt spends a minute inside apt's own
-    #   retries, and build-stages.sh pauses `attempt * 30s` between them.
+    #   Seven is what build-stages.sh turns into both the per-stage ladder of pauses and the ceiling on
+    #   what one invocation may spend waiting; the comment at RETRY_PAUSE_SECONDS has the arithmetic.
+    #   What an attempt itself costs varies by stage, since the install scripts override Acquire::Retries.
     env:
       MAX_BUILD_ATTEMPTS: 7
     steps:
@@ -415,15 +419,12 @@ jobs:
 
       # Read-only against the apt archive a merge to main maintains, for the reason this job reads the
       # layer cache without exporting it. docker-build.yml holds why the entry is keyed as it is.
-      - name: Prepare the apt archive
+      - name: Resolve the apt archive key
         id: archive
         if: steps.changed.outputs.skip != 'true'
         run: |
           set -euo pipefail
-          snapshot=$(sed -n 's/^ARG UBUNTU_SNAPSHOT=//p' Dockerfile)
-          [ -n "${snapshot}" ] || { echo "::error::no ARG UBUNTU_SNAPSHOT=<value> in Dockerfile"; exit 1; }
-          mkdir -p .apt-cache
-          echo "key=apt-archive-${snapshot}" >> "${GITHUB_OUTPUT}"
+          echo "key=apt-archive-$(python3 scripts/internal/host/render_manifest.py --print-snapshot)" >> "${GITHUB_OUTPUT}"
 
       - name: Restore the apt archive
         if: steps.changed.outputs.skip != 'true'
@@ -466,14 +467,9 @@ jobs:
           #   refresh them far more often than this workflow's fortnightly cron.
           # apt.llvm.org and snapshot.ubuntu.com both fail intermittently, and a fetch that fails twenty
           #   minutes in would otherwise cost the whole window until the next cron, so a stage gets
-          #   MAX_BUILD_ATTEMPTS of them.
-          #   build-stages.sh retries a stage only where the log names a transient cause, so a package
-          #   that left the mirror still reports on the first attempt instead of after the whole backoff.
+          #   MAX_BUILD_ATTEMPTS of them. build-stages.sh decides which failures earn one.
           #   An attempt resumes at the failing layer: everything already solved is in the builder's local cache.
-          #   The backoff outlasts the throttling window apt.llvm.org applies (scripts/install/llvm.sh).
-          build() {
-            bash scripts/internal/host/build-stages.sh --cache read --retries "${MAX_BUILD_ATTEMPTS}" "$@"
-          }
+          build() { bash scripts/internal/host/build-stages.sh --cache read --retries "${MAX_BUILD_ATTEMPTS}" "$@"; }
 
           stages() { python3 scripts/internal/host/check_release_file.py --print-stages "$1"; }
 

@@ -24,8 +24,8 @@
 #   --output        cacheonly solves the stage for its exit status without producing an image.
 #   --retries       attempts per stage. Above 1, a build that failed on a transient fetch error is
 #                   retried; any other failure stops on the first attempt. Default 1.
-#                   Both workflows pass their MAX_BUILD_ATTEMPTS, where the count and the outage it
-#                   spans are stated.
+#                   It also sets the ceiling on what the whole invocation may spend waiting - see
+#                   RETRY_PAUSE_SECONDS. Both workflows pass their MAX_BUILD_ATTEMPTS.
 #   --push          tags for every registry and pushes. Requires --tags and --metadata-dir.
 #   --print-digest  print the digest --push recorded for one stage, and build nothing. Reads the file
 #                   --variant and --metadata-dir name between them, so no caller spells that name.
@@ -46,11 +46,12 @@ readonly CROSS_TARGETS='common'
 #   delays the report.
 #   The server's status is matched, never its reason phrase: snapshot.ubuntu.com answers 503 from nginx
 #   as "Service Unavailable" and from its load balancer as "No server is available to handle this request".
-readonly TRANSIENT_FAILURE='(Err:[0-9]+|Failed to fetch).* 5[0-9][0-9]( |$)|Connection timed out|Connection failed|Could not resolve|Temporary failure resolving|429 Too Many Requests|TLS handshake timeout|i/o timeout|connection reset by peer'
+#   `unexpected status` is buildx's own wording, so a registry that sheds a push or a cache import is
+#   retried too: --push runs here, and a 5xx from GHCR is as transient as one from an apt mirror.
+#   A 403 or an authentication failure carries no 5xx and so still reports at once.
+readonly TRANSIENT_FAILURE='(Err:[0-9]+|Failed to fetch|unexpected status).* 5[0-9][0-9]( |$)|Connection timed out|Connection failed|Could not resolve|Temporary failure resolving|429 Too Many Requests|TLS handshake timeout|i/o timeout|connection reset by peer'
 # A base unit: the pause is this times the attempt number,
 # because a host shedding load recovers slower than a single pause covers.
-# It grows so that the attempt count alone sets how long an outage a stage survives:
-# n attempts span the apt retries inside each one plus `30 * n * (n - 1) / 2` seconds of pauses.
 readonly RETRY_PAUSE_SECONDS=30
 
 # Layer cache, keyed <variant>:<stage> and valued by the tag that build exports.
@@ -180,6 +181,13 @@ if [ "${retries}" -gt 1 ]; then
     trap 'rm -f "${build_log}"' EXIT
 fi
 
+# --retries is per stage, so a list of fourteen would otherwise sleep for hours on an outage that is
+# intermittent rather than sustained, each stage spending its own ladder of pauses.
+# One ladder is the whole invocation's budget: the first stage to suffer may spend all of it, and a
+# later one gets what is left instead of starting a ladder of its own.
+pause_budget=$(( RETRY_PAUSE_SECONDS * retries * (retries - 1) / 2 ))
+pause_spent=0
+
 for stage in "${stages[@]}"; do
     build_args=(
         --file Dockerfile
@@ -253,8 +261,14 @@ for stage in "${stages[@]}"; do
         fi
 
         pause=$(( attempt * RETRY_PAUSE_SECONDS ))
+        if [ $(( pause_spent + pause )) -gt "${pause_budget}" ]; then
+            echo "::error::${stage} [variant=${variant}]: the ${pause_budget}s retry budget for this invocation is spent - check whether the hosts these stages install from are degraded" >&2
+            exit "${status}"
+        fi
+
         echo "::warning::${stage} [variant=${variant}]: transient fetch failure - retrying in ${pause}s" >&2
         sleep "${pause}"
+        pause_spent=$(( pause_spent + pause ))
         attempt=$(( attempt + 1 ))
     done
 done
