@@ -14,9 +14,18 @@ Invariants:
     A bare 40-hex sha says nothing to a reviewer,
     so the tag it resolved from rides along as a trailing comment.
 
-`helpers:pinGitHubActionDigestsToSemver` in renovate.json produces both, so this asserts the tree still
-looks like Renovate's output rather than enforcing a second convention. The comment is deliberately not
-matched against a version shape: what it should say is Renovate's to decide.
+- nothing disagrees
+
+    One repository, one digest.
+    `actions/cache` and `actions/cache/restore` are the same repository,
+    so a ref that stops being updated leaves two versions of one action in the tree,
+    which neither site shows on its own.
+
+`helpers:pinGitHubActionDigestsToSemver` in renovate.json produces the first two, so they assert the tree
+still looks like Renovate's output rather than enforcing a second convention.
+The comment is deliberately not matched against a version shape: what it should say is Renovate's to decide.
+The third is this repository's own: the github-actions manager documents the subdirectory form with a tag
+rather than with a digest, so whether Renovate moves a digest-pinned subpath is not something to assume.
 
 Local `./.github/actions/...` references are exempt: they resolve to the commit under test, which is already exact.
 
@@ -38,13 +47,18 @@ import sys
 # A step's `uses:`, with or without the list dash, and with the digest pin's trailing `# <tag>` if present.
 USES = re.compile(r"^\s*(?:-\s*)?uses:\s*(?P<ref>\S+)(?:\s+#\s*(?P<tag>\S+))?\s*$")
 
-PINNED = re.compile(r"^(?P<action>[^@]+)@[0-9a-f]{40}$")
+PINNED = re.compile(r"^(?P<action>[^@]+)@(?P<digest>[0-9a-f]{40})$")
+
+
+def repository(action):
+    """The repository an action path belongs to, which is what carries the digest."""
+    return "/".join(action.split("/")[:2])
 
 
 def check(path):
-    """([(lineno, message)], pinned count) for one workflow or composite action file."""
+    """([(lineno, message)], [(lineno, ref, repository, digest)]) for one workflow or composite action file."""
     problems = []
-    pinned = 0
+    pins = []
 
     for lineno, line in enumerate(path.read_text(encoding="utf-8").split("\n"), start=1):
         match = USES.match(line)
@@ -55,7 +69,8 @@ def check(path):
         if ref.startswith("./"):
             continue
 
-        if not PINNED.match(ref):
+        pin = PINNED.match(ref)
+        if not pin:
             action, _, tag = ref.partition("@")
             problems.append((
                 lineno,
@@ -72,9 +87,9 @@ def check(path):
             ))
             continue
 
-        pinned += 1
+        pins.append((lineno, ref, repository(pin.group("action")), pin.group("digest")))
 
-    return problems, pinned
+    return problems, pins
 
 
 def sources(workflows, actions):
@@ -93,25 +108,44 @@ def main():
     # Annotations render inline on the diff under Actions; plain text is more readable in a terminal.
     on_actions = bool(os.environ.get("GITHUB_ACTIONS"))
 
+    def report(path, lineno, message):
+        if on_actions:
+            print(f"::error file={path},line={lineno}::{message}")
+        else:
+            print(f"{path}:{lineno}: error: {message}", file=sys.stderr)
+
     violations = 0
     pinned = 0
     files = 0
+    # <repository> -> <digest> -> [(path, lineno, ref)], which the last invariant reads across files.
+    digests = {}
 
     for path in sources(args.workflows, args.actions):
         files += 1
-        problems, found = check(path)
-        pinned += found
+        problems, pins = check(path)
+        pinned += len(pins)
+        for lineno, ref, repo, digest in pins:
+            digests.setdefault(repo, {}).setdefault(digest, []).append((path, lineno, ref))
         for lineno, message in problems:
-            if on_actions:
-                print(f"::error file={path},line={lineno}::{message}")
-            else:
-                print(f"{path}:{lineno}: error: {message}", file=sys.stderr)
+            report(path, lineno, message)
             violations += 1
+
+    for repo, by_digest in sorted(digests.items()):
+        if len(by_digest) == 1:
+            continue
+        for digest, locations in sorted(by_digest.items()):
+            others = sorted(other[:12] for other in by_digest if other != digest)
+            for path, lineno, ref in locations:
+                report(path, lineno,
+                       f"{ref} pins {repo} at {digest[:12]}, and it is also pinned at "
+                       f"{', '.join(others)} - one repository carries one digest")
+                violations += 1
 
     if violations:
         return 1
 
-    print(f"{pinned} action ref(s) pinned to a digest across {files} file(s)")
+    print(f"{pinned} action ref(s) pinned to a digest across {files} file(s), "
+          f"{len(digests)} repositories at one digest each")
     return 0
 
 
