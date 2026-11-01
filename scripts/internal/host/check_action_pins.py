@@ -17,15 +17,16 @@ Invariants:
 - nothing disagrees
 
     One repository, one digest.
-    `actions/cache` and `actions/cache/restore` are the same repository,
-    so a ref that stops being updated leaves two versions of one action in the tree,
-    which neither site shows on its own.
+    `actions/checkout` is pinned in seven files, so a half-applied update leaves two versions of one
+    action in the tree, which neither site shows on its own.
+    A subdirectory ref such as `actions/cache/restore` belongs to the same repository as `actions/cache`
+    and is held to the same digest.
 
 `helpers:pinGitHubActionDigestsToSemver` in renovate.json produces the first two, so they assert the tree
 still looks like Renovate's output rather than enforcing a second convention.
 The comment is deliberately not matched against a version shape: what it should say is Renovate's to decide.
-The third is this repository's own: the github-actions manager documents the subdirectory form with a tag
-rather than with a digest, so whether Renovate moves a digest-pinned subpath is not something to assume.
+The third is this repository's own, and it holds whichever way Renovate behaves: a divergence is a red
+check needing a hand edit rather than something the guard maintains.
 
 Local `./.github/actions/...` references are exempt: they resolve to the commit under test, which is already exact.
 
