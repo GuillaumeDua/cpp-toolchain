@@ -47,16 +47,16 @@ import sys
 # A step's `uses:`, with or without the list dash, and with the digest pin's trailing `# <tag>` if present.
 USES = re.compile(r"^\s*(?:-\s*)?uses:\s*(?P<ref>\S+)(?:\s+#\s*(?P<tag>\S+))?\s*$")
 
-PINNED = re.compile(r"^(?P<action>[^@]+)@(?P<digest>[0-9a-f]{40})$")
+PINNED = re.compile(r"^[^@]+@[0-9a-f]{40}$")
 
 
-def repository(action):
-    """The repository an action path belongs to, which is what carries the digest."""
-    return "/".join(action.split("/")[:2])
+def repository(ref):
+    """The repository a pinned ref belongs to, which is what carries the digest."""
+    return "/".join(ref.split("@")[0].split("/")[:2])
 
 
 def check(path):
-    """([(lineno, message)], [(lineno, ref, repository, digest)]) for one workflow or composite action file."""
+    """([(lineno, message)], [(lineno, ref)]) for one workflow or composite action file."""
     problems = []
     pins = []
 
@@ -69,8 +69,7 @@ def check(path):
         if ref.startswith("./"):
             continue
 
-        pin = PINNED.match(ref)
-        if not pin:
+        if not PINNED.match(ref):
             action, _, tag = ref.partition("@")
             problems.append((
                 lineno,
@@ -87,7 +86,7 @@ def check(path):
             ))
             continue
 
-        pins.append((lineno, ref, repository(pin.group("action")), pin.group("digest")))
+        pins.append((lineno, ref))
 
     return problems, pins
 
@@ -124,8 +123,9 @@ def main():
         files += 1
         problems, pins = check(path)
         pinned += len(pins)
-        for lineno, ref, repo, digest in pins:
-            digests.setdefault(repo, {}).setdefault(digest, []).append((path, lineno, ref))
+        for lineno, ref in pins:
+            action, _, digest = ref.partition("@")
+            digests.setdefault(repository(action), {}).setdefault(digest, []).append((path, lineno, ref))
         for lineno, message in problems:
             report(path, lineno, message)
             violations += 1
@@ -133,19 +133,19 @@ def main():
     for repo, by_digest in sorted(digests.items()):
         if len(by_digest) == 1:
             continue
-        for digest, locations in sorted(by_digest.items()):
-            others = sorted(other[:12] for other in by_digest if other != digest)
+        short = ", ".join(sorted(digest[:12] for digest in by_digest))
+        for locations in by_digest.values():
             for path, lineno, ref in locations:
                 report(path, lineno,
-                       f"{ref} pins {repo} at {digest[:12]}, and it is also pinned at "
-                       f"{', '.join(others)} - one repository carries one digest")
+                       f"{repo} is pinned at {len(by_digest)} digests across the tree ({short}) "
+                       f"- one repository carries one digest")
                 violations += 1
 
     if violations:
         return 1
 
     print(f"{pinned} action ref(s) pinned to a digest across {files} file(s), "
-          f"{len(digests)} repositories at one digest each")
+          f"over {len(digests)} repositories")
     return 0
 
 

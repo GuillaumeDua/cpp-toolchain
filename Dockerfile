@@ -113,12 +113,18 @@ SHELL ["/bin/bash", "-c"]
 #   so a connection that stops delivering is dropped for the retry to replace,
 #   while one that is merely slow keeps going.
 #   Neither the backoff nor Error-Mode is in apt.conf(5): see `pkgAcquire::Worker::HandleFailure` and apt-pkg/update.cc.
-#   Written as configuration rather than as flags on each `apt-get` line:
-#   every stage inherits it, including the ones added later.
+#   Written as configuration rather than as flags on each `apt-get` line,
+#   so a stage added later inherits it.
+#   The scripts under scripts/install pass their own `-o Acquire::Retries=${max_attempts}`, which wins
+#   for the installs they drive: `Retries` here is what the apt-get lines in this file get.
 RUN printf 'APT::Update::Error-Mode "any";\nAcquire::Retries "6";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/99-fetch-resilience
 
-# DESIGN: every apt-get below mounts /var/cache/apt as a build cache, so a package already downloaded
-#   for this snapshot installs from the mount rather than from the pool that answered 503.
+# DESIGN: every apt-get below that installs a package mounts /var/cache/apt as a build cache, so a
+#   package already downloaded for this snapshot installs from the mount rather than from the pool
+#   that answered 503.
+#   WARNING: the two `apt-get clean` lines and the two validate stages must stay unmounted.
+#   `clean` would empty the shared archive on every build, and the validate stages only refresh an
+#   index, so a mount added there for consistency breaks the cache with nothing to show for it.
 #   apt checks every file there against the index it just fetched, so an archive carried over from an
 #   earlier build cannot change which bytes are installed.
 #   The base image ships /etc/apt/apt.conf.d/docker-clean, whose post-invoke hooks delete
