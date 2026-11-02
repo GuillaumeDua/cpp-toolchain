@@ -94,6 +94,8 @@ LABEL_GROUPS = (
         # The pin drives clang, lld, lldb, clangd and the analysis tools alike, so it is named
         # after the project rather than after the one command it is most often read as.
         ("llvm/llvm-project", "LLVM"),
+        # Directly under LLVM, which is the pin it has to move with.
+        ("include-what-you-use/include-what-you-use", "include-what-you-use"),
     )),
     ("build", (
         ("Kitware/CMake", "CMake"),

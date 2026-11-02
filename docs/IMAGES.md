@@ -81,7 +81,7 @@ jobs:
 
 ### Static analysis - `static-analysis`
 
-`clang-tidy`, `clang-format`, `cppcheck`, `scan-build` and `iwyu` answer to unversioned names from this stage onwards, not from `build`.
+`clang-tidy`, `clang-format`, `cppcheck`, `scan-build` and `include-what-you-use` answer to unversioned names from this stage onwards, not from `build`.
 
 ```yaml
 jobs:

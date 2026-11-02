@@ -316,7 +316,7 @@ Each fault below must turn the corresponding check red:
 | drop `libc++1` from `llvm.sh`'s `runtime_libraries_for` | the origin check, then parity, then `run /validate/libcxx` |
 | drop `-stdlib=libc++` from the `libcxx/` compile line | `inspect` and `run`, both naming the implementation they expected |
 | edit a version in `/validate/stdlib.expected` | parity alone, before a single binary runs |
-| move the `iwyu` install below the LLVM one in `static-analysis` | the command check, naming `/usr/bin/clang` and the major it points at |
+| `apt-get install -y clang` in `static-analysis` | the command check, naming `/usr/bin/clang` and the major it points at |
 
 ## What this deliberately does not check
 
