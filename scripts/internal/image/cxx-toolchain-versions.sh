@@ -120,16 +120,17 @@ toolchain_commands=(
     valgrind gdb
 )
 
-# vcpkg is a symlink into /opt, conan comes from pipx and doxygen is a pre-built binary under
-# /usr/local/bin, so dpkg owns none of the three and each has to state its own version.
+# vcpkg is a symlink into /opt, conan comes from pipx, and doxygen and include-what-you-use sit
+# under /usr/local/bin, so dpkg owns none of the four and each has to state its own version.
 declare -A version_flag=(
     [vcpkg]='version'
     [conan]='--version'
     [doxygen]='--version'
+    [include-what-you-use]='--version'
 )
 
-# The first dotted number a command prints. Loose on purpose: the three commands in version_flag
-# version line three different ways, and the number is the only part they agree on.
+# The first dotted number a command prints. Loose on purpose: the four commands in version_flag
+# version line four different ways, and the number is the only part they agree on.
 version_from_command(){
     local flag="${version_flag[$1]:-}"
     [ -n "${flag}" ] || return 0

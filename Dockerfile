@@ -58,6 +58,12 @@ ARG GCC_VERSIONS=15
 # renovate: datasource=github-releases depName=llvm/llvm-project extractVersion=^llvmorg-(?<version>\d+)\.\d+\.\d+$
 ARG LLVM_VERSIONS=22
 
+# include-what-you-use, built from source by scripts/build/iwyu.sh.
+#   One release builds against one clang major, so this moves with LLVM_VERSIONS above.
+#   A bump of one without the other fails the compile rather than shipping a mismatch.
+# renovate: datasource=github-tags depName=include-what-you-use/include-what-you-use
+ARG IWYU_VERSION=0.26
+
 # CMake, from apt.kitware.com.
 #   cmake.sh resolves this against `apt-cache madison`.
 #   The strict x.y.z tail drops release candidates (v4.4.0-rc3) rather than relying on Renovate's
@@ -432,15 +438,10 @@ SHELL ["/bin/bash", "-c"]
 ARG TOOLCHAIN_TMP_DIR
 
 # Dedicated static analyzers.
-#   QUICK-FIX: Before the LLVM install below, which is what keeps `clang` and `clang++` on LLVM_VERSIONS:
-#              iwyu depends on the archive's unversioned `clang` package, which ships both paths as symlinks to
-#              the archive's own major, and dpkg replaces whatever update-alternatives registered there.
-#   Running the LLVM install after it restores them, because --install takes over an existing symlink.
 # TODO: sonarlint
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         cppcheck \
-        iwyu \
     && rm -rf /var/lib/apt/lists/*
 
 # C++ toolchain: LLVM/Clang - full toolchain (clang-tidy, clang-format, clangd, lldb, scan-build).
@@ -463,6 +464,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     chmod +x ${script_path}                                                             \
     && ${script_path} --silent=yes --alias=yes --mode=full --versions="$LLVM_VERSIONS"  \
     && rm -rf /var/lib/apt/lists/*
+
+# Static analysis: include-what-you-use, from source.
+#   The apt package is built against the archive's own clang, so it drags two more frontends in,
+#   ~0.46 GB, to answer for a compiler this image does not have.
+#   Here rather than in a builder stage: `--mode=full` above already installed the three -dev
+#   packages the build reads, and they ship in this image anyway.
+COPY ./scripts/build/iwyu.sh ${TOOLCHAIN_TMP_DIR}/scripts/iwyu.sh
+ARG IWYU_VERSION
+RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/iwyu.sh;                                        \
+    echo -e "[C++ analysis] Building include-what-you-use IWYU_VERSION=[$IWYU_VERSION] ..." ; \
+    chmod +x ${script_path}                                                                   \
+    && ${script_path} --silent=yes --version="$IWYU_VERSION" --llvm-version="$LLVM_VERSIONS"
 
 WORKDIR /
 

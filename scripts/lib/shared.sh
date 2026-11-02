@@ -123,6 +123,15 @@ run(){
     return "${status}"
 }
 
+# `run`, timed. Reported on failure too, and through echo so a silent caller still gets the number.
+timed(){
+    local started=${SECONDS} status=0
+
+    run "$@" || status=$?
+    echo "[${this_script_name}]: $1 took $(( SECONDS - started ))s"
+    return "${status}"
+}
+
 # A third-party host can refuse a request transiently - that should not sink a whole image build.
 # Every step retried here is idempotent, and only the last attempt reports.
 run_with_retries(){

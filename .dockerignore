@@ -3,6 +3,8 @@
 # caching, which keys the COPY layers on the scripts/*.sh contents).
 
 # cache / editor
+#   `build` carries no slash, so it matches the root directory alone and leaves scripts/build/ in.
+#   `**/build` would take that out and break the static-analysis stage.
 .cache
 build
 

@@ -8,12 +8,13 @@ In this repository they source their shared helpers instead of carrying them, so
 | --------- | ----- | ---------------- |
 | [install/](install/) | **Public** - standalone | Toolchain installers - `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh`, `doxygen.sh`, `bazel.sh`, `build2.sh`. Reusable on any Debian/Ubuntu-based system, with no dependency on this repository. See [install/README.md](install/README.md) for the full option reference. |
 | [checks/](checks/) | **Public** - standalone | `cxx-standards.sh` - which C++ standards a compiler accepts. `cxx-stdlibs.sh` - which C++ standard libraries are installed, with the `SONAME` and ABI version a binary will need to find. `c-stdlibs.sh` - the same, for the C standard library. Point either at any machine, checkout or not. See [checks/README.md](checks/README.md). |
+| [build/](build/) | Internal | `iwyu.sh` - include-what-you-use, which upstream publishes as source only. Internal: it builds against an LLVM at a given prefix, not against an arbitrary host. |
 | [checks/details/](checks/details/) | Internal | The image validation gate, which runs *inside* a built image: it knows this repo's expected package origins and asks its installers what is present. See [docs/IMAGES_VALIDATION.md](../docs/IMAGES_VALIDATION.md). |
 | [lib/](lib/) | Internal | `shared.sh` - one body per helper, sourced by every `install/` and `checks/` script that uses one. A published copy carries the helpers it needs inlined instead, composed from this file. |
 | [internal/](internal/) | Internal | This repository's own tooling, split by where it runs: `host/` - the version-pin guard, the release-note renderer, the standalone composer and the promotion-record schema; `image/` - the version collector and the smoke test, bind-mounted into a built image. Not reusable: they parse this repo's `Dockerfile`, `renovate.json` and `releases/` records. See [internal/README.md](internal/README.md). |
 
-The [Dockerfile](../Dockerfile) copies in and runs the `install/` scripts, one per stage that needs one, and copies `scripts/` whole into the throwaway validate stages so `checks/` can run there.  
-`lib/` is copied in beside them, because the `install/` and `checks/` scripts source it and it has to reach every stage that runs one.
+The [Dockerfile](../Dockerfile) copies in and runs the `install/` and `build/` scripts, one per stage that needs one, and copies `scripts/` whole into the throwaway validate stages so `checks/` can run there.  
+`lib/` is copied in beside them, because the `install/`, `build/` and `checks/` scripts source it and it has to reach every stage that runs one.
 `internal/` is this repository's own tooling, which `.dockerignore` keeps out of the build context entirely - what has to reach a built image gets there by bind-mount instead.
 
 `checks/details/` is implementation detail of `checks/`, in the C++ sense of a nested `detail` namespace.
