@@ -42,14 +42,21 @@ readonly CROSS_TARGETS='common'
 # third-party host, and a refused or stalled request is not a broken tree.
 #   Keyed on the cause rather than on an exit status, because buildx answers 1 to every solve failure,
 #   and apt answers 100 to a 503 and to a package that does not exist alike.
+#   One alternative per fetcher, since each words a status its own way: apt `Err:1 ... 504`,
+#   `curl --fail` `returned error: 504`, wget `ERROR 503:`. wget 1.21 prints nothing at all for a 504
+#   under `--no-verbose`, so that one case stays unclassifiable.
 #   A 404 is deliberately absent: a version that left the mirror is a real error, and a retry only
 #   delays the report.
 #   The server's status is matched, never its reason phrase: snapshot.ubuntu.com answers 503 from nginx
 #   as "Service Unavailable" and from its load balancer as "No server is available to handle this request".
+<<<<<<< Updated upstream
 #   `unexpected status` is buildx's own wording, so a registry that sheds a push or a cache import is
 #   retried too: --push runs here, and a 5xx from GHCR is as transient as one from an apt mirror.
 #   A 403 or an authentication failure carries no 5xx and so still reports at once.
 readonly TRANSIENT_FAILURE='(Err:[0-9]+|Failed to fetch|unexpected status).* 5[0-9][0-9]( |$)|Connection timed out|Connection failed|Could not resolve|Temporary failure resolving|429 Too Many Requests|TLS handshake timeout|i/o timeout|connection reset by peer'
+=======
+readonly TRANSIENT_FAILURE='(Err:[0-9]+|Failed to fetch).* 5[0-9][0-9]( |$)|returned error: (429|5[0-9][0-9])|ERROR 5[0-9][0-9]:|Connection timed out|Connection failed|Could not resolve|Temporary failure resolving|429 Too Many Requests|TLS handshake timeout|i/o timeout|connection reset by peer'
+>>>>>>> Stashed changes
 # A base unit: the pause is this times the attempt number,
 # because a host shedding load recovers slower than a single pause covers.
 readonly RETRY_PAUSE_SECONDS=30

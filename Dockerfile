@@ -294,7 +294,8 @@ ARG VCPKG_VERSION
 RUN \
     # vcpkg, from a release tag rather than `master`: GitHub's tarball for a tag is immutable,
     # so the same VCPKG_VERSION always yields the same tree.
-    wget -qO vcpkg.tar.gz "https://github.com/microsoft/vcpkg/archive/refs/tags/${VCPKG_VERSION}.tar.gz" \
+    curl --fail --silent --show-error --location --retry 3 --output vcpkg.tar.gz \
+        "https://github.com/microsoft/vcpkg/archive/refs/tags/${VCPKG_VERSION}.tar.gz" \
     && mkdir /opt/vcpkg                                         \
     && tar xf vcpkg.tar.gz --strip-components=1 -C /opt/vcpkg   \
     && /opt/vcpkg/bootstrap-vcpkg.sh -disableMetrics            \
@@ -304,7 +305,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # conan (with work-around for pip "error: externally-managed-environment")
     apt-get update -qqy && apt-get install -qqy --no-install-recommends \
         pipx                                                    \
-    && (pipx install "conan==${CONAN_VERSION}" > /dev/null 2>&1) \
+    && (pipx install "conan==${CONAN_VERSION}" > /dev/null) \
     && rm -rf /var/lib/apt/lists/*
 
 # C++ toolchain: GNU/GCC
