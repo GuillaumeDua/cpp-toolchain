@@ -105,6 +105,8 @@ A tag is `<stage>[-cross]-<version>`: the **stage** picks *what is in the image*
 | `latest` (e.g. `build-latest`) | the newest release, major or minor | Newest **release** - what you want unless you know otherwise |
 | `v<major>.<minor>-rc.<n>` (e.g. `build-v1.2-rc.1`) | the twice-monthly **rc schedule** ([cadence](docs/RELEASE_PROCESS.md)), from `main` | A **release candidate** for the next minor: *ahead of* `latest`, so upstream breakage surfaces before it reaches a release. Never aliased to `latest` |
 
+No tag tracks `main` continuously: there is no (more) rolling or `experimental` channel.
+
 The three channels differ in *who decides*, not in what they contain:
 
 - **major** = the image contract changed - a base-image bump, a stage added or removed, a tool dropped.
