@@ -337,6 +337,7 @@ Tags &amp; versioning</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">v&lt;major&gt;.&lt;minor&gt;-rc.&lt;n&gt;</span> (e.g. <span class="tt">build-v1.2-rc.1</span>)  </td><td class="markdownTableBodyNone">the twice-monthly <b>rc schedule</b> (<a class="el" href="release-process.html#md_docs_2RELEASE__PROCESS" title="docs/RELEASE_PROCESS.md">cadence</a>), from <span class="tt">main</span>  </td><td class="markdownTableBodyNone">A <b>release candidate</b> for the next minor: <em>ahead of</em> <span class="tt">latest</span>, so upstream breakage surfaces before it reaches a release. Never aliased to <span class="tt">latest</span>  </td></tr>
 </table>
+<p>No tag tracks <span class="tt">main</span> continuously: there is no (more) rolling or <span class="tt">experimental</span> channel.</p>
 <p>The three channels differ in <em>who decides</em>, not in what they contain:</p>
 <ul>
 <li><b>major</b> = the image contract changed - a base-image bump, a stage added or removed, a tool dropped. Only a human decides that.</li>
