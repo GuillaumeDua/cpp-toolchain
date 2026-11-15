@@ -35,7 +35,7 @@
     },
     {
       "customType": "regex",
-      "description": "Base image declared as `ARG BASE_IMAGE=` in the Dockerfile - needs its own manager rather than the `# renovate:`-annotated one above, because a digest pin has to capture currentValue and currentDigest separately",
+      "description": "Base image declared as `ARG BASE_IMAGE=` in the Dockerfile. Renovate's built-in dockerfile manager already resolves `FROM ${BASE_IMAGE}` through the ARG, so Renovate sees this pin twice, and the duplicate is deliberate: render_manifest.py and check_dependencies_pins.py take the managers here as their Dockerfile parser spec, so a pin only a built-in manager covers is missing from the release note's content table and fails the pins guard as unwatched. Separate from the `# renovate:`-annotated manager above because a digest pin captures currentValue and currentDigest as two groups",
       "managerFilePatterns": ["/^Dockerfile$/"],
       "matchStrings": [
         "ARG BASE_IMAGE=(?<depName>[^:@\\s]+):(?<currentValue>[^@\\s]+)(@(?<currentDigest>sha256:[a-f0-9]+))?"
