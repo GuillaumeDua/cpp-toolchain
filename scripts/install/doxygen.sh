@@ -75,17 +75,7 @@ if [[ -z "${tag}" ]]; then
     exit 1
 fi
 
-# dpkg is the authority inside the images; outside them - a contributor rendering the site on a
-# non-Debian host - fall back to the kernel's own name for the architecture.
-if command -v dpkg &>/dev/null; then
-    arch="$(dpkg --print-architecture)"
-else
-    case "$(uname -m)" in
-        x86_64 )  arch=amd64 ;;
-        aarch64 ) arch=arm64 ;;
-        * )       arch="$(uname -m)" ;;
-    esac
-fi
+arch="$(host_architecture)"
 
 if [[ "${arch}" != "amd64" ]]; then
     # apt writes /usr/bin whatever prefix was asked for, so it cannot satisfy this call.

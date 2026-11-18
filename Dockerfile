@@ -71,6 +71,11 @@ ARG IWYU_VERSION=0.26
 # renovate: datasource=github-releases depName=Kitware/CMake extractVersion=^v(?<version>\d+\.\d+\.\d+)$
 ARG CMAKE_VERSION=4.4.0
 
+# Ninja, from the pre-built binary upstream publishes per platform.
+#   The archive's `ninja-build` is 1.11.1, from August 2022, and the snapshot above freezes it there.
+# renovate: datasource=github-releases depName=ninja-build/ninja extractVersion=^v(?<version>\d+\.\d+\.\d+)$
+ARG NINJA_VERSION=1.13.2
+
 # vcpkg release tag - dated, so loose versioning rather than semver.
 # renovate: datasource=github-tags depName=microsoft/vcpkg versioning=loose
 ARG VCPKG_VERSION=2026.06.24
@@ -240,7 +245,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         sudo tzdata curl libssl-dev                         \
         less tar zip unzip gzip                             \
         build-essential pkg-config                          \
-        make ninja-build                                    \
+        make                                                \
         ccache                                              \
         git                                                 \
     && rm -rf /var/lib/apt/lists/*
@@ -273,6 +278,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     chmod +x ${script_path}                                                     \
     && ${script_path} --silent=yes --alias=yes --versions="$CMAKE_VERSION"      \
     && rm -rf /var/lib/apt/lists/*
+
+# Build: Ninja (https://ninja-build.org)
+COPY ./scripts/install/ninja.sh ${TOOLCHAIN_TMP_DIR}/scripts/ninja.sh
+WORKDIR ${TOOLCHAIN_TMP_DIR}
+ARG NINJA_VERSION
+RUN script_path=${TOOLCHAIN_TMP_DIR}/scripts/ninja.sh;                          \
+    echo -e "[C++ toolchain] Installing NINJA_VERSION=[$NINJA_VERSION] ..." ;   \
+    chmod +x ${script_path}                                                     \
+    && ${script_path} --silent=yes --versions="$NINJA_VERSION"
 
 # Build: Bazel (https://bazel.build/install/ubuntu)
 #   bazel.sh owns the apt repository registration and the amd64-only guard: the repository ships no

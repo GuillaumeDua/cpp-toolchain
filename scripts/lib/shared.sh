@@ -208,6 +208,22 @@ max_symbol_version(){
     printf '%s' "${found:--}"
 }
 
+# The architecture as dpkg names it, the spelling an upstream release asset is keyed by.
+# dpkg is the authority inside the images; outside them the kernel's own name stands in, mapped
+# where the two spellings differ and passed through where they do not.
+host_architecture(){
+    if command -v dpkg >/dev/null 2>&1; then
+        dpkg --print-architecture
+        return
+    fi
+
+    case "$(uname -m)" in
+        x86_64 )  echo 'amd64' ;;
+        aarch64 ) echo 'arm64' ;;
+        * )       uname -m ;;
+    esac
+}
+
 package_of(){
     [ "${has_dpkg}" -eq 1 ] || { printf '%s' '-'; return; }
 

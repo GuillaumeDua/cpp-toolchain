@@ -6,7 +6,7 @@ In this repository they source their shared helpers instead of carrying them, so
 
 | Directory | Scope | What lives there |
 | --------- | ----- | ---------------- |
-| [install/](install/) | **Public** - standalone | Toolchain installers - `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh`, `doxygen.sh`, `bazel.sh`, `build2.sh`. Reusable on any Debian/Ubuntu-based system, with no dependency on this repository. See [install/README.md](install/README.md) for the full option reference. |
+| [install/](install/) | **Public** - standalone | Toolchain installers - `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh`, `doxygen.sh`, `ninja.sh`, `bazel.sh`, `build2.sh`. Reusable on any Debian/Ubuntu-based system, with no dependency on this repository. See [install/README.md](install/README.md) for the full option reference. |
 | [checks/](checks/) | **Public** - standalone | `cxx-standards.sh` - which C++ standards a compiler accepts. `cxx-stdlibs.sh` - which C++ standard libraries are installed, with the `SONAME` and ABI version a binary will need to find. `c-stdlibs.sh` - the same, for the C standard library. Point either at any machine, checkout or not. See [checks/README.md](checks/README.md). |
 | [build/](build/) | Internal | `iwyu.sh` - include-what-you-use, which upstream publishes as source only. Internal: it builds against an LLVM at a given prefix, not against an arbitrary host. |
 | [checks/details/](checks/details/) | Internal | The image validation gate, which runs *inside* a built image: it knows this repo's expected package origins and asks its installers what is present. See [docs/IMAGES_VALIDATION.md](../docs/IMAGES_VALIDATION.md). |
