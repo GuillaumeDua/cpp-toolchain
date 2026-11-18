@@ -262,6 +262,39 @@ sudo ./doxygen.sh Release_1_17_0                        # -> /usr/local/bin/doxy
 
 ---
 
+## `ninja.sh`
+
+```bash
+sudo ./ninja.sh [options]
+```
+
+Installs the pre-built `ninja` binary upstream publishes per platform, as `/usr/local/bin/ninja`.
+The alternative is the distribution's `ninja-build` package, which lags: Ubuntu 24.04 carries 1.11.1, released in August 2022.
+Unpacking the release asset needs the `unzip` package.
+
+`x86_64` and `aarch64` are the architectures upstream builds for.
+On any other, the `ninja-build` package is installed instead - older, but the only portable option short of a source build.
+
+| Option             | Type    | Default  | Description                                                                           |
+| ------------------ | ------- | -------- | ------------------------------------------------------------------------------------- |
+| `-v`, `--versions` | string  | `latest` | `latest` \| a published release, with or without the tag's `v` prefix (e.g. `1.13.2`) |
+| `-s`, `--silent`   | boolean | `1`      | Suppress log output                                                                   |
+| `-h`, `--help`     | -       | -        | Display usage                                                                         |
+
+Boolean values accept `y|yes|1|true` / `n|no|0|false` (case-insensitive).
+
+`latest` resolves through the redirect `github.com` serves on `/releases/latest/download/`, so no API call and no token are involved.
+It is what a host wanting the newest Ninja asks for; a pinned build names the version instead, as the [Dockerfile](../../Dockerfile)'s `ARG NINJA_VERSION` does.
+
+**Example**: the newest release, then a pinned one:
+
+```bash
+sudo ./ninja.sh
+sudo ./ninja.sh --versions=1.13.2
+```
+
+---
+
 ## `bazel.sh`
 
 ```bash

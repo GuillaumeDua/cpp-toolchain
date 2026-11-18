@@ -181,12 +181,12 @@ Everything below is also published as a browsable site at <https://guillaumedua.
 | [docs/CROSS-COMPILATION.md](docs/CROSS-COMPILATION.md) | Cross-architecture compilation: published targets, what links and what does not, multilib |
 | [docs/COVERAGE.md](docs/COVERAGE.md) | Code coverage: GNU `gcov`/`lcov` and LLVM `llvm-cov`/`llvm-profdata` |
 | [docs/IMAGES_VALIDATION.md](docs/IMAGES_VALIDATION.md) | Images validation gate: what proves an image still fills its purpose, and how to run it |
-| [scripts/install/README.md](scripts/install/README.md) | Installation scripts reference: `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh`, `doxygen.sh`, `bazel.sh`, `build2.sh` |
+| [scripts/install/README.md](scripts/install/README.md) | Installation scripts reference: `cmake.sh`, `gcc.sh`, `llvm.sh`, `binutils.sh`, `doxygen.sh`, `ninja.sh`, `bazel.sh`, `build2.sh` |
 | [HOW_TO_CONTRIBUTE.md](HOW_TO_CONTRIBUTE.md) | Contribution workflow |
 
 ## Dependency updates
 
-**Every version the [Dockerfile](Dockerfile) names is pinned** - base image (by digest), GCC, Clang/LLVM, CMake, vcpkg, Conan, Doxygen, build2, oh-my-zsh (by commit) and powerlevel10k - and [Renovate](renovate.json) tracks all of them but the archive snapshot, which [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) moves instead.
+**Every version the [Dockerfile](Dockerfile) names is pinned** - base image (by digest), GCC, Clang/LLVM, CMake, Ninja, vcpkg, Conan, Doxygen, build2, oh-my-zsh (by commit) and powerlevel10k - and [Renovate](renovate.json) tracks all of them but the archive snapshot, which [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) moves instead.
 The actions the [workflows](.github/workflows) run are pinned to commit digests and tracked the same way.
 No pin spells `latest`, so two builds of one commit request the same versions.
 
@@ -194,7 +194,7 @@ That has two consequences worth knowing:
 
 - **Updates arrive as reviewable pull requests**, not silently on a rebuild.  
   A version bump that the upstream apt repository has not published yet fails the build gate, so it stays a red PR instead of a broken image.
-- **The ~20 distro packages** (`ninja`, `cppcheck`, `valgrind`, `gdb`, `lcov`, ...) are frozen by an [Ubuntu archive snapshot](https://snapshot.ubuntu.com) rather than pinned one by one.  
+- **The ~20 distro packages** (`ccache`, `cppcheck`, `valgrind`, `gdb`, `lcov`, ...) are frozen by an [Ubuntu archive snapshot](https://snapshot.ubuntu.com) rather than pinned one by one.  
   The timestamp moves monthly via [ubuntu-snapshot](.github/workflows/ubuntu-snapshot.yml) - Renovate cannot track it, because the service publishes no index of valid timestamps.
 
 > [!NOTE]

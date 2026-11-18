@@ -267,6 +267,7 @@ docker build -t cpp-toolchain:dev . \
 | Name | default | description | example |
 | ---- | ------- | ----------- | ------- |
 | CMAKE_VERSION | *pinned* | exact version, or `latest` | `latest` |
+| NINJA_VERSION | *pinned* | exact version, or `latest` | `latest` |
 | GCC_VERSIONS | *pinned* | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`9 11 13` |
 | LLVM_VERSIONS | *pinned* | `all`<br>`latest`<br>`latest-stable`<br>`>=(number)`<br>`(space-separated-numbers...)` | `all`<br>`latest`<br>`>=13`<br>`11 13` |
 | BINUTILS_TARGETS | `''` (none) | Cross toolchain target triplets; empty = lean, a list = cross-arch variant | `'aarch64-linux-gnu riscv64-linux-gnu'` |

@@ -4,7 +4,7 @@ name: ubuntu-snapshot
 #   a datasource has to enumerate the available versions, and snapshot.ubuntu.com accepts any timestamp without publishing an index of them.
 #   This workflow stands in for Renovate - same cadence, same `dependencies` label, same review path through a pull request and the build gate.
 #
-# Moving the timestamp forward is what lets the ~20 unpinned distro packages (ninja, cppcheck, valgrind, gdb, lcov, ...) pick up upstream updates.
+# Moving the timestamp forward is what lets the ~20 unpinned distro packages (ccache, cppcheck, valgrind, gdb, lcov, ...) pick up upstream updates.
 # Between bumps those packages are frozen, so two builds of one commit install the same distro package set.
 on:
   schedule:

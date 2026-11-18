@@ -608,10 +608,10 @@ class Content(unittest.TestCase):
         self.assertIn("| gcc-13 | `apt` | `13.4.0` | `build` |", rows)
 
     def test_rows_read_in_build_order(self):
-        versions = {"tools": {"lcov": "2.0", "ninja": "1.11.1"}}
-        introduced = {"tools": {"lcov": "documentation dev", "ninja": "build"}}
+        versions = {"tools": {"lcov": "2.0", "ccache": "4.9.1"}}
+        introduced = {"tools": {"lcov": "documentation dev", "ccache": "build"}}
         rows = render_manifest.content_table({}, [], self.LABELS, {}, versions, introduced)
-        self.assertLess(rows.index("| ninja | `apt` | `1.11.1` | `build` |"),
+        self.assertLess(rows.index("| ccache | `apt` | `4.9.1` | `build` |"),
                         rows.index("| lcov | `apt` | `2.0` | `documentation`, `dev` |"))
 
     def test_a_record_with_no_collection_holds_the_pins_alone(self):

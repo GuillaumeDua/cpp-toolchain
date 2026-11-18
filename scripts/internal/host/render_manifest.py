@@ -99,6 +99,7 @@ LABEL_GROUPS = (
     )),
     ("build", (
         ("Kitware/CMake", "CMake"),
+        ("ninja-build/ninja", "Ninja"),
         ("microsoft/vcpkg", "vcpkg"),
         ("conan", "Conan"),
         ("build2/build2-toolchain", "build2"),
@@ -130,6 +131,7 @@ COLLECTED_BY_PIN = {
     "ubuntu": ("distribution", "ubuntu"),
     "UBUNTU_SNAPSHOT": ("distribution", "ubuntu-snapshot"),
     "Kitware/CMake": ("tools", "cmake"),
+    "ninja-build/ninja": ("tools", "ninja"),
     "microsoft/vcpkg": ("tools", "vcpkg"),
     "conan": ("tools", "conan"),
     "doxygen/doxygen": ("tools", "doxygen"),
