@@ -7,6 +7,7 @@ var standalone_scripts =
       [ "<span class=\"tt\">llvm.sh</span>", "install-scripts.html#llvmsh", null ],
       [ "<span class=\"tt\">binutils.sh</span>", "install-scripts.html#binutilssh", null ],
       [ "<span class=\"tt\">doxygen.sh</span>", "install-scripts.html#doxygensh", null ],
+      [ "<span class=\"tt\">ninja.sh</span>", "install-scripts.html#ninjash", null ],
       [ "<span class=\"tt\">bazel.sh</span>", "install-scripts.html#bazelsh", null ],
       [ "<span class=\"tt\">build2.sh</span>", "install-scripts.html#build2sh", null ]
     ] ],

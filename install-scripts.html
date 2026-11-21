@@ -425,6 +425,27 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('install-script
 <div class="fragment"><div class="line">sudo ./doxygen.sh Release_1_17_0                        # -&gt; /usr/local/bin/doxygen</div>
 <div class="line">./doxygen.sh --prefix=&quot;${HOME}/.local&quot; Release_1_17_0   # -&gt; ~/.local/bin/doxygen, no root</div>
 </div><!-- fragment --><hr  />
+<h1 class="doxsection"><a class="anchor" id="ninjash"></a>
+<span class="tt">ninja.sh</span></h1>
+<div class="fragment"><div class="line">sudo ./ninja.sh [options]</div>
+</div><!-- fragment --><p>Installs the pre-built <span class="tt">ninja</span> binary upstream publishes per platform, as <span class="tt">/usr/local/bin/ninja</span>. The alternative is the distribution's <span class="tt">ninja-build</span> package, which lags: Ubuntu 24.04 carries 1.11.1, released in August 2022. Unpacking the release asset needs the <span class="tt">unzip</span> package.</p>
+<p><span class="tt">x86_64</span> and <span class="tt">aarch64</span> are the architectures upstream builds for. On any other, the <span class="tt">ninja-build</span> package is installed instead - older, but the only portable option short of a source build.</p>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Option  </th><th class="markdownTableHeadNone">Type  </th><th class="markdownTableHeadNone">Default  </th><th class="markdownTableHeadNone">Description  </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">-v</span>, <span class="tt">--versions</span>  </td><td class="markdownTableBodyNone">string  </td><td class="markdownTableBodyNone"><span class="tt">latest</span>  </td><td class="markdownTableBodyNone"><span class="tt">latest</span> | a published release, with or without the tag's <span class="tt">v</span> prefix (e.g. <span class="tt">1.13.2</span>)  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">-s</span>, <span class="tt">--silent</span>  </td><td class="markdownTableBodyNone">boolean  </td><td class="markdownTableBodyNone"><span class="tt">1</span>  </td><td class="markdownTableBodyNone">Suppress log output  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">-h</span>, <span class="tt">--help</span>  </td><td class="markdownTableBodyNone">-  </td><td class="markdownTableBodyNone">-  </td><td class="markdownTableBodyNone">Display usage  </td></tr>
+</table>
+<p>Boolean values accept <span class="tt">y|yes|1|true</span> / <span class="tt">n|no|0|false</span> (case-insensitive).</p>
+<p><span class="tt">latest</span> resolves through the redirect <span class="tt">github.com</span> serves on <span class="tt">/releases/latest/download/</span>, so no API call and no token are involved. It is what a host wanting the newest Ninja asks for; a pinned build names the version instead, as the <a href="https://github.com/GuillaumeDua/cpp-toolchain/blob/main/Dockerfile">Dockerfile</a>'s <span class="tt">ARG NINJA_VERSION</span> does.</p>
+<p><b>Example</b>: the newest release, then a pinned one:</p>
+<div class="fragment"><div class="line">sudo ./ninja.sh</div>
+<div class="line">sudo ./ninja.sh --versions=1.13.2</div>
+</div><!-- fragment --><hr  />
 <h1 class="doxsection"><a class="anchor" id="bazelsh"></a>
 <span class="tt">bazel.sh</span></h1>
 <div class="fragment"><div class="line">sudo ./bazel.sh [options]</div>
